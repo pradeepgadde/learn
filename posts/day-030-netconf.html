@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 030 · NETCONF with ncclient: configs as XML — Learn with Pradeep</title>
+  <meta name="description" content="NETCONF gives you transactional, schema-validated config changes — no CLI parsing, no half-applied configs. ncclient is the Python client.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 030 &middot; Third-party &middot; Networking</div>
+      <h1>NETCONF with ncclient: configs as XML</h1>
+      <p class="subtitle">
+        Transactional, schema-validated config changes &mdash; no
+        screen-scraping, no half-applied configs. The protocol the
+        CLI should have been.
+      </p>
+      <div class="article-meta">
+        <span>30 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>NETCONF is the standards-track replacement for CLI
+        scraping: structured XML over SSH, with separate
+        <code>candidate</code> and <code>running</code> datastores,
+        atomic commits, and rollback. <code>ncclient</code> is the
+        Python client. Lock the datastore, edit, validate, commit
+        &mdash; or roll back cleanly.</p>
+      </div>
+
+      <p>
+        CLI automation has fundamental problems: prompt parsing,
+        device-specific quirks, and worst of all, no transactions.
+        A config push that fails halfway through leaves the device
+        in a half-broken state. NETCONF (RFC 6241) was designed to
+        fix all of this.
+      </p>
+
+      <h2>Connecting</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">ncclient</span> <span class="tok-k">import</span> <span class="tok-n">manager</span>
+
+<span class="tok-n">conn</span> = <span class="tok-n">manager</span>.<span class="tok-f">connect</span>(
+    <span class="tok-n">host</span>=<span class="tok-s">"router-01"</span>,
+    <span class="tok-n">port</span>=<span class="tok-n">830</span>,                          <span class="tok-c"># NETCONF default port</span>
+    <span class="tok-n">username</span>=<span class="tok-s">"netadmin"</span>,
+    <span class="tok-n">key_filename</span>=<span class="tok-s">"~/.ssh/id_ed25519"</span>,
+    <span class="tok-n">hostkey_verify</span>=<span class="tok-k">True</span>,
+    <span class="tok-n">device_params</span>={<span class="tok-s">"name"</span>: <span class="tok-s">"iosxe"</span>},  <span class="tok-c"># or 'junos', 'nexus', ...</span>
+)
+
+<span class="tok-c"># See what the device offers</span>
+<span class="tok-k">for</span> <span class="tok-n">cap</span> <span class="tok-k">in</span> <span class="tok-n">conn</span>.<span class="tok-n">server_capabilities</span>:
+    <span class="tok-k">if</span> <span class="tok-s">"yang"</span> <span class="tok-k">in</span> <span class="tok-n">cap</span>:
+        <span class="tok-f">print</span>(<span class="tok-n">cap</span>)</code></pre>
+
+      <p>
+        Capabilities are the device's contract: which YANG models it
+        supports, whether it has writable
+        <code>candidate</code> and <code>startup</code> datastores,
+        whether it supports <code>:rollback-on-error</code>. Worth
+        printing once per device type.
+      </p>
+
+      <h2>Reading config and state</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Filter to just the interfaces tree</span>
+<span class="tok-n">filt</span> = <span class="tok-s">"""
+&lt;filter&gt;
+  &lt;interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"/&gt;
+&lt;/filter&gt;
+"""</span>
+
+<span class="tok-n">reply</span> = <span class="tok-n">conn</span>.<span class="tok-f">get_config</span>(<span class="tok-n">source</span>=<span class="tok-s">"running"</span>, <span class="tok-n">filter</span>=<span class="tok-n">filt</span>)
+<span class="tok-f">print</span>(<span class="tok-n">reply</span>.<span class="tok-n">data_xml</span>[:<span class="tok-n">300</span>])</code></pre>
+
+      <p>
+        <code>get</code> returns operational state (counters, link
+        status); <code>get_config</code> returns persisted config.
+        Different things, different endpoints &mdash; an important
+        NETCONF distinction the CLI doesn't make.
+      </p>
+
+      <h2>The atomic edit-validate-commit cycle</h2>
+
+      <p>
+        Here's the workflow you can't safely do over CLI: lock
+        the candidate datastore, apply changes, validate, commit
+        if good, discard if bad.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">payload</span> = <span class="tok-s">"""
+&lt;config&gt;
+  &lt;interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"&gt;
+    &lt;interface&gt;
+      &lt;name&gt;GigabitEthernet1/0/24&lt;/name&gt;
+      &lt;description&gt;uplink to dc-router-02&lt;/description&gt;
+      &lt;enabled&gt;true&lt;/enabled&gt;
+    &lt;/interface&gt;
+  &lt;/interfaces&gt;
+&lt;/config&gt;
+"""</span>
+
+<span class="tok-k">with</span> <span class="tok-n">conn</span>.<span class="tok-f">locked</span>(<span class="tok-s">"candidate"</span>):
+    <span class="tok-n">conn</span>.<span class="tok-f">edit_config</span>(<span class="tok-n">target</span>=<span class="tok-s">"candidate"</span>, <span class="tok-n">config</span>=<span class="tok-n">payload</span>)
+    <span class="tok-n">conn</span>.<span class="tok-f">validate</span>(<span class="tok-n">source</span>=<span class="tok-s">"candidate"</span>)
+    <span class="tok-n">conn</span>.<span class="tok-f">commit</span>()
+<span class="tok-c"># Lock auto-released. If anything raised, candidate is dropped.</span></code></pre>
+
+      <p>
+        Three guarantees you don't get from CLI: nobody else can
+        edit while you hold the lock, the device validates the full
+        config before applying, and the change is atomic &mdash; all
+        of it or none of it.
+      </p>
+
+      <h2>Confirmed commits: rollback if you don't confirm</h2>
+
+      <p>
+        The networking equivalent of "don't lock yourself out": apply
+        a change, but tell the device to roll it back automatically
+        if you don't confirm within N seconds.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">conn</span>.<span class="tok-f">edit_config</span>(<span class="tok-n">target</span>=<span class="tok-s">"candidate"</span>, <span class="tok-n">config</span>=<span class="tok-n">payload</span>)
+<span class="tok-n">conn</span>.<span class="tok-f">commit</span>(<span class="tok-n">confirmed</span>=<span class="tok-k">True</span>, <span class="tok-n">timeout</span>=<span class="tok-s">"60"</span>)
+
+<span class="tok-c"># Verify the change worked, then:</span>
+<span class="tok-n">conn</span>.<span class="tok-f">commit</span>()       <span class="tok-c"># confirms
+
+# If you can't reach the device after the change, it auto-rolls back.</span></code></pre>
+
+      <p>
+        This is the safety net for ACL changes, OSPF reconfigs,
+        anything where the change could sever the management plane.
+        Junos has had it for years; modern IOS-XE supports it too.
+      </p>
+
+      <h2>Building XML in Python instead of strings</h2>
+
+      <p>
+        Hand-writing XML strings is fragile. <code>lxml</code> or
+        <code>xmltodict</code> let you build the payload from
+        Python data structures.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">xmltodict</span>
+
+<span class="tok-n">data</span> = {
+    <span class="tok-s">"config"</span>: {
+        <span class="tok-s">"interfaces"</span>: {
+            <span class="tok-s">"@xmlns"</span>: <span class="tok-s">"urn:ietf:params:xml:ns:yang:ietf-interfaces"</span>,
+            <span class="tok-s">"interface"</span>: {
+                <span class="tok-s">"name"</span>:        <span class="tok-s">"GigabitEthernet1/0/24"</span>,
+                <span class="tok-s">"description"</span>: <span class="tok-s">"uplink"</span>,
+                <span class="tok-s">"enabled"</span>:     <span class="tok-s">"true"</span>,
+            },
+        },
+    },
+}
+<span class="tok-n">payload</span> = <span class="tok-n">xmltodict</span>.<span class="tok-f">unparse</span>(<span class="tok-n">data</span>, <span class="tok-n">full_document</span>=<span class="tok-k">False</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          NETCONF is one of three structured-management protocols
+          you'll encounter: NETCONF (XML, mature), RESTCONF (HTTP+JSON,
+          newer), and gNMI (gRPC, streaming telemetry). All three
+          are based on YANG models. Pick by what your devices
+          support; the data shapes are similar.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          On a lab device that supports NETCONF, write a script
+          that locks the candidate, sets a description on a
+          loopback interface, validates, and commits &mdash; with a
+          confirmed-commit timeout of 30 seconds. Then deliberately
+          skip the confirm and watch the device roll back the
+          change on its own.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-029-pyats-genie.html">
+        <span class="label">← Previous</span>
+        <span class="title">pyATS &amp; Genie: structured network testing</span>
+      </a>
+      <a class="next" href="day-031-rich.html">
+        <span class="label">Next →</span>
+        <span class="title">rich: terminal output that doesn't suck</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

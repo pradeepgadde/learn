@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 024 · SSH to devices: paramiko vs netmiko — Learn with Pradeep</title>
+  <meta name="description" content="paramiko is the SSH library; netmiko is the network-device library built on top of it. When to use each, and the gotchas around enable mode and prompts.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 024 &middot; Third-party &middot; Networking</div>
+      <h1>SSH to devices: paramiko vs netmiko</h1>
+      <p class="subtitle">
+        <code>paramiko</code> is the SSH library. <code>netmiko</code>
+        is the network-device wrapper that knows about prompts, enable
+        mode, and config sessions. Pick by the job.
+      </p>
+      <div class="article-meta">
+        <span>24 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>For Linux servers, <code>paramiko</code> (or
+        <code>fabric</code> on top of it). For network gear &mdash;
+        Cisco, Arista, Juniper, anything with an enable prompt and a
+        prompt-driven CLI &mdash; <code>netmiko</code> handles the
+        device-specific quirks so you don't have to. Both run on top
+        of OpenSSH-compatible servers.</p>
+      </div>
+
+      <p>
+        SSH automation in Python splits cleanly into "I'm running
+        Linux commands on a server" and "I'm interacting with a
+        network device over its CLI." Different problems, different
+        libraries.
+      </p>
+
+      <h2>paramiko: server-style SSH</h2>
+
+      <p>
+        <code>paramiko</code> is a pure-Python SSH client and server.
+        It's the foundation under <code>fabric</code>,
+        <code>netmiko</code>, and most Python-based deployment tools.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">paramiko</span>
+
+<span class="tok-n">client</span> = <span class="tok-n">paramiko</span>.<span class="tok-f">SSHClient</span>()
+<span class="tok-n">client</span>.<span class="tok-f">load_system_host_keys</span>()
+<span class="tok-n">client</span>.<span class="tok-n">set_missing_host_key_policy</span>(<span class="tok-n">paramiko</span>.<span class="tok-f">RejectPolicy</span>())
+
+<span class="tok-n">client</span>.<span class="tok-f">connect</span>(<span class="tok-s">"server.local"</span>, <span class="tok-n">username</span>=<span class="tok-s">"pradeep"</span>, <span class="tok-n">key_filename</span>=<span class="tok-s">"~/.ssh/id_ed25519"</span>)
+
+<span class="tok-n">_</span>, <span class="tok-n">stdout</span>, <span class="tok-n">stderr</span> = <span class="tok-n">client</span>.<span class="tok-f">exec_command</span>(<span class="tok-s">"systemctl status nginx"</span>)
+<span class="tok-f">print</span>(<span class="tok-n">stdout</span>.<span class="tok-f">read</span>().<span class="tok-f">decode</span>())
+<span class="tok-n">client</span>.<span class="tok-f">close</span>()</code></pre>
+
+      <p>
+        Notice <code>RejectPolicy</code>, not <code>AutoAddPolicy</code>.
+        Auto-adding unknown host keys is the SSH equivalent of
+        skipping TLS verification &mdash; tempting in tutorials,
+        wrong in production.
+      </p>
+
+      <h2>netmiko: device-aware SSH</h2>
+
+      <p>
+        Network devices have prompts, paging
+        (<code>--More--</code>), enable modes, and configure-terminal
+        sessions. <code>paramiko</code> knows none of that.
+        <code>netmiko</code> ships a <code>device_type</code> registry
+        with the right behavior for each platform.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">netmiko</span> <span class="tok-k">import</span> <span class="tok-n">ConnectHandler</span>
+
+<span class="tok-n">device</span> = {
+    <span class="tok-s">"device_type"</span>: <span class="tok-s">"cisco_ios"</span>,
+    <span class="tok-s">"host"</span>:        <span class="tok-s">"core-sw-01"</span>,
+    <span class="tok-s">"username"</span>:    <span class="tok-s">"netadmin"</span>,
+    <span class="tok-s">"password"</span>:    <span class="tok-n">os</span>.<span class="tok-n">environ</span>[<span class="tok-s">"NET_PASS"</span>],
+    <span class="tok-s">"secret"</span>:      <span class="tok-n">os</span>.<span class="tok-n">environ</span>[<span class="tok-s">"NET_ENABLE"</span>],
+}
+
+<span class="tok-k">with</span> <span class="tok-f">ConnectHandler</span>(<span class="tok-o">**</span><span class="tok-n">device</span>) <span class="tok-k">as</span> <span class="tok-n">net</span>:
+    <span class="tok-n">net</span>.<span class="tok-f">enable</span>()
+    <span class="tok-n">output</span> = <span class="tok-n">net</span>.<span class="tok-f">send_command</span>(<span class="tok-s">"show ip interface brief"</span>)
+    <span class="tok-f">print</span>(<span class="tok-n">output</span>)</code></pre>
+
+      <p>
+        <code>send_command</code> waits for the device prompt to
+        return, strips paging, and times out cleanly. Compare that
+        to writing your own prompt-detection regex over a raw
+        paramiko channel &mdash; which is what people did for years
+        before netmiko existed.
+      </p>
+
+      <h2>Pushing config with netmiko</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">commands</span> = [
+    <span class="tok-s">"interface GigabitEthernet1/0/24"</span>,
+    <span class="tok-s">" description uplink to dc-router-02"</span>,
+    <span class="tok-s">" switchport mode trunk"</span>,
+    <span class="tok-s">" no shutdown"</span>,
+]
+
+<span class="tok-k">with</span> <span class="tok-f">ConnectHandler</span>(<span class="tok-o">**</span><span class="tok-n">device</span>) <span class="tok-k">as</span> <span class="tok-n">net</span>:
+    <span class="tok-n">net</span>.<span class="tok-f">enable</span>()
+    <span class="tok-n">result</span> = <span class="tok-n">net</span>.<span class="tok-f">send_config_set</span>(<span class="tok-n">commands</span>)
+    <span class="tok-n">net</span>.<span class="tok-f">save_config</span>()
+    <span class="tok-f">print</span>(<span class="tok-n">result</span>)</code></pre>
+
+      <p>
+        <code>send_config_set</code> handles entering and exiting
+        config mode for you. <code>save_config</code> issues the
+        right command for the platform &mdash; <code>copy run start</code>
+        on Cisco IOS, <code>commit</code> on Junos, etc.
+      </p>
+
+      <h2>Structured output with TextFSM</h2>
+
+      <p>
+        Network commands return formatted text, not JSON. netmiko
+        bundles <a href="https://github.com/networktocode/ntc-templates">ntc-templates</a>
+        &mdash; pass <code>use_textfsm=True</code> and you get a list
+        of dicts back instead of raw text.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">interfaces</span> = <span class="tok-n">net</span>.<span class="tok-f">send_command</span>(
+    <span class="tok-s">"show ip interface brief"</span>,
+    <span class="tok-n">use_textfsm</span>=<span class="tok-k">True</span>,
+)
+<span class="tok-c"># [{'interface': 'Gi1/0/1', 'ipaddr': '10.0.0.1', 'status': 'up', ...}, ...]
+
+<span class="tok-n">up</span> = [<span class="tok-n">i</span> <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-n">interfaces</span> <span class="tok-k">if</span> <span class="tok-n">i</span>[<span class="tok-s">"status"</span>] == <span class="tok-s">"up"</span>]</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For dozens of devices in parallel, neither library is
+          async. Wrap your per-device function in a
+          <code>ThreadPoolExecutor</code> &mdash; SSH is I/O-bound,
+          so threads work fine. For hundreds of devices,
+          <code>nornir</code> or <code>asyncssh</code> become worth
+          the migration cost.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick three devices on your network. Write a script that
+          connects to each, runs <code>show version</code>, and
+          prints a one-line summary: hostname, model, software
+          version. Use <code>use_textfsm=True</code> so you can
+          extract fields by name instead of parsing strings.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-023-socket.html">
+        <span class="label">← Previous</span>
+        <span class="title">socket: the bare metal of TCP</span>
+      </a>
+      <a class="next" href="day-025-asyncssh.html">
+        <span class="label">Next →</span>
+        <span class="title">asyncssh: poll 100 devices in parallel</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

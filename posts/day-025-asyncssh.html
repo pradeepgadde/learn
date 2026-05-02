@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 025 · asyncssh: poll 100 devices in parallel — Learn with Pradeep</title>
+  <meta name="description" content="asyncssh is paramiko done over asyncio. Hundreds of concurrent SSH sessions on a single thread. The right tool for fleet-wide commands.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 025 &middot; Third-party &middot; Networking</div>
+      <h1>asyncssh: poll 100 devices in parallel</h1>
+      <p class="subtitle">
+        Paramiko, but on <code>asyncio</code>. Hundreds of SSH
+        sessions on one thread, in roughly the time of one.
+      </p>
+      <div class="article-meta">
+        <span>25 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>asyncssh</code> gives you a clean async/await API
+        for SSH. Combined with <code>asyncio.gather</code> and a
+        <code>Semaphore</code> for backpressure, you can run a
+        command across an entire device fleet in seconds. Use this
+        when netmiko's threaded approach starts straining.</p>
+      </div>
+
+      <p>
+        Threads work for tens of devices. For hundreds, the overhead
+        and the GIL contention start to bite, and your script becomes
+        slower than the actual SSH round-trips justify. Async I/O is
+        what you want here &mdash; SSH is purely network-bound.
+      </p>
+
+      <h2>The minimal async SSH call</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">asyncio</span>, <span class="tok-n">asyncssh</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">run_on</span>(<span class="tok-n">host</span>, <span class="tok-n">cmd</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncssh</span>.<span class="tok-f">connect</span>(
+        <span class="tok-n">host</span>, <span class="tok-n">username</span>=<span class="tok-s">"netadmin"</span>, <span class="tok-n">known_hosts</span>=<span class="tok-k">None</span>,
+    ) <span class="tok-k">as</span> <span class="tok-n">conn</span>:
+        <span class="tok-n">result</span> = <span class="tok-k">await</span> <span class="tok-n">conn</span>.<span class="tok-f">run</span>(<span class="tok-n">cmd</span>, <span class="tok-n">check</span>=<span class="tok-k">True</span>)
+        <span class="tok-k">return</span> <span class="tok-n">host</span>, <span class="tok-n">result</span>.<span class="tok-n">stdout</span>
+
+<span class="tok-n">host</span>, <span class="tok-n">out</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">run</span>(<span class="tok-f">run_on</span>(<span class="tok-s">"core-sw-01"</span>, <span class="tok-s">"show version"</span>))</code></pre>
+
+      <p>
+        Same shape as a <code>paramiko</code> call, but every I/O
+        line is <code>await</code>ed, so the event loop can interleave
+        other connections while this one is waiting on the network.
+      </p>
+
+      <h2>Fanning out across the fleet</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">poll_all</span>(<span class="tok-n">hosts</span>, <span class="tok-n">cmd</span>):
+    <span class="tok-n">results</span> = <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">gather</span>(
+        <span class="tok-o">*</span>(<span class="tok-f">run_on</span>(<span class="tok-n">h</span>, <span class="tok-n">cmd</span>) <span class="tok-k">for</span> <span class="tok-n">h</span> <span class="tok-k">in</span> <span class="tok-n">hosts</span>),
+        <span class="tok-n">return_exceptions</span>=<span class="tok-k">True</span>,
+    )
+    <span class="tok-k">for</span> <span class="tok-n">r</span> <span class="tok-k">in</span> <span class="tok-n">results</span>:
+        <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">r</span>, <span class="tok-n">Exception</span>):
+            <span class="tok-f">print</span>(<span class="tok-s">f"FAILED: {r}"</span>)
+        <span class="tok-k">else</span>:
+            <span class="tok-n">host</span>, <span class="tok-n">out</span> = <span class="tok-n">r</span>
+            <span class="tok-f">print</span>(<span class="tok-s">f"--- {host} ---\n{out}"</span>)
+
+<span class="tok-n">asyncio</span>.<span class="tok-f">run</span>(<span class="tok-f">poll_all</span>([<span class="tok-s">"sw-01"</span>, <span class="tok-s">"sw-02"</span>, <span class="tok-s">"sw-03"</span>], <span class="tok-s">"show clock"</span>))</code></pre>
+
+      <p>
+        <code>return_exceptions=True</code> is critical for fleet
+        work. Without it, one unreachable device crashes the entire
+        gather. With it, exceptions become return values you can
+        report on.
+      </p>
+
+      <h2>Bounding concurrency with a Semaphore</h2>
+
+      <p>
+        Launching 500 concurrent SSH sessions will exhaust your file
+        descriptors and probably overwhelm your auth server. Cap it
+        with a semaphore.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">poll_bounded</span>(<span class="tok-n">hosts</span>, <span class="tok-n">cmd</span>, <span class="tok-n">limit</span>=<span class="tok-n">25</span>):
+    <span class="tok-n">sem</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">Semaphore</span>(<span class="tok-n">limit</span>)
+
+    <span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">guarded</span>(<span class="tok-n">host</span>):
+        <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">sem</span>:
+            <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-f">run_on</span>(<span class="tok-n">host</span>, <span class="tok-n">cmd</span>)
+
+    <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">gather</span>(
+        <span class="tok-o">*</span>(<span class="tok-f">guarded</span>(<span class="tok-n">h</span>) <span class="tok-k">for</span> <span class="tok-n">h</span> <span class="tok-k">in</span> <span class="tok-n">hosts</span>),
+        <span class="tok-n">return_exceptions</span>=<span class="tok-k">True</span>,
+    )</code></pre>
+
+      <p>
+        At any moment, at most 25 SSH sessions are active. As one
+        finishes, the next one starts. Your TACACS server will
+        thank you.
+      </p>
+
+      <h2>Per-call timeouts</h2>
+
+      <p>
+        Each SSH call should have a timeout, and the whole batch
+        should too. asyncssh accepts <code>connect_timeout</code>
+        on the <code>connect</code> call; wrap the run in
+        <code>asyncio.wait_for</code> to bound the command itself.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">run_on</span>(<span class="tok-n">host</span>, <span class="tok-n">cmd</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncssh</span>.<span class="tok-f">connect</span>(
+        <span class="tok-n">host</span>, <span class="tok-n">username</span>=<span class="tok-s">"netadmin"</span>, <span class="tok-n">known_hosts</span>=<span class="tok-k">None</span>,
+        <span class="tok-n">connect_timeout</span>=<span class="tok-n">5</span>,
+    ) <span class="tok-k">as</span> <span class="tok-n">conn</span>:
+        <span class="tok-n">result</span> = <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">wait_for</span>(
+            <span class="tok-n">conn</span>.<span class="tok-f">run</span>(<span class="tok-n">cmd</span>, <span class="tok-n">check</span>=<span class="tok-k">True</span>),
+            <span class="tok-n">timeout</span>=<span class="tok-n">15</span>,
+        )
+        <span class="tok-k">return</span> <span class="tok-n">host</span>, <span class="tok-n">result</span>.<span class="tok-n">stdout</span></code></pre>
+
+      <h2>SCP and SFTP, while you're here</h2>
+
+      <p>
+        <code>asyncssh</code> handles file transfer too &mdash; same
+        connection, same async pattern. Useful for grabbing config
+        backups or pushing image files.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncssh</span>.<span class="tok-f">connect</span>(<span class="tok-s">"sw-01"</span>, <span class="tok-n">username</span>=<span class="tok-s">"netadmin"</span>) <span class="tok-k">as</span> <span class="tok-n">conn</span>:
+    <span class="tok-k">await</span> <span class="tok-n">asyncssh</span>.<span class="tok-f">scp</span>((<span class="tok-n">conn</span>, <span class="tok-s">"flash:running-config"</span>), <span class="tok-s">"backups/sw-01.cfg"</span>)</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <code>known_hosts=None</code> disables host-key checking.
+          Fine for quick scripts in a controlled lab, dangerous in
+          production. For fleet work, point at your real
+          <code>known_hosts</code> file:
+          <code>known_hosts="~/.ssh/known_hosts"</code>.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take the netmiko script you wrote yesterday for "ping three
+          devices and report version." Rewrite it with
+          <code>asyncssh</code> and <code>asyncio.gather</code>.
+          Now scale it to fifty devices and time the difference.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-024-paramiko-netmiko.html">
+        <span class="label">← Previous</span>
+        <span class="title">SSH to devices: paramiko vs netmiko</span>
+      </a>
+      <a class="next" href="day-026-jinja2.html">
+        <span class="label">Next →</span>
+        <span class="title">Jinja2 for config templating</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

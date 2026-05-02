@@ -35,7 +35,7 @@
       <div class="hero-meta">
         <div class="stat">
           Skills published
-          <strong id="stat-count">021</strong>
+          <strong id="stat-count">031</strong>
         </div>
         <div class="stat">
           Reading time each
@@ -52,7 +52,7 @@
   <section class="posts-section">
     <div class="section-head">
       <h2>The collection</h2>
-      <span class="count" id="count-label">021 entries</span>
+      <span class="count" id="count-label">031 entries</span>
     </div>
 
     <!--
@@ -65,12 +65,161 @@
     -->
     <div class="posts" id="post-list">
 
-      <a class="post-card featured" href="posts/day-021-comprehensions.html">
+      <a class="post-card featured" href="posts/day-031-rich.html">
+        <span class="day-no">Day 031 &middot; Third-party</span>
+        <h3>rich: terminal output that doesn't suck</h3>
+        <p class="excerpt">
+          Tables, colors, progress bars, and JSON pretty-printing in one library. The closest Python has to a make-my-CLI-look-real button.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">tooling</span>
+            <span class="tag">cli</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-030-netconf.html">
+        <span class="day-no">Day 030 &middot; Third-party</span>
+        <h3>NETCONF with ncclient: configs as XML</h3>
+        <p class="excerpt">
+          Transactional, schema-validated config changes &mdash; no screen-scraping, no half-applied configs. The protocol the CLI should have been.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">automation</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-029-pyats-genie.html">
+        <span class="day-no">Day 029 &middot; Third-party</span>
+        <h3>pyATS &amp; Genie: structured network testing</h3>
+        <p class="excerpt">
+          A testbed YAML, parsers for thousands of <code>show</code> commands, and a real testing framework for the network itself.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">testing</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-028-textfsm.html">
+        <span class="day-no">Day 028 &middot; Third-party</span>
+        <h3>TextFSM: parse CLI output sanely</h3>
+        <p class="excerpt">
+          Stop writing brittle regex pipelines for <code>show</code> commands. Somebody else has already written most of the templates.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">parsing</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-027-scapy.html">
+        <span class="day-no">Day 027 &middot; Third-party</span>
+        <h3>Scapy: build packets like Lego</h3>
+        <p class="excerpt">
+          Stack protocol layers with the <code>/</code> operator, send them, capture replies. The most powerful four-line scripts you'll write all year.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">packets</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-026-jinja2.html">
+        <span class="day-no">Day 026 &middot; Third-party</span>
+        <h3>Jinja2 for config templating</h3>
+        <p class="excerpt">
+          Separate the config you want from the data that drives it. One template, any number of devices, fewer copy-paste sins.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">templating</span>
+            <span class="tag">automation</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-025-asyncssh.html">
+        <span class="day-no">Day 025 &middot; Third-party</span>
+        <h3>asyncssh: poll 100 devices in parallel</h3>
+        <p class="excerpt">
+          Paramiko, but on <code>asyncio</code>. Hundreds of SSH sessions on one thread, in roughly the time of one.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">async</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-024-paramiko-netmiko.html">
+        <span class="day-no">Day 024 &middot; Third-party</span>
+        <h3>SSH to devices: paramiko vs netmiko</h3>
+        <p class="excerpt">
+          <code>paramiko</code> is the SSH library. <code>netmiko</code> is the network-device wrapper that knows about prompts and enable mode.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">networking</span>
+            <span class="tag">ssh</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-023-socket.html">
+        <span class="day-no">Day 023 &middot; Standard library</span>
+        <h3>socket: the bare metal of TCP</h3>
+        <p class="excerpt">
+          The foundation under every HTTP library. A TCP port check is six lines &mdash; and the day a library fails you, knowing sockets is what gets you out.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">networking</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-022-ipaddress.html">
+        <span class="day-no">Day 022 &middot; Standard library</span>
+        <h3>ipaddress: stop parsing IPs by hand</h3>
+        <p class="excerpt">
+          Subnet math, membership tests, and IPv4/IPv6 parity &mdash; all in the standard library. You should not be splitting strings on dots in 2026.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">networking</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-021-comprehensions.html">
         <span class="day-no">Day 021 &middot; Syntax</span>
         <h3>Comprehensions you'll actually read later</h3>
         <p class="excerpt">
-          Python's most-loved feature is also its most-abused. Three
-          rules keep them on the right side of clever.
+          Python's most-loved feature is also its most-abused. Three rules keep them on the right side of clever.
         </p>
         <div class="meta">
           <div class="tags">
@@ -85,9 +234,7 @@
         <span class="day-no">Day 020 &middot; Syntax</span>
         <h3>Generators: lazy by default</h3>
         <p class="excerpt">
-          Replace one keyword and your function streams instead of
-          accumulating. The difference between OOM-ing on 10 GB and
-          processing it in 50 MB.
+          Replace one keyword and your function streams instead of accumulating. The difference between OOM-ing on 10&nbsp;GB and processing it in 50&nbsp;MB.
         </p>
         <div class="meta">
           <div class="tags">
@@ -102,10 +249,7 @@
         <span class="day-no">Day 019 &middot; Tooling</span>
         <h3>uv: pip and venv, but fast</h3>
         <p class="excerpt">
-          One Rust binary that replaces <code>pip</code>,
-          <code>venv</code>, <code>pip-tools</code>, and
-          <code>pyenv</code>. The packaging consolidation has finally
-          happened.
+          One Rust binary that replaces <code>pip</code>, <code>venv</code>, <code>pip-tools</code>, and <code>pyenv</code>. The packaging consolidation has finally happened.
         </p>
         <div class="meta">
           <div class="tags">
@@ -120,8 +264,7 @@
         <span class="day-no">Day 018 &middot; Third-party</span>
         <h3>pytest, the test you'll actually write</h3>
         <p class="excerpt">
-          Plain functions. Plain <code>assert</code>. Four built-in
-          helpers cover almost everything else.
+          Plain functions. Plain <code>assert</code>. Four built-in helpers cover almost everything else.
         </p>
         <div class="meta">
           <div class="tags">
@@ -136,9 +279,7 @@
         <span class="day-no">Day 017 &middot; Third-party</span>
         <h3>HTTP with httpx, the requests killer</h3>
         <p class="excerpt">
-          Same API as <code>requests</code>, plus the things requests
-          never grew up to support: async, HTTP/2, and a sane timeout
-          default.
+          Same API as <code>requests</code>, plus the things requests never grew up to support: async, HTTP/2, and a sane timeout default.
         </p>
         <div class="meta">
           <div class="tags">
@@ -153,8 +294,7 @@
         <span class="day-no">Day 016 &middot; Standard library</span>
         <h3>Logging that doesn't suck</h3>
         <p class="excerpt">
-          The docs lead with the hard part. The easy version is six
-          lines and worth every minute.
+          The docs lead with the hard part. The easy version is six lines and worth every minute.
         </p>
         <div class="meta">
           <div class="tags">
@@ -169,8 +309,7 @@
         <span class="day-no">Day 015 &middot; Standard library</span>
         <h3>JSON and YAML without the footguns</h3>
         <p class="excerpt">
-          Three short rules: pretty-print on write, validate on read,
-          never use <code>yaml.load</code>.
+          Three short rules: pretty-print on write, validate on read, never use <code>yaml.load</code>.
         </p>
         <div class="meta">
           <div class="tags">
@@ -185,8 +324,7 @@
         <span class="day-no">Day 014 &middot; Standard library</span>
         <h3>A real CLI in 12 lines of argparse</h3>
         <p class="excerpt">
-          You don't need Click or Typer for a useful CLI. The standard
-          library has been good enough since 2011.
+          You don't need Click or Typer for a useful CLI. The standard library has been good enough since 2011.
         </p>
         <div class="meta">
           <div class="tags">
@@ -201,8 +339,7 @@
         <span class="day-no">Day 013 &middot; Standard library</span>
         <h3>subprocess.run, done right</h3>
         <p class="excerpt">
-          Four flags turn <code>subprocess.run</code> from a footgun
-          into a tool you'd actually want to use.
+          Four flags turn <code>subprocess.run</code> from a footgun into a tool you'd actually want to use.
         </p>
         <div class="meta">
           <div class="tags">
@@ -217,9 +354,7 @@
         <span class="day-no">Day 012 &middot; Typing</span>
         <h3>Type hints, the useful 20%</h3>
         <p class="excerpt">
-          You don't need to type everything. You need to type the
-          public edges &mdash; and use the four or five constructs
-          that catch real bugs.
+          You don't need to type everything. You need to type the public edges &mdash; and use the four or five constructs that catch real bugs.
         </p>
         <div class="meta">
           <div class="tags">
@@ -234,14 +369,11 @@
         <span class="day-no">Day 011 &middot; Syntax</span>
         <h3>match isn't switch</h3>
         <p class="excerpt">
-          Treat <code>match</code> as value-comparison and you'll be
-          unimpressed. Treat it as <em>shape</em>-comparison and it
-          replaces a chapter of code.
+          Treat <code>match</code> as value-comparison and you'll be unimpressed. Treat it as <em>shape</em>-comparison and it replaces a chapter of code.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">syntax</span>
-            <span class="tag">3.10+</span>
             <span class="tag">patterns</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
@@ -252,9 +384,7 @@
         <span class="day-no">Day 010 &middot; Standard library</span>
         <h3>Custom with-blocks in 5 lines</h3>
         <p class="excerpt">
-          Decorate a generator with <code>@contextmanager</code>:
-          setup before <code>yield</code>, cleanup after. That's the
-          whole API.
+          Decorate a generator with <code>@contextmanager</code>: setup before <code>yield</code>, cleanup after. That's the whole API.
         </p>
         <div class="meta">
           <div class="tags">
@@ -269,9 +399,7 @@
         <span class="day-no">Day 009 &middot; Standard library</span>
         <h3>itertools.batched, finally</h3>
         <p class="excerpt">
-          The hand-rolled <code>chunked()</code> helper every codebase
-          had for twenty years is now a built-in. Works on generators,
-          not just sequences.
+          The hand-rolled <code>chunked()</code> helper every codebase had for twenty years is now a built-in. Works on generators, not just sequences.
         </p>
         <div class="meta">
           <div class="tags">
@@ -286,8 +414,7 @@
         <span class="day-no">Day 008 &middot; Standard library</span>
         <h3>@cache: memoization in one line</h3>
         <p class="excerpt">
-          One decorator turns a slow pure function into a fast one.
-          The cache lives for the lifetime of the process.
+          One decorator turns a slow pure function into a fast one. The cache lives for the lifetime of the process.
         </p>
         <div class="meta">
           <div class="tags">
@@ -302,14 +429,12 @@
         <span class="day-no">Day 007 &middot; Standard library</span>
         <h3>dataclasses, with kw_only</h3>
         <p class="excerpt">
-          One decorator replaces forty lines of class boilerplate. A
-          handful of options turn it into a real configuration tool.
+          One decorator replaces forty lines of class boilerplate. A handful of options turn it into a real configuration tool.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
             <span class="tag">classes</span>
-            <span class="tag">3.10+</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -319,8 +444,7 @@
         <span class="day-no">Day 006 &middot; Syntax</span>
         <h3>The walrus that earns its keep</h3>
         <p class="excerpt">
-          <code>:=</code> is divisive. Used in the right two or three
-          places, it's a code-shrinking, intent-clarifying gem.
+          <code>:=</code> is divisive. Used in the right two or three places, it's a code-shrinking, intent-clarifying gem.
         </p>
         <div class="meta">
           <div class="tags">
@@ -335,8 +459,7 @@
         <span class="day-no">Day 005 &middot; Built-ins</span>
         <h3>enumerate, and the start= you forgot</h3>
         <p class="excerpt">
-          The most-loved built-in has a forgotten parameter that does
-          exactly what you keep doing manually.
+          The most-loved built-in has a forgotten parameter that does exactly what you keep doing manually.
         </p>
         <div class="meta">
           <div class="tags">
@@ -351,9 +474,7 @@
         <span class="day-no">Day 004 &middot; Built-ins</span>
         <h3>dict.get and the missing-key dance</h3>
         <p class="excerpt">
-          Three tools, three different jobs. Knowing which to reach for
-          is what separates clean code from a forest of
-          <code>if key in d</code>.
+          Three tools, three different jobs. Knowing which to reach for is what separates clean code from a forest of <code>if key in d</code>.
         </p>
         <div class="meta">
           <div class="tags">
@@ -368,8 +489,7 @@
         <span class="day-no">Day 003 &middot; Standard library</span>
         <h3>Counting anything with Counter</h3>
         <p class="excerpt">
-          A dict that tallies, with a top-N method and arithmetic
-          between counters. The cleanest tool in the standard library.
+          A dict that tallies, with a top-N method and arithmetic between counters. The cleanest tool in the standard library.
         </p>
         <div class="meta">
           <div class="tags">
@@ -384,8 +504,7 @@
         <span class="day-no">Day 002 &middot; Standard library</span>
         <h3>Stop using os.path. Use pathlib.</h3>
         <p class="excerpt">
-          Paths are objects, not strings. Once that clicks, half your
-          file-handling code disappears.
+          Paths are objects, not strings. Once that clicks, half your file-handling code disappears.
         </p>
         <div class="meta">
           <div class="tags">
@@ -400,14 +519,12 @@
         <span class="day-no">Day 001 &middot; Strings</span>
         <h3>The hidden grammar of f-strings</h3>
         <p class="excerpt">
-          You've used <code>f"{name}"</code> a thousand times. The
-          mini-language inside the braces is where the real power lives.
+          You've used <code>f"{name}"</code> a thousand times. The mini-language inside the braces is where the real power lives.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">strings</span>
             <span class="tag">formatting</span>
-            <span class="tag">debugging</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>

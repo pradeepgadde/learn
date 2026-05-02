@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 023 · socket: the bare metal of TCP — Learn with Pradeep</title>
+  <meta name="description" content="The socket module is the foundation under every HTTP library. A TCP port check is six lines; understanding it pays off when libraries fail you.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 023 &middot; Standard library &middot; Networking</div>
+      <h1>socket: the bare metal of TCP</h1>
+      <p class="subtitle">
+        The foundation under every HTTP library. A TCP port check is
+        six lines &mdash; and the day a library fails you, knowing
+        sockets is what gets you out of trouble.
+      </p>
+      <div class="article-meta">
+        <span>23 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>socket.create_connection((host, port), timeout)</code>
+        for any TCP probe &mdash; it handles DNS, IPv4/IPv6 fallback,
+        and timeouts in one call. For DNS lookups,
+        <code>socket.getaddrinfo</code> beats <code>gethostbyname</code>
+        because it returns IPv6 results too.</p>
+      </div>
+
+      <p>
+        You'll rarely write socket code in a web app, but for network
+        probes, port scanners, custom protocols, and service health
+        checks, the <code>socket</code> module is exactly the right
+        level of abstraction.
+      </p>
+
+      <h2>The TCP port check, the right way</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">socket</span>
+
+<span class="tok-k">def</span> <span class="tok-f">tcp_open</span>(<span class="tok-n">host</span>, <span class="tok-n">port</span>, <span class="tok-n">timeout</span>=<span class="tok-n">3.0</span>):
+    <span class="tok-k">try</span>:
+        <span class="tok-k">with</span> <span class="tok-n">socket</span>.<span class="tok-f">create_connection</span>((<span class="tok-n">host</span>, <span class="tok-n">port</span>), <span class="tok-n">timeout</span>):
+            <span class="tok-k">return</span> <span class="tok-k">True</span>
+    <span class="tok-k">except</span> (<span class="tok-n">socket</span>.<span class="tok-n">timeout</span>, <span class="tok-n">OSError</span>):
+        <span class="tok-k">return</span> <span class="tok-k">False</span>
+
+<span class="tok-f">tcp_open</span>(<span class="tok-s">"github.com"</span>, <span class="tok-n">443</span>)   <span class="tok-c"># True</span>
+<span class="tok-f">tcp_open</span>(<span class="tok-s">"github.com"</span>, <span class="tok-n">9999</span>)  <span class="tok-c"># False</span></code></pre>
+
+      <p>
+        <code>create_connection</code> resolves DNS, tries each
+        returned address (IPv4 and IPv6), respects the timeout, and
+        cleans up on failure. The context manager closes the socket
+        even on exception. Six lines, no leaked file descriptors.
+      </p>
+
+      <h2>The DNS call you should be making</h2>
+
+      <p>
+        Most code uses <code>socket.gethostbyname</code>. It returns
+        a single IPv4 address and ignores IPv6 entirely.
+        <code>getaddrinfo</code> returns everything DNS knows.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">socket</span>
+
+<span class="tok-k">for</span> <span class="tok-n">family</span>, <span class="tok-n">_</span>, <span class="tok-n">_</span>, <span class="tok-n">_</span>, <span class="tok-n">sockaddr</span> <span class="tok-k">in</span> <span class="tok-n">socket</span>.<span class="tok-f">getaddrinfo</span>(
+    <span class="tok-s">"google.com"</span>, <span class="tok-n">443</span>, <span class="tok-n">type</span>=<span class="tok-n">socket</span>.<span class="tok-n">SOCK_STREAM</span>
+):
+    <span class="tok-n">label</span> = <span class="tok-s">"IPv6"</span> <span class="tok-k">if</span> <span class="tok-n">family</span> == <span class="tok-n">socket</span>.<span class="tok-n">AF_INET6</span> <span class="tok-k">else</span> <span class="tok-s">"IPv4"</span>
+    <span class="tok-f">print</span>(<span class="tok-n">label</span>, <span class="tok-n">sockaddr</span>[<span class="tok-n">0</span>])</code></pre>
+
+      <div class="output">IPv6 2607:f8b0:4005:80b::200e
+IPv4 142.250.190.78</div>
+
+      <p>
+        Filtering by <code>type=SOCK_STREAM</code> dedupes UDP
+        results so you don't see each address twice.
+      </p>
+
+      <h2>Reverse DNS</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">socket</span>.<span class="tok-f">gethostbyaddr</span>(<span class="tok-s">"8.8.8.8"</span>)
+<span class="tok-c"># ('dns.google', [], ['8.8.8.8'])</span>
+
+<span class="tok-c"># Often slow on missing PTRs — set a default timeout</span>
+<span class="tok-n">socket</span>.<span class="tok-f">setdefaulttimeout</span>(<span class="tok-n">2.0</span>)</code></pre>
+
+      <h2>A minimal "send a line, read a line" client</h2>
+
+      <p>
+        For a custom TCP protocol &mdash; a service exposing a
+        line-oriented interface, an SMTP probe, an HTTP GET sent by
+        hand &mdash; the socket file-object trick keeps it readable.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-n">socket</span>.<span class="tok-f">create_connection</span>((<span class="tok-s">"smtp.gmail.com"</span>, <span class="tok-n">25</span>), <span class="tok-n">timeout</span>=<span class="tok-n">5</span>) <span class="tok-k">as</span> <span class="tok-n">s</span>:
+    <span class="tok-n">f</span> = <span class="tok-n">s</span>.<span class="tok-f">makefile</span>(<span class="tok-s">"rwb"</span>, <span class="tok-n">buffering</span>=<span class="tok-n">0</span>)
+    <span class="tok-f">print</span>(<span class="tok-n">f</span>.<span class="tok-f">readline</span>().<span class="tok-f">decode</span>().<span class="tok-f">strip</span>())     <span class="tok-c"># server banner</span>
+    <span class="tok-n">f</span>.<span class="tok-f">write</span>(<span class="tok-s">b"EHLO probe.local\r\n"</span>)
+    <span class="tok-k">while</span> <span class="tok-n">line</span> := <span class="tok-n">f</span>.<span class="tok-f">readline</span>():
+        <span class="tok-f">print</span>(<span class="tok-n">line</span>.<span class="tok-f">decode</span>().<span class="tok-f">strip</span>())
+        <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">line</span>.<span class="tok-f">startswith</span>(<span class="tok-s">b"250-"</span>):
+            <span class="tok-k">break</span></code></pre>
+
+      <h2>Get the local IP a route would actually use</h2>
+
+      <p>
+        A favourite trick: ask the kernel which interface would be
+        chosen for a given destination, without sending any traffic.
+        UDP <code>connect</code> is purely local &mdash; it just
+        consults the routing table.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">local_ip_for</span>(<span class="tok-n">dest</span>=<span class="tok-s">"8.8.8.8"</span>):
+    <span class="tok-k">with</span> <span class="tok-n">socket</span>.<span class="tok-f">socket</span>(<span class="tok-n">socket</span>.<span class="tok-n">AF_INET</span>, <span class="tok-n">socket</span>.<span class="tok-n">SOCK_DGRAM</span>) <span class="tok-k">as</span> <span class="tok-n">s</span>:
+        <span class="tok-n">s</span>.<span class="tok-f">connect</span>((<span class="tok-n">dest</span>, <span class="tok-n">80</span>))
+        <span class="tok-k">return</span> <span class="tok-n">s</span>.<span class="tok-f">getsockname</span>()[<span class="tok-n">0</span>]
+
+<span class="tok-f">print</span>(<span class="tok-f">local_ip_for</span>())   <span class="tok-c"># your egress IP for the default route</span></code></pre>
+
+      <p>
+        Way more reliable than <code>socket.gethostbyname(socket.gethostname())</code>,
+        which routinely returns <code>127.0.1.1</code> on Debian-family hosts.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          Always set a timeout. A socket without one waits as long as
+          the OS is willing to (often minutes). Either pass
+          <code>timeout=</code> to <code>create_connection</code> or
+          call <code>s.settimeout(N)</code> before any read.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Write a 15-line port scanner: take a host and a list of
+          ports, fan them out concurrently with
+          <code>concurrent.futures.ThreadPoolExecutor</code>, and
+          print only the open ones. Twenty workers, one-second
+          timeout. You've just rebuilt a useful subset of
+          <code>nmap</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-022-ipaddress.html">
+        <span class="label">← Previous</span>
+        <span class="title">ipaddress: stop parsing IPs by hand</span>
+      </a>
+      <a class="next" href="day-024-paramiko-netmiko.html">
+        <span class="label">Next →</span>
+        <span class="title">SSH to devices: paramiko vs netmiko</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

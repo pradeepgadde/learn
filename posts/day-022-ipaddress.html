@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 022 · ipaddress: stop parsing IPs by hand — Learn with Pradeep</title>
+  <meta name="description" content="The ipaddress module gives you network math, subnet membership tests, and IPv4/IPv6 parity for free. Stop splitting strings on dots.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 022 &middot; Standard library &middot; Networking</div>
+      <h1>ipaddress: stop parsing IPs by hand</h1>
+      <p class="subtitle">
+        Subnet math, membership tests, and IPv4/IPv6 parity &mdash; all
+        in the standard library. You should not be splitting strings
+        on dots in 2026.
+      </p>
+      <div class="article-meta">
+        <span>22 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.3+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>The <code>ipaddress</code> module turns <code>"10.0.0.0/24"</code>
+        into a real network object with subnet math, membership tests,
+        and address iteration built in. Use <code>ip_address</code>,
+        <code>ip_network</code>, and <code>ip_interface</code> &mdash;
+        they handle IPv4 and IPv6 transparently.</p>
+      </div>
+
+      <p>
+        Every networking script eventually grows a function called
+        <code>parse_cidr</code> or <code>ip_in_subnet</code>. They're
+        always slightly buggy, especially around IPv6.
+        <code>ipaddress</code> made these obsolete in 2012 and most
+        people still don't use it.
+      </p>
+
+      <h2>Three constructors, three jobs</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">ipaddress</span> <span class="tok-k">import</span> <span class="tok-n">ip_address</span>, <span class="tok-n">ip_network</span>, <span class="tok-n">ip_interface</span>
+
+<span class="tok-c"># A single host address</span>
+<span class="tok-n">addr</span> = <span class="tok-f">ip_address</span>(<span class="tok-s">"192.168.1.10"</span>)
+
+<span class="tok-c"># A network (no host bits set)</span>
+<span class="tok-n">net</span>  = <span class="tok-f">ip_network</span>(<span class="tok-s">"192.168.1.0/24"</span>)
+
+<span class="tok-c"># An address with a prefix — the thing you'd see on `ip addr show`</span>
+<span class="tok-n">iface</span> = <span class="tok-f">ip_interface</span>(<span class="tok-s">"192.168.1.10/24"</span>)
+<span class="tok-f">print</span>(<span class="tok-n">iface</span>.<span class="tok-n">ip</span>, <span class="tok-n">iface</span>.<span class="tok-n">network</span>)
+<span class="tok-c"># 192.168.1.10 192.168.1.0/24</span></code></pre>
+
+      <p>
+        IPv4 vs IPv6 is detected from the input. Need to force one?
+        Use <code>IPv4Network</code> / <code>IPv6Network</code>
+        explicitly &mdash; same API.
+      </p>
+
+      <h2>The killer move: membership tests</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">corp_net</span> = <span class="tok-f">ip_network</span>(<span class="tok-s">"10.0.0.0/8"</span>)
+
+<span class="tok-f">ip_address</span>(<span class="tok-s">"10.42.7.5"</span>) <span class="tok-k">in</span> <span class="tok-n">corp_net</span>      <span class="tok-c"># True</span>
+<span class="tok-f">ip_address</span>(<span class="tok-s">"172.16.0.1"</span>) <span class="tok-k">in</span> <span class="tok-n">corp_net</span>     <span class="tok-c"># False</span>
+
+<span class="tok-c"># Network-in-network too</span>
+<span class="tok-f">ip_network</span>(<span class="tok-s">"10.1.0.0/16"</span>).<span class="tok-f">subnet_of</span>(<span class="tok-n">corp_net</span>)  <span class="tok-c"># True</span>
+<span class="tok-n">corp_net</span>.<span class="tok-f">overlaps</span>(<span class="tok-f">ip_network</span>(<span class="tok-s">"10.1.0.0/16"</span>))   <span class="tok-c"># True</span></code></pre>
+
+      <p>
+        That <code>in</code> operator does the bit math for you.
+        Works identically for IPv6.
+      </p>
+
+      <h2>Iterating addresses in a subnet</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">net</span> = <span class="tok-f">ip_network</span>(<span class="tok-s">"192.168.1.0/29"</span>)   <span class="tok-c"># 8 addresses</span>
+
+<span class="tok-f">list</span>(<span class="tok-n">net</span>.<span class="tok-f">hosts</span>())
+<span class="tok-c"># [IPv4Address('192.168.1.1'), ..., IPv4Address('192.168.1.6')]
+# Excludes network and broadcast — the addresses you can actually assign</span>
+
+<span class="tok-n">net</span>.<span class="tok-n">network_address</span>     <span class="tok-c"># 192.168.1.0</span>
+<span class="tok-n">net</span>.<span class="tok-n">broadcast_address</span>   <span class="tok-c"># 192.168.1.7</span>
+<span class="tok-n">net</span>.<span class="tok-n">netmask</span>             <span class="tok-c"># 255.255.255.248</span>
+<span class="tok-n">net</span>.<span class="tok-n">prefixlen</span>           <span class="tok-c"># 29</span>
+<span class="tok-n">net</span>.<span class="tok-n">num_addresses</span>       <span class="tok-c"># 8</span></code></pre>
+
+      <p>
+        For an IPv6 <code>/64</code>, <code>hosts()</code> returns a
+        generator over 18 quintillion addresses. Don't materialize that.
+      </p>
+
+      <h2>Subnetting and supernetting</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">net</span> = <span class="tok-f">ip_network</span>(<span class="tok-s">"10.0.0.0/22"</span>)
+
+<span class="tok-c"># Carve a /22 into four /24s</span>
+<span class="tok-f">list</span>(<span class="tok-n">net</span>.<span class="tok-f">subnets</span>(<span class="tok-n">new_prefix</span>=<span class="tok-n">24</span>))
+<span class="tok-c"># [10.0.0.0/24, 10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24]</span>
+
+<span class="tok-c"># Walk up to a containing /16</span>
+<span class="tok-n">net</span>.<span class="tok-f">supernet</span>(<span class="tok-n">new_prefix</span>=<span class="tok-n">16</span>)
+<span class="tok-c"># 10.0.0.0/16</span>
+
+<span class="tok-c"># Subtract — what's left of A after removing B?</span>
+<span class="tok-f">list</span>(<span class="tok-f">ip_network</span>(<span class="tok-s">"10.0.0.0/22"</span>).<span class="tok-f">address_exclude</span>(
+    <span class="tok-f">ip_network</span>(<span class="tok-s">"10.0.1.0/24"</span>)))
+<span class="tok-c"># [10.0.0.0/24, 10.0.2.0/23] — minimal covering set</span></code></pre>
+
+      <h2>Useful classification properties</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">addr</span> = <span class="tok-f">ip_address</span>(<span class="tok-s">"192.168.1.1"</span>)
+<span class="tok-n">addr</span>.<span class="tok-n">is_private</span>       <span class="tok-c"># True</span>
+<span class="tok-n">addr</span>.<span class="tok-n">is_global</span>        <span class="tok-c"># False</span>
+<span class="tok-n">addr</span>.<span class="tok-n">is_loopback</span>      <span class="tok-c"># False</span>
+<span class="tok-n">addr</span>.<span class="tok-n">is_link_local</span>    <span class="tok-c"># False</span>
+<span class="tok-n">addr</span>.<span class="tok-n">is_multicast</span>     <span class="tok-c"># False</span>
+<span class="tok-n">addr</span>.<span class="tok-n">version</span>          <span class="tok-c"># 4</span></code></pre>
+
+      <p>
+        These work the same on IPv6 addresses. Filtering RFC1918 out
+        of a log file becomes one line:
+        <code>[ip for ip in addrs if not ip.is_private]</code>.
+      </p>
+
+      <div class="callout">
+        <p>
+          <code>ip_network("192.168.1.10/24")</code> raises
+          <code>ValueError</code> by default because host bits are
+          set. Pass <code>strict=False</code> to accept it and have
+          the host bits zeroed silently &mdash; useful when parsing
+          interface configs straight from devices.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick an access-list, firewall rule, or routing table you
+          have lying around. In ten lines, write a script that
+          parses each CIDR with <code>ip_network</code> and prints
+          which entries overlap with each other. The <code>overlaps</code>
+          method does the work; you write the loop.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-021-comprehensions.html">
+        <span class="label">← Previous</span>
+        <span class="title">Comprehensions you'll actually read later</span>
+      </a>
+      <a class="next" href="day-023-socket.html">
+        <span class="label">Next →</span>
+        <span class="title">socket: the bare metal of TCP</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

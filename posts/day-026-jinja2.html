@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 026 · Jinja2 for config templating — Learn with Pradeep</title>
+  <meta name="description" content="Jinja2 separates the config you want from the data that drives it. The same template handles one device or a hundred, with loops, conditionals, and filters.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 026 &middot; Third-party &middot; Networking</div>
+      <h1>Jinja2 for config templating</h1>
+      <p class="subtitle">
+        Separate the config you want from the data that drives it.
+        One template, any number of devices, fewer copy-paste sins.
+      </p>
+      <div class="article-meta">
+        <span>26 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Jinja2 turns a text template plus a Python dict into a
+        rendered string. Three constructs cover 90% of network
+        config work: <code>{{ var }}</code> for values,
+        <code>{% for %}</code> for loops, <code>{% if %}</code> for
+        conditionals. Use <code>FileSystemLoader</code> for
+        templates on disk; use the <code>|</code> filter for
+        formatting.</p>
+      </div>
+
+      <p>
+        Network configs are repetitive in structure but vary in
+        details &mdash; the same VLAN block on every access switch,
+        with different VLAN IDs and descriptions. Jinja2 was built
+        in the web world but it's the de-facto templating engine
+        for Ansible, Salt, and most network-automation toolchains
+        for exactly this reason.
+      </p>
+
+      <h2>The minimal template render</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">jinja2</span> <span class="tok-k">import</span> <span class="tok-n">Template</span>
+
+<span class="tok-n">tmpl</span> = <span class="tok-f">Template</span>(<span class="tok-s">"""
+hostname {{ hostname }}
+!
+interface Loopback0
+ ip address {{ loopback }} 255.255.255.255
+"""</span>)
+
+<span class="tok-f">print</span>(<span class="tok-n">tmpl</span>.<span class="tok-f">render</span>(<span class="tok-n">hostname</span>=<span class="tok-s">"core-sw-01"</span>, <span class="tok-n">loopback</span>=<span class="tok-s">"10.255.0.1"</span>))</code></pre>
+
+      <div class="output">hostname core-sw-01
+!
+interface Loopback0
+ ip address 10.255.0.1 255.255.255.255</div>
+
+      <p>
+        For one-off renders that's all you need.
+        <code>Template(...)</code> takes a string,
+        <code>render(...)</code> takes the variables.
+      </p>
+
+      <h2>Loops and conditionals</h2>
+
+<pre class="code"><span class="code-label">jinja</span><code>!
+{% for v in vlans %}
+vlan {{ v.id }}
+ name {{ v.name }}
+{% endfor %}
+!
+{% for iface in interfaces %}
+interface {{ iface.name }}
+ description {{ iface.desc }}
+{% if iface.trunk %}
+ switchport mode trunk
+ switchport trunk allowed vlan {{ iface.allowed | join(',') }}
+{% else %}
+ switchport mode access
+ switchport access vlan {{ iface.vlan }}
+{% endif %}
+{% endfor %}</code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">data</span> = {
+    <span class="tok-s">"vlans"</span>: [
+        {<span class="tok-s">"id"</span>: <span class="tok-n">10</span>, <span class="tok-s">"name"</span>: <span class="tok-s">"users"</span>},
+        {<span class="tok-s">"id"</span>: <span class="tok-n">20</span>, <span class="tok-s">"name"</span>: <span class="tok-s">"voice"</span>},
+    ],
+    <span class="tok-s">"interfaces"</span>: [
+        {<span class="tok-s">"name"</span>: <span class="tok-s">"Gi1/0/1"</span>, <span class="tok-s">"desc"</span>: <span class="tok-s">"uplink"</span>,
+         <span class="tok-s">"trunk"</span>: <span class="tok-k">True</span>,  <span class="tok-s">"allowed"</span>: [<span class="tok-n">10</span>, <span class="tok-n">20</span>]},
+        {<span class="tok-s">"name"</span>: <span class="tok-s">"Gi1/0/2"</span>, <span class="tok-s">"desc"</span>: <span class="tok-s">"phone"</span>,
+         <span class="tok-s">"trunk"</span>: <span class="tok-k">False</span>, <span class="tok-s">"vlan"</span>: <span class="tok-n">20</span>},
+    ],
+}</code></pre>
+
+      <p>
+        The <code>| join(',')</code> is a Jinja filter &mdash; it
+        runs the value through a function before rendering. There
+        are dozens built in: <code>upper</code>, <code>lower</code>,
+        <code>default('x')</code>, <code>length</code>,
+        <code>sort</code>. They chain:
+        <code>{{ name | lower | replace(' ', '-') }}</code>.
+      </p>
+
+      <h2>Templates on disk</h2>
+
+      <p>
+        For real projects, templates live as <code>.j2</code> files
+        next to your Python code. Use a <code>FileSystemLoader</code>
+        and an <code>Environment</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">jinja2</span> <span class="tok-k">import</span> <span class="tok-n">Environment</span>, <span class="tok-n">FileSystemLoader</span>, <span class="tok-n">StrictUndefined</span>
+
+<span class="tok-n">env</span> = <span class="tok-f">Environment</span>(
+    <span class="tok-n">loader</span>=<span class="tok-f">FileSystemLoader</span>(<span class="tok-s">"templates"</span>),
+    <span class="tok-n">undefined</span>=<span class="tok-n">StrictUndefined</span>,         <span class="tok-c"># raise on missing vars</span>
+    <span class="tok-n">trim_blocks</span>=<span class="tok-k">True</span>,                  <span class="tok-c"># cleaner output</span>
+    <span class="tok-n">lstrip_blocks</span>=<span class="tok-k">True</span>,
+    <span class="tok-n">keep_trailing_newline</span>=<span class="tok-k">True</span>,
+)
+
+<span class="tok-n">tmpl</span> = <span class="tok-n">env</span>.<span class="tok-f">get_template</span>(<span class="tok-s">"access-switch.j2"</span>)
+<span class="tok-n">config</span> = <span class="tok-n">tmpl</span>.<span class="tok-f">render</span>(<span class="tok-o">**</span><span class="tok-n">device_data</span>)</code></pre>
+
+      <p>
+        <code>StrictUndefined</code> is the unsung hero. By default,
+        Jinja silently renders missing variables as the empty
+        string &mdash; perfect for sneaking <code>vlan </code> with
+        nothing after it into a production switch.
+        <code>StrictUndefined</code> raises instead.
+      </p>
+
+      <h2>One template, many devices</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">yaml</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-n">tmpl</span> = <span class="tok-n">env</span>.<span class="tok-f">get_template</span>(<span class="tok-s">"access-switch.j2"</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">device_file</span> <span class="tok-k">in</span> <span class="tok-f">Path</span>(<span class="tok-s">"vars/devices"</span>).<span class="tok-f">glob</span>(<span class="tok-s">"*.yml"</span>):
+    <span class="tok-n">data</span> = <span class="tok-n">yaml</span>.<span class="tok-f">safe_load</span>(<span class="tok-n">device_file</span>.<span class="tok-f">read_text</span>())
+    <span class="tok-n">out</span> = <span class="tok-f">Path</span>(<span class="tok-s">"build"</span>) / <span class="tok-s">f"{device_file.stem}.cfg"</span>
+    <span class="tok-n">out</span>.<span class="tok-f">write_text</span>(<span class="tok-n">tmpl</span>.<span class="tok-f">render</span>(<span class="tok-o">**</span><span class="tok-n">data</span>))</code></pre>
+
+      <p>
+        Per-device YAML in, per-device config out. The template is
+        the source of truth for structure; the YAML is the source
+        of truth for facts. Diff <code>build/</code> against your
+        deployed configs and you have a basic config-drift check.
+      </p>
+
+      <div class="callout">
+        <p>
+          Two filters worth knowing for network work:
+          <code>{{ ip | ipaddr('network') }}</code> from the
+          <code>netaddr</code> ecosystem (also available in
+          Ansible's <code>ansible.utils</code>) and the built-in
+          <code>{{ value | regex_replace('^x', 'y') }}</code>.
+          When the built-ins aren't enough, you can register your
+          own with <code>env.filters['my_filter'] = my_func</code>.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick three devices with similar configs (e.g. three
+          access switches). Extract the parts that differ into a
+          YAML file per device. Build a single Jinja template that
+          renders any of them. The first time you change a setting
+          across the fleet by editing one template, you'll be sold.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-025-asyncssh.html">
+        <span class="label">← Previous</span>
+        <span class="title">asyncssh: poll 100 devices in parallel</span>
+      </a>
+      <a class="next" href="day-027-scapy.html">
+        <span class="label">Next →</span>
+        <span class="title">Scapy: build packets like Lego</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

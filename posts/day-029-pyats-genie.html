@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 029 · pyATS &amp; Genie: structured network testing — Learn with Pradeep</title>
+  <meta name="description" content="Cisco's pyATS and Genie give you a testbed YAML, structured parsers for thousands of commands, and a real testing framework for network state.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 029 &middot; Third-party &middot; Networking</div>
+      <h1>pyATS &amp; Genie: structured network testing</h1>
+      <p class="subtitle">
+        A testbed YAML, parsers for thousands of <code>show</code>
+        commands, and a real testing framework for the network
+        itself. Originally Cisco-internal, now open source.
+      </p>
+      <div class="article-meta">
+        <span>29 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>pyATS is a testing framework for networks; Genie is its
+        library of structured parsers and APIs. Define your devices
+        in a <code>testbed.yaml</code>, connect, run any
+        <code>show</code> command, and get back a normalized dict.
+        Combine with pytest-style assertions for proper network
+        validation.</p>
+      </div>
+
+      <p>
+        Where TextFSM gives you parsed records and netmiko gives you
+        connectivity, pyATS gives you the framework around all of
+        it &mdash; testbed inventories, structured parsers, and
+        assertion libraries. It's overkill for a quick script, but
+        it's the right scale for "automate validation of every
+        change before and after."
+      </p>
+
+      <h2>The testbed file</h2>
+
+      <p>
+        A testbed YAML is the inventory: devices, credentials,
+        connection parameters. One file, version-controlled, the
+        source of truth.
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code>testbed:
+  name: lab1
+
+devices:
+  core-sw-01:
+    os: iosxe
+    type: switch
+    connections:
+      cli:
+        protocol: ssh
+        ip: 10.1.0.1
+    credentials:
+      default:
+        username: netadmin
+        password: "%ENV{NET_PASS}"
+      enable:
+        password: "%ENV{NET_ENABLE}"</code></pre>
+
+      <p>
+        Note <code>%ENV{...}</code> &mdash; pyATS resolves
+        environment variables so you don't commit secrets. Other
+        useful sources: <code>%ASK{}</code> for interactive prompts,
+        <code>%CALLABLE{module.func}</code> for vault integrations.
+      </p>
+
+      <h2>Connecting and running a command</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">genie</span>.<span class="tok-n">testbed</span> <span class="tok-k">import</span> <span class="tok-n">load</span>
+
+<span class="tok-n">tb</span> = <span class="tok-f">load</span>(<span class="tok-s">"testbed.yaml"</span>)
+<span class="tok-n">dev</span> = <span class="tok-n">tb</span>.<span class="tok-n">devices</span>[<span class="tok-s">"core-sw-01"</span>]
+<span class="tok-n">dev</span>.<span class="tok-f">connect</span>(<span class="tok-n">log_stdout</span>=<span class="tok-k">False</span>)
+
+<span class="tok-c"># Raw output, like netmiko</span>
+<span class="tok-n">raw</span>      = <span class="tok-n">dev</span>.<span class="tok-f">execute</span>(<span class="tok-s">"show version"</span>)
+
+<span class="tok-c"># Structured output — a dict, parsed by Genie</span>
+<span class="tok-n">parsed</span>   = <span class="tok-n">dev</span>.<span class="tok-f">parse</span>(<span class="tok-s">"show interfaces"</span>)
+<span class="tok-f">print</span>(<span class="tok-n">parsed</span>[<span class="tok-s">"GigabitEthernet0/1"</span>][<span class="tok-s">"oper_status"</span>])
+<span class="tok-c"># 'up'</span>
+
+<span class="tok-n">dev</span>.<span class="tok-f">disconnect</span>()</code></pre>
+
+      <p>
+        <code>parse</code> uses Genie's library &mdash; thousands of
+        templates covering Cisco platforms (IOS, IOS-XE, IOS-XR,
+        NX-OS), with growing coverage of Junos and others. The
+        return shape is normalized across versions; an interface
+        is always at <code>parsed[name]["oper_status"]</code>
+        whether the device is a Catalyst or an ASR.
+      </p>
+
+      <h2>Snapshot diffs: the killer feature</h2>
+
+      <p>
+        pyATS can take a "before" snapshot of arbitrary commands,
+        run a change, take an "after" snapshot, and tell you exactly
+        what differs in the structured output. This is the
+        change-validation workflow you've always wanted.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">genie</span>.<span class="tok-n">utils</span>.<span class="tok-n">diff</span> <span class="tok-k">import</span> <span class="tok-n">Diff</span>
+
+<span class="tok-n">before</span> = <span class="tok-n">dev</span>.<span class="tok-f">parse</span>(<span class="tok-s">"show ip route"</span>)
+<span class="tok-c"># ... apply change ...</span>
+<span class="tok-n">after</span>  = <span class="tok-n">dev</span>.<span class="tok-f">parse</span>(<span class="tok-s">"show ip route"</span>)
+
+<span class="tok-n">d</span> = <span class="tok-f">Diff</span>(<span class="tok-n">before</span>, <span class="tok-n">after</span>)
+<span class="tok-n">d</span>.<span class="tok-f">findDiff</span>()
+<span class="tok-f">print</span>(<span class="tok-n">d</span>)
+<span class="tok-c"># Shows added, removed, and changed routes — not text diff, structural diff</span></code></pre>
+
+      <p>
+        Structural diff means renames don't matter, key order
+        doesn't matter, and you see only what actually changed. No
+        more squinting at <code>diff -u</code> on raw command output.
+      </p>
+
+      <h2>The test framework: AEtest</h2>
+
+      <p>
+        pyATS includes a pytest-shaped test runner specifically
+        designed for network test cases. Triggers, verifications,
+        cleanup &mdash; all first-class concepts.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pyats</span> <span class="tok-k">import</span> <span class="tok-n">aetest</span>
+
+<span class="tok-k">class</span> <span class="tok-f">CheckLinks</span>(<span class="tok-n">aetest</span>.<span class="tok-n">Testcase</span>):
+
+    <span class="tok-o">@</span><span class="tok-n">aetest</span>.<span class="tok-n">setup</span>
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">testbed</span>):
+        <span class="tok-n">testbed</span>.<span class="tok-n">devices</span>[<span class="tok-s">"core-sw-01"</span>].<span class="tok-f">connect</span>(<span class="tok-n">log_stdout</span>=<span class="tok-k">False</span>)
+
+    <span class="tok-o">@</span><span class="tok-n">aetest</span>.<span class="tok-n">test</span>
+    <span class="tok-k">def</span> <span class="tok-f">all_uplinks_up</span>(<span class="tok-n">self</span>, <span class="tok-n">testbed</span>):
+        <span class="tok-n">parsed</span> = <span class="tok-n">testbed</span>.<span class="tok-n">devices</span>[<span class="tok-s">"core-sw-01"</span>].<span class="tok-f">parse</span>(<span class="tok-s">"show interfaces"</span>)
+        <span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">data</span> <span class="tok-k">in</span> <span class="tok-n">parsed</span>.<span class="tok-f">items</span>():
+            <span class="tok-k">if</span> <span class="tok-n">name</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"TenGig"</span>):
+                <span class="tok-k">assert</span> <span class="tok-n">data</span>[<span class="tok-s">"oper_status"</span>] == <span class="tok-s">"up"</span>, <span class="tok-n">name</span></code></pre>
+
+      <p>
+        Run with <code>pyats run job ...</code> and you get a
+        report: pass/fail per test, structured logs per device,
+        the whole audit trail.
+      </p>
+
+      <div class="callout">
+        <p>
+          pyATS is heavy &mdash; large install, many dependencies,
+          opinionated structure. Worth it for ongoing validation
+          frameworks; overkill for a one-off script. For one-off
+          parsing, stick to <code>ntc-templates</code> from Day 028.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Set up a testbed YAML for one device. In ten lines,
+          connect, take a snapshot of <code>show ip route</code>,
+          wait 5 seconds, take another snapshot, and run
+          <code>Diff</code>. The output is exactly what your network
+          looks like through a change window.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-028-textfsm.html">
+        <span class="label">← Previous</span>
+        <span class="title">TextFSM: parse CLI output sanely</span>
+      </a>
+      <a class="next" href="day-030-netconf.html">
+        <span class="label">Next →</span>
+        <span class="title">NETCONF with ncclient: configs as XML</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

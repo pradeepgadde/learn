@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 028 · TextFSM: parse CLI output sanely — Learn with Pradeep</title>
+  <meta name="description" content="TextFSM converts ad-hoc CLI text into structured records. ntc-templates already covers most network commands. Stop writing brittle regex pipelines.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 028 &middot; Third-party &middot; Networking</div>
+      <h1>TextFSM: parse CLI output sanely</h1>
+      <p class="subtitle">
+        Stop writing brittle regex pipelines for
+        <code>show</code> commands. TextFSM is a state machine for
+        text, and somebody else has already written most of the
+        templates.
+      </p>
+      <div class="article-meta">
+        <span>28 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>TextFSM templates describe states and rules for parsing
+        text. <code>ntc-templates</code> already ships templates for
+        thousands of <code>show</code> commands across Cisco, Juniper,
+        Arista, and others. Use the <code>textfsm</code>-clean,
+        <code>get_structured_data</code> helper, or netmiko's built-in
+        <code>use_textfsm=True</code> &mdash; all three reach the
+        same library.</p>
+      </div>
+
+      <p>
+        Network device output is human-friendly text in fixed-width
+        columns, and parsing it with regex is a known recipe for
+        sadness. TextFSM, originally from Google, is a domain
+        language for "left-aligned table with these columns,
+        possibly multi-line records." Once you've used it, the regex
+        approach feels primitive.
+      </p>
+
+      <h2>The library you don't have to write</h2>
+
+      <p>
+        Before writing your own template, check
+        <a href="https://github.com/networktocode/ntc-templates">ntc-templates</a>.
+        It's the de-facto open library for network CLI parsing &mdash;
+        thousands of templates for Cisco, Juniper, Arista, Palo Alto,
+        and dozens more. Maintained by the community, fast to update.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install ntc-templates textfsm</code></pre>
+
+      <h2>Parse output you already have</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">ntc_templates</span>.<span class="tok-n">parse</span> <span class="tok-k">import</span> <span class="tok-n">parse_output</span>
+
+<span class="tok-n">raw</span> = <span class="tok-s">"""\
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     10.0.0.1        YES manual up                    up
+GigabitEthernet0/1     unassigned      YES NVRAM  administratively down down
+"""</span>
+
+<span class="tok-n">records</span> = <span class="tok-f">parse_output</span>(
+    <span class="tok-n">platform</span>=<span class="tok-s">"cisco_ios"</span>,
+    <span class="tok-n">command</span>=<span class="tok-s">"show ip interface brief"</span>,
+    <span class="tok-n">data</span>=<span class="tok-n">raw</span>,
+)
+<span class="tok-k">for</span> <span class="tok-n">r</span> <span class="tok-k">in</span> <span class="tok-n">records</span>:
+    <span class="tok-f">print</span>(<span class="tok-n">r</span>[<span class="tok-s">"interface"</span>], <span class="tok-n">r</span>[<span class="tok-s">"ipaddr"</span>], <span class="tok-n">r</span>[<span class="tok-s">"status"</span>])</code></pre>
+
+      <div class="output">GigabitEthernet0/0 10.0.0.1 up
+GigabitEthernet0/1 unassigned administratively down</div>
+
+      <p>
+        That's the whole interaction with the library &mdash;
+        platform name, command name, raw text. Output is a
+        <code>list[dict[str, str]]</code> ready to filter or shove
+        into your monitoring system.
+      </p>
+
+      <h2>Through netmiko, in one call</h2>
+
+      <p>
+        If you're already shelling into devices with netmiko (Day
+        024), pass <code>use_textfsm=True</code> and skip the
+        intermediate text entirely.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">interfaces</span> = <span class="tok-n">net</span>.<span class="tok-f">send_command</span>(
+    <span class="tok-s">"show ip interface brief"</span>,
+    <span class="tok-n">use_textfsm</span>=<span class="tok-k">True</span>,
+)
+<span class="tok-c"># Already a list of dicts</span>
+
+<span class="tok-n">up_with_ip</span> = [
+    <span class="tok-n">i</span> <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-n">interfaces</span>
+    <span class="tok-k">if</span> <span class="tok-n">i</span>[<span class="tok-s">"status"</span>] == <span class="tok-s">"up"</span> <span class="tok-k">and</span> <span class="tok-n">i</span>[<span class="tok-s">"ipaddr"</span>] != <span class="tok-s">"unassigned"</span>
+]</code></pre>
+
+      <h2>Writing your own template (when ntc-templates doesn't have it)</h2>
+
+      <p>
+        The format is small. States, value declarations, regex rules
+        with named captures pointing at value names.
+      </p>
+
+<pre class="code"><span class="code-label">textfsm</span><code>Value INTERFACE (\S+)
+Value STATE (up|down|admin-down)
+Value SPEED (\S+)
+
+Start
+  ^${INTERFACE}\s+is\s+${STATE},\s+line protocol -&gt; Continue
+  ^.*BW\s+${SPEED}\s+Kbit -&gt; Record</code></pre>
+
+      <p>
+        <code>-&gt; Continue</code> stays in the state without
+        consuming the line. <code>-&gt; Record</code> writes the
+        captured values as a record and resets. Five lines, and
+        you've parsed multi-line interface stanzas.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">textfsm</span>
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"my_template.textfsm"</span>) <span class="tok-k">as</span> <span class="tok-n">tf</span>:
+    <span class="tok-n">parser</span> = <span class="tok-n">textfsm</span>.<span class="tok-f">TextFSM</span>(<span class="tok-n">tf</span>)
+
+<span class="tok-n">rows</span>    = <span class="tok-n">parser</span>.<span class="tok-f">ParseText</span>(<span class="tok-n">raw_output</span>)
+<span class="tok-n">records</span> = [<span class="tok-f">dict</span>(<span class="tok-f">zip</span>(<span class="tok-n">parser</span>.<span class="tok-n">header</span>, <span class="tok-n">r</span>)) <span class="tok-k">for</span> <span class="tok-n">r</span> <span class="tok-k">in</span> <span class="tok-n">rows</span>]</code></pre>
+
+      <h2>When TextFSM doesn't fit</h2>
+
+      <p>
+        Some platforms ship JSON or XML output natively &mdash; Junos
+        with <code>| display json</code>, Arista with eAPI, NX-OS
+        with <code>| json</code>. <strong>Use those first.</strong>
+        Parsing <code>json.loads(...)</code> output is always more
+        robust than parsing text. TextFSM is for the platforms and
+        commands where structured output isn't an option.
+      </p>
+
+      <div class="callout">
+        <p>
+          The <code>textfsm</code>-related ecosystem is bigger than
+          ntc-templates: <code>genie</code> from Cisco, <code>ttp</code>
+          (Template Text Parser), and <code>napalm</code>'s normalized
+          getters all solve the same problem with different
+          tradeoffs. ntc-templates is the easiest to start with;
+          <code>napalm</code> is worth a look if you want a
+          consistent API across vendors.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a <code>show</code> command you parse with regex
+          today. Look it up in
+          <a href="https://github.com/networktocode/ntc-templates/tree/master/ntc_templates/templates">ntc-templates</a>
+          (templates are named
+          <code>{platform}_{command}.textfsm</code>). Replace your
+          regex with <code>parse_output</code>. Delete the regex.
+          Sleep better.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-027-scapy.html">
+        <span class="label">← Previous</span>
+        <span class="title">Scapy: build packets like Lego</span>
+      </a>
+      <a class="next" href="day-029-pyats-genie.html">
+        <span class="label">Next →</span>
+        <span class="title">pyATS &amp; Genie: structured network testing</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

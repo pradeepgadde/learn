@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 027 · Scapy: build packets like Lego — Learn with Pradeep</title>
+  <meta name="description" content="Scapy lets you craft, send, sniff, and dissect packets at any layer. ICMP probes, ARP scans, TCP traceroute — all in a few lines of Python.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 027 &middot; Third-party &middot; Networking</div>
+      <h1>Scapy: build packets like Lego</h1>
+      <p class="subtitle">
+        Stack protocol layers with the <code>/</code> operator, send
+        them, capture replies. The most powerful four-line scripts
+        you'll write all year.
+      </p>
+      <div class="article-meta">
+        <span>27 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Scapy treats every protocol layer as a Python object. Stack
+        them with <code>/</code>: <code>IP(dst="x") / ICMP()</code>.
+        Send with <code>sr1</code> (one reply), <code>sr</code>
+        (many), or <code>send</code> (no reply). Capture with
+        <code>sniff</code>. Needs root or
+        <code>CAP_NET_RAW</code>.</p>
+      </div>
+
+      <p>
+        For anything below the application layer &mdash; ARP scans,
+        custom traceroutes, packet replay, protocol fuzzing &mdash;
+        nothing else in Python comes close. Scapy is what
+        <code>tcpdump</code>, <code>nmap</code>, and
+        <code>hping</code> would look like if they were a Python
+        library instead of separate binaries.
+      </p>
+
+      <h2>The stacking syntax</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">scapy</span>.<span class="tok-n">all</span> <span class="tok-k">import</span> <span class="tok-n">IP</span>, <span class="tok-n">ICMP</span>, <span class="tok-n">TCP</span>, <span class="tok-n">UDP</span>, <span class="tok-n">Ether</span>, <span class="tok-n">ARP</span>, <span class="tok-n">sr1</span>, <span class="tok-n">srp</span>
+
+<span class="tok-c"># Each layer is a class. Stack with /</span>
+<span class="tok-n">pkt</span> = <span class="tok-f">IP</span>(<span class="tok-n">dst</span>=<span class="tok-s">"8.8.8.8"</span>) / <span class="tok-f">ICMP</span>()
+
+<span class="tok-c"># Inspect</span>
+<span class="tok-n">pkt</span>.<span class="tok-f">summary</span>()         <span class="tok-c"># 'IP / ICMP 0.0.0.0 &gt; 8.8.8.8 echo-request 0 / Raw'</span>
+<span class="tok-n">pkt</span>.<span class="tok-f">show</span>()            <span class="tok-c"># pretty per-field dump</span>
+<span class="tok-f">bytes</span>(<span class="tok-n">pkt</span>)            <span class="tok-c"># wire-format bytes</span></code></pre>
+
+      <h2>One-line ping</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Send one packet, wait for one reply, 2-second timeout</span>
+<span class="tok-n">reply</span> = <span class="tok-f">sr1</span>(<span class="tok-f">IP</span>(<span class="tok-n">dst</span>=<span class="tok-s">"8.8.8.8"</span>) / <span class="tok-f">ICMP</span>(), <span class="tok-n">timeout</span>=<span class="tok-n">2</span>, <span class="tok-n">verbose</span>=<span class="tok-k">False</span>)
+
+<span class="tok-k">if</span> <span class="tok-n">reply</span>:
+    <span class="tok-f">print</span>(<span class="tok-s">f"alive, ttl={reply.ttl}, rtt={(reply.time - reply.sent_time) * 1000:.1f}ms"</span>)
+<span class="tok-k">else</span>:
+    <span class="tok-f">print</span>(<span class="tok-s">"no reply"</span>)</code></pre>
+
+      <p>
+        The three send functions to remember:
+        <code>sr1</code> (send and receive one),
+        <code>sr</code> (send and receive many, returns answered/unanswered),
+        <code>send</code> (fire and forget). Add <code>p</code> to any
+        of them (<code>srp1</code>, <code>srp</code>,
+        <code>sendp</code>) to operate at layer 2 instead of layer 3.
+      </p>
+
+      <h2>An ARP scan in three lines</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">ans</span>, <span class="tok-n">_</span> = <span class="tok-f">srp</span>(
+    <span class="tok-f">Ether</span>(<span class="tok-n">dst</span>=<span class="tok-s">"ff:ff:ff:ff:ff:ff"</span>) / <span class="tok-f">ARP</span>(<span class="tok-n">pdst</span>=<span class="tok-s">"192.168.1.0/24"</span>),
+    <span class="tok-n">timeout</span>=<span class="tok-n">2</span>, <span class="tok-n">verbose</span>=<span class="tok-k">False</span>,
+)
+<span class="tok-k">for</span> <span class="tok-n">_</span>, <span class="tok-n">r</span> <span class="tok-k">in</span> <span class="tok-n">ans</span>:
+    <span class="tok-f">print</span>(<span class="tok-s">f"{r.psrc:&lt;15} {r.hwsrc}"</span>)</code></pre>
+
+      <p>
+        That's a fully functional ARP-based host discovery for a
+        <code>/24</code>. <code>srp</code> understands that
+        <code>pdst</code> is a CIDR and fans out for you.
+      </p>
+
+      <h2>A TCP-SYN port probe</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">syn_probe</span>(<span class="tok-n">host</span>, <span class="tok-n">port</span>):
+    <span class="tok-n">r</span> = <span class="tok-f">sr1</span>(<span class="tok-f">IP</span>(<span class="tok-n">dst</span>=<span class="tok-n">host</span>) / <span class="tok-f">TCP</span>(<span class="tok-n">dport</span>=<span class="tok-n">port</span>, <span class="tok-n">flags</span>=<span class="tok-s">"S"</span>),
+            <span class="tok-n">timeout</span>=<span class="tok-n">1</span>, <span class="tok-n">verbose</span>=<span class="tok-k">False</span>)
+    <span class="tok-k">if</span> <span class="tok-n">r</span> <span class="tok-k">is</span> <span class="tok-k">None</span>:                       <span class="tok-k">return</span> <span class="tok-s">"filtered"</span>
+    <span class="tok-k">if</span> <span class="tok-n">r</span>.<span class="tok-n">haslayer</span>(<span class="tok-n">TCP</span>) <span class="tok-k">and</span> <span class="tok-n">r</span>[<span class="tok-n">TCP</span>].<span class="tok-n">flags</span> == <span class="tok-n">0x12</span>:  <span class="tok-k">return</span> <span class="tok-s">"open"</span>
+    <span class="tok-k">if</span> <span class="tok-n">r</span>.<span class="tok-n">haslayer</span>(<span class="tok-n">TCP</span>) <span class="tok-k">and</span> <span class="tok-n">r</span>[<span class="tok-n">TCP</span>].<span class="tok-n">flags</span> == <span class="tok-n">0x14</span>:  <span class="tok-k">return</span> <span class="tok-s">"closed"</span>
+    <span class="tok-k">return</span> <span class="tok-s">"unknown"</span></code></pre>
+
+      <p>
+        The flag values: <code>0x12</code> is SYN+ACK (open),
+        <code>0x14</code> is RST+ACK (closed). Reading TCP flags as
+        hex feels wrong the first time and natural after the second.
+      </p>
+
+      <h2>Sniffing live traffic</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">scapy</span>.<span class="tok-n">all</span> <span class="tok-k">import</span> <span class="tok-n">sniff</span>
+
+<span class="tok-k">def</span> <span class="tok-f">show</span>(<span class="tok-n">pkt</span>):
+    <span class="tok-k">if</span> <span class="tok-n">pkt</span>.<span class="tok-n">haslayer</span>(<span class="tok-s">"DNS"</span>) <span class="tok-k">and</span> <span class="tok-n">pkt</span>[<span class="tok-s">"DNS"</span>].<span class="tok-n">qr</span> == <span class="tok-n">0</span>:
+        <span class="tok-f">print</span>(<span class="tok-n">pkt</span>[<span class="tok-s">"DNS"</span>].<span class="tok-n">qd</span>.<span class="tok-n">qname</span>.<span class="tok-f">decode</span>())
+
+<span class="tok-c"># BPF filter, like tcpdump</span>
+<span class="tok-f">sniff</span>(<span class="tok-n">filter</span>=<span class="tok-s">"udp port 53"</span>, <span class="tok-n">prn</span>=<span class="tok-n">show</span>, <span class="tok-n">store</span>=<span class="tok-k">False</span>, <span class="tok-n">count</span>=<span class="tok-n">20</span>)</code></pre>
+
+      <p>
+        <code>store=False</code> matters &mdash; without it Scapy
+        keeps every packet in memory.
+        <code>prn</code> is your callback per packet. The
+        <code>filter</code> is a real BPF expression, evaluated by
+        the kernel before the packet ever reaches Python.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          Scapy needs raw socket access &mdash; that means root, or
+          <code>setcap cap_net_raw,cap_net_admin=eip</code> on your
+          Python binary. On a shared system, prefer the capability
+          to running as root.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Write a 10-line traceroute. Loop TTL from 1 to 30,
+          send <code>IP(dst=target, ttl=N) / ICMP()</code>, capture
+          the reply, print the source IP. The ICMP "time exceeded"
+          replies trace your path one hop at a time. You've just
+          rebuilt <code>traceroute</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-026-jinja2.html">
+        <span class="label">← Previous</span>
+        <span class="title">Jinja2 for config templating</span>
+      </a>
+      <a class="next" href="day-028-textfsm.html">
+        <span class="label">Next →</span>
+        <span class="title">TextFSM: parse CLI output sanely</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

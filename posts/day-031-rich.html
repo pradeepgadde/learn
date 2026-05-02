@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 031 · rich: terminal output that doesn't suck — Learn with Pradeep</title>
+  <meta name="description" content="rich gives you tables, colors, progress bars, and JSON pretty-printing in one library. Replace half a dozen ad-hoc helpers with one import.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 031 &middot; Third-party &middot; Tooling</div>
+      <h1>rich: terminal output that doesn't suck</h1>
+      <p class="subtitle">
+        Tables, colors, progress bars, and JSON pretty-printing in
+        one library. The closest Python has to a "make my CLI look
+        like a real product" button.
+      </p>
+      <div class="article-meta">
+        <span>31 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>from rich import print</code> upgrades every print
+        with markup and pretty-printing. <code>rich.table.Table</code>
+        renders aligned, colored tables. <code>rich.progress</code>
+        gives you a real progress bar wrapping any iterable.
+        <code>rich.console.Console().status()</code> gives you a
+        spinner. Each is one import.</p>
+      </div>
+
+      <p>
+        For interactive scripts &mdash; CLIs, status dashboards,
+        long-running ops tools &mdash; <code>rich</code> is the
+        single highest-leverage dependency you can add. The default
+        usage requires almost zero learning.
+      </p>
+
+      <h2>The two-line upgrade</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span> <span class="tok-k">import</span> <span class="tok-n">print</span>
+
+<span class="tok-f">print</span>(<span class="tok-s">"[bold green]✓[/] connected to [cyan]router-01[/]"</span>)
+<span class="tok-f">print</span>({<span class="tok-s">"interfaces"</span>: <span class="tok-n">200</span>, <span class="tok-s">"down"</span>: <span class="tok-n">3</span>, <span class="tok-s">"errors"</span>: [<span class="tok-s">"timeout"</span>, <span class="tok-s">"auth"</span>]})</code></pre>
+
+      <p>
+        Square-bracket markup gives you BBCode-style colors and
+        styles (<code>bold</code>, <code>italic</code>,
+        <code>underline</code>, color names, hex codes). Native
+        Python objects get pretty-printed with syntax highlighting
+        instead of dumped flat.
+      </p>
+
+      <h2>Tables for structured data</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">console</span> <span class="tok-k">import</span> <span class="tok-n">Console</span>
+<span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">table</span>   <span class="tok-k">import</span> <span class="tok-n">Table</span>
+
+<span class="tok-n">t</span> = <span class="tok-f">Table</span>(<span class="tok-n">title</span>=<span class="tok-s">"Interface status"</span>)
+<span class="tok-n">t</span>.<span class="tok-f">add_column</span>(<span class="tok-s">"Interface"</span>, <span class="tok-n">style</span>=<span class="tok-s">"cyan"</span>)
+<span class="tok-n">t</span>.<span class="tok-f">add_column</span>(<span class="tok-s">"IP"</span>,        <span class="tok-n">style</span>=<span class="tok-s">"magenta"</span>)
+<span class="tok-n">t</span>.<span class="tok-f">add_column</span>(<span class="tok-s">"Status"</span>,    <span class="tok-n">justify</span>=<span class="tok-s">"right"</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">iface</span> <span class="tok-k">in</span> <span class="tok-n">interfaces</span>:
+    <span class="tok-n">color</span> = <span class="tok-s">"green"</span> <span class="tok-k">if</span> <span class="tok-n">iface</span>[<span class="tok-s">"status"</span>] == <span class="tok-s">"up"</span> <span class="tok-k">else</span> <span class="tok-s">"red"</span>
+    <span class="tok-n">t</span>.<span class="tok-f">add_row</span>(<span class="tok-n">iface</span>[<span class="tok-s">"name"</span>], <span class="tok-n">iface</span>[<span class="tok-s">"ip"</span>],
+              <span class="tok-s">f"[{color}]{iface['status']}[/]"</span>)
+
+<span class="tok-f">Console</span>().<span class="tok-f">print</span>(<span class="tok-n">t</span>)</code></pre>
+
+      <p>
+        Real columns, real alignment, real coloring &mdash; in
+        roughly the time it would take to format the strings by
+        hand and get them slightly wrong.
+      </p>
+
+      <h2>Progress bars wrap iterables</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">progress</span> <span class="tok-k">import</span> <span class="tok-n">track</span>
+<span class="tok-k">import</span> <span class="tok-n">time</span>
+
+<span class="tok-k">for</span> <span class="tok-n">host</span> <span class="tok-k">in</span> <span class="tok-f">track</span>(<span class="tok-n">hosts</span>, <span class="tok-n">description</span>=<span class="tok-s">"Probing devices"</span>):
+    <span class="tok-f">probe</span>(<span class="tok-n">host</span>)
+    <span class="tok-n">time</span>.<span class="tok-f">sleep</span>(<span class="tok-n">0.1</span>)</code></pre>
+
+      <p>
+        That's the entire integration. <code>track()</code> wraps
+        any iterable and gives you a progress bar with ETA, count,
+        and percentage. For multi-stage progress, use the
+        <code>Progress</code> class with multiple tasks.
+      </p>
+
+      <h2>Spinners for unknown-duration work</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">console</span> <span class="tok-k">import</span> <span class="tok-n">Console</span>
+
+<span class="tok-n">console</span> = <span class="tok-f">Console</span>()
+<span class="tok-k">with</span> <span class="tok-n">console</span>.<span class="tok-f">status</span>(<span class="tok-s">"[cyan]Connecting to vault…[/]"</span>):
+    <span class="tok-n">creds</span> = <span class="tok-f">vault_login</span>()
+
+<span class="tok-k">with</span> <span class="tok-n">console</span>.<span class="tok-f">status</span>(<span class="tok-s">"[cyan]Pulling config…[/]"</span>, <span class="tok-n">spinner</span>=<span class="tok-s">"dots"</span>):
+    <span class="tok-n">cfg</span> = <span class="tok-f">fetch_config</span>(<span class="tok-n">device</span>)</code></pre>
+
+      <h2>Pretty-printing JSON and tracebacks</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span>          <span class="tok-k">import</span> <span class="tok-n">print_json</span>
+<span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">traceback</span> <span class="tok-k">import</span> <span class="tok-n">install</span>
+
+<span class="tok-c"># Highlighted, indented JSON</span>
+<span class="tok-f">print_json</span>(<span class="tok-n">data</span>=<span class="tok-n">my_dict</span>)
+
+<span class="tok-c"># Replace the default traceback handler globally</span>
+<span class="tok-f">install</span>(<span class="tok-n">show_locals</span>=<span class="tok-k">True</span>)
+<span class="tok-c"># Now any unhandled exception renders with locals, syntax highlighting,
+# and source context. Worth its weight in gold for debugging.</span></code></pre>
+
+      <h2>Logging integration</h2>
+
+      <p>
+        From <a href="day-016-logging.html">Day 016</a>:
+        <code>rich.logging.RichHandler</code> is a drop-in replacement
+        for the default stream handler &mdash; same logging API,
+        much better-looking output.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">logging</span>
+<span class="tok-k">from</span> <span class="tok-n">rich</span>.<span class="tok-n">logging</span> <span class="tok-k">import</span> <span class="tok-n">RichHandler</span>
+
+<span class="tok-n">logging</span>.<span class="tok-f">basicConfig</span>(
+    <span class="tok-n">level</span>=<span class="tok-s">"INFO"</span>,
+    <span class="tok-n">format</span>=<span class="tok-s">"%(message)s"</span>,
+    <span class="tok-n">datefmt</span>=<span class="tok-s">"[%X]"</span>,
+    <span class="tok-n">handlers</span>=[<span class="tok-f">RichHandler</span>(<span class="tok-n">rich_tracebacks</span>=<span class="tok-k">True</span>)],
+)
+<span class="tok-n">log</span> = <span class="tok-n">logging</span>.<span class="tok-f">getLogger</span>(<span class="tok-s">"app"</span>)
+<span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"Probe started for [cyan]router-01[/]"</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          rich detects whether stdout is a TTY and degrades
+          gracefully when it isn't &mdash; markup gets stripped,
+          colors removed, progress bars suppressed. Your scripts
+          stay pipe-friendly without code changes. Override with
+          <code>force_terminal=True</code> on the
+          <code>Console</code> if you need colors in CI logs.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take any script that prints status text. Add
+          <code>from rich import print</code> at the top. Replace
+          one block of formatted output with a
+          <code>Table</code>. Wrap one loop in <code>track()</code>.
+          The visual upgrade is dramatic; the diff is small.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-030-netconf.html">
+        <span class="label">← Previous</span>
+        <span class="title">NETCONF with ncclient: configs as XML</span>
+      </a>
+      <a class="next placeholder" aria-disabled="true">
+        <span class="label">Next →</span>
+        <span class="title">Coming tomorrow</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
