@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 018 · pytest, the test you'll actually write — Learn with Pradeep</title>
+  <meta name="description" content="Plain assert, fixtures with @pytest.fixture, parametrize for table-driven tests, and tmp_path for filesystem isolation. The 80% you need.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 018 &middot; Third-party &middot; Beginner</div>
+      <h1>pytest, the test you'll actually write</h1>
+      <p class="subtitle">
+        Plain functions. Plain <code>assert</code>. Four built-in
+        helpers cover almost everything else.
+      </p>
+      <div class="article-meta">
+        <span>18 Jan 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>A pytest test is a function whose name starts with
+        <code>test_</code>, with a plain <code>assert</code> inside.
+        Use <code>@pytest.fixture</code> for setup,
+        <code>@pytest.mark.parametrize</code> for tables of cases,
+        <code>tmp_path</code> for filesystem isolation, and
+        <code>pytest.raises</code> for exception testing.</p>
+      </div>
+
+      <p>
+        <code>unittest</code> still works. But the modern Python
+        ecosystem is on <code>pytest</code> for one reason:
+        <code>assert x == y</code> beats
+        <code>self.assertEqual(x, y)</code>, and the failure messages
+        are dramatically better.
+      </p>
+
+      <h2>The simplest possible test</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># test_math.py</span>
+<span class="tok-k">def</span> <span class="tok-f">test_addition_works</span>():
+    <span class="tok-k">assert</span> <span class="tok-n">2</span> + <span class="tok-n">2</span> == <span class="tok-n">4</span>
+
+<span class="tok-k">def</span> <span class="tok-f">test_lists_combine</span>():
+    <span class="tok-k">assert</span> [<span class="tok-n">1</span>, <span class="tok-n">2</span>] + [<span class="tok-n">3</span>] == [<span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span>]</code></pre>
+
+      <p>
+        Run it with <code>pytest</code>. No subclassing, no class at
+        all, no special imports. When an assertion fails, pytest
+        rewrites the bytecode to show you both sides:
+      </p>
+
+      <div class="output">    def test_addition_works():
+&gt;       assert 2 + 2 == 5
+E       assert (2 + 2) == 5
+E         +  where 4 = 2 + 2</div>
+
+      <h2>Fixtures replace setUp</h2>
+
+      <p>
+        A fixture is a function that produces a value. Tests that
+        request it as a parameter receive it. pytest handles the
+        setup and teardown order automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">pytest</span>
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-f">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">sample_users</span>():
+    <span class="tok-k">return</span> [
+        {<span class="tok-s">"name"</span>: <span class="tok-s">"Ada"</span>,   <span class="tok-s">"role"</span>: <span class="tok-s">"founder"</span>},
+        {<span class="tok-s">"name"</span>: <span class="tok-s">"Linus"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"maintainer"</span>},
+    ]
+
+<span class="tok-k">def</span> <span class="tok-f">test_count</span>(<span class="tok-n">sample_users</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">len</span>(<span class="tok-n">sample_users</span>) == <span class="tok-n">2</span>
+
+<span class="tok-k">def</span> <span class="tok-f">test_first_is_founder</span>(<span class="tok-n">sample_users</span>):
+    <span class="tok-k">assert</span> <span class="tok-n">sample_users</span>[<span class="tok-n">0</span>][<span class="tok-s">"role"</span>] == <span class="tok-s">"founder"</span></code></pre>
+
+      <p>
+        For setup-then-teardown, write the fixture as a generator and
+        <code>yield</code> the value:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-f">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">db_connection</span>():
+    <span class="tok-n">conn</span> = <span class="tok-f">connect</span>()
+    <span class="tok-k">yield</span> <span class="tok-n">conn</span>            <span class="tok-c"># test runs here</span>
+    <span class="tok-n">conn</span>.<span class="tok-f">close</span>()             <span class="tok-c"># cleanup, even on failure</span></code></pre>
+
+      <h2>Built-in fixtures: <code>tmp_path</code></h2>
+
+      <p>
+        Need to write to disk in a test? Don't touch <code>/tmp</code>
+        directly. Request <code>tmp_path</code> &mdash; pytest gives
+        you a fresh <code>Path</code> for each test and cleans it up
+        afterward.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">test_writes_config</span>(<span class="tok-n">tmp_path</span>):
+    <span class="tok-n">target</span> = <span class="tok-n">tmp_path</span> / <span class="tok-s">"config.toml"</span>
+    <span class="tok-f">write_config</span>(<span class="tok-n">target</span>, <span class="tok-n">port</span>=<span class="tok-n">8080</span>)
+    <span class="tok-k">assert</span> <span class="tok-s">"port = 8080"</span> <span class="tok-k">in</span> <span class="tok-n">target</span>.<span class="tok-f">read_text</span>()</code></pre>
+
+      <p>
+        Other built-ins worth knowing: <code>capsys</code> (capture
+        stdout/stderr), <code>monkeypatch</code> (patch attrs and env
+        vars), <code>caplog</code> (capture log records).
+      </p>
+
+      <h2>Tables of cases: <code>parametrize</code></h2>
+
+      <p>
+        When the same test should run against many inputs, don't write
+        a loop. Parametrize. Each case becomes its own test with its
+        own pass/fail status.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"input,expected"</span>, [
+    (<span class="tok-s">"hello"</span>,  <span class="tok-s">"HELLO"</span>),
+    (<span class="tok-s">"World"</span>,  <span class="tok-s">"WORLD"</span>),
+    (<span class="tok-s">""</span>,       <span class="tok-s">""</span>),
+    (<span class="tok-s">"123"</span>,    <span class="tok-s">"123"</span>),
+])
+<span class="tok-k">def</span> <span class="tok-f">test_uppercase</span>(<span class="tok-n">input</span>, <span class="tok-n">expected</span>):
+    <span class="tok-k">assert</span> <span class="tok-n">input</span>.<span class="tok-f">upper</span>() == <span class="tok-n">expected</span></code></pre>
+
+      <h2>Testing exceptions</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">test_zero_division_raises</span>():
+    <span class="tok-k">with</span> <span class="tok-n">pytest</span>.<span class="tok-f">raises</span>(<span class="tok-n">ZeroDivisionError</span>):
+        <span class="tok-n">1</span> / <span class="tok-n">0</span>
+
+<span class="tok-k">def</span> <span class="tok-f">test_invalid_port_raises</span>():
+    <span class="tok-k">with</span> <span class="tok-n">pytest</span>.<span class="tok-f">raises</span>(<span class="tok-n">ValueError</span>, <span class="tok-n">match</span>=<span class="tok-s">"port must be"</span>):
+        <span class="tok-f">parse_port</span>(<span class="tok-s">"-1"</span>)</code></pre>
+
+      <p>
+        The <code>match</code> argument is a regex against the
+        exception message. Catches the case where you raise the right
+        exception type for the wrong reason.
+      </p>
+
+      <div class="callout">
+        <p>
+          Run only matching tests with <code>pytest -k name</code>.
+          Stop on the first failure with <code>-x</code>. Verbose
+          output with <code>-v</code>. Drop into the debugger on
+          failure with <code>--pdb</code>. These four flags handle
+          most day-to-day debugging.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick the smallest pure function in your codebase. Write
+          three pytest tests for it &mdash; happy path, edge case,
+          error case. Use <code>parametrize</code> if any of the
+          cases share structure. Total time: under five minutes.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-017-requests.html">
+        <span class="label">← Previous</span>
+        <span class="title">HTTP with httpx, the requests killer</span>
+      </a>
+      <a class="next" href="day-019-uv.html">
+        <span class="label">Next →</span>
+        <span class="title">uv: pip and venv, but fast</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
