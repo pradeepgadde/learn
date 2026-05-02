@@ -3,7 +3,7 @@
    Editorial / field-journal aesthetic
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700;9..144,900&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
   --paper:        #f7f1e3;
@@ -28,9 +28,13 @@
   --font-display: 'Fraunces', Georgia, serif;
   --font-body:    'Newsreader', Georgia, serif;
   --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  /* The handwriting font for the "Pradeep Gadde" brand mark in the topbar.
+     If your homepage uses a different handwriting font, swap the family name
+     here (and update the @import URL above) — that's the only edit needed. */
+  --font-brand:   'Caveat', 'Segoe Script', 'Bradley Hand', cursive;
 
-  --max-w:        72ch;
-  --gutter:       clamp(1.25rem, 4vw, 3rem);
+  --max-w:        78ch;
+  --gutter:       clamp(1.25rem, 4vw, 4rem);
 }
 
 * { box-sizing: border-box; }
@@ -70,21 +74,18 @@ body {
 .topbar a { color: var(--ink); text-decoration: none; }
 
 .brand {
-  font-family: var(--font-display);
+  font-family: var(--font-brand);
   font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: -0.01em;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  font-size: 1.85rem;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  display: inline-block;
+  transition: color 0.2s ease;
 }
 
-.brand .dot {
-  width: 0.55rem; height: 0.55rem;
-  background: var(--accent);
-  border-radius: 50%;
-  display: inline-block;
-  box-shadow: 0 0 0 3px rgba(255,212,59,0.25);
+.brand:hover {
+  color: var(--accent-deep);
 }
 
 .nav {
@@ -118,7 +119,7 @@ body {
 }
 
 .hero-inner {
-  max-width: 64rem;
+  max-width: 88rem;
   margin: 0 auto;
 }
 
@@ -161,7 +162,7 @@ body {
 .hero p.lede {
   font-size: clamp(1.1rem, 1.8vw, 1.35rem);
   line-height: 1.55;
-  max-width: 38rem;
+  max-width: 48rem;
   color: var(--ink-soft);
   margin: 0 0 2.5rem;
 }
@@ -193,7 +194,7 @@ body {
 /* ---------- Posts grid (index) ---------- */
 .posts-section {
   padding: clamp(2rem, 5vw, 4rem) var(--gutter) 6rem;
-  max-width: 80rem;
+  max-width: 100rem;
   margin: 0 auto;
 }
 
@@ -225,7 +226,7 @@ body {
 
 .posts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 0;
   border-top: 1px solid var(--rule);
 }

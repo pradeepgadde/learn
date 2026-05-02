@@ -113,10 +113,17 @@ Output blocks (faux REPL output below a code block):
 
 ## Design notes
 
-- **Typography:** Fraunces (display), Newsreader (body), JetBrains Mono (code) — all from Google Fonts.
+- **Typography:** Fraunces (display), Newsreader (body), JetBrains Mono (code), and Caveat for the handwritten "Pradeep Gadde" brand mark — all from Google Fonts.
 - **Palette:** warm parchment (`#f7f1e3`) with deep ink, Python yellow as accent, Python blue for links.
 - **Theme:** the aesthetic is a "field journal" / typeset newspaper, not a generic dev blog. Adjust the CSS variables at the top of `learn.css` to retheme the whole section in seconds.
 - **No JS frameworks.** A tiny inline script on the index page counts the cards and updates the stat — that's it.
+
+### Swapping the brand handwriting font
+
+The `Pradeep Gadde` topbar mark uses **Caveat**. To change it:
+
+1. In `assets/learn.css`, edit the `@import` URL at the top to reference whatever Google Font you prefer (e.g. `Kalam`, `Patrick+Hand`, `Indie+Flower`, `Sacramento`).
+2. Change the `--font-brand` CSS variable in the `:root` block to match. That single variable controls every appearance of the brand text.
 
 ## Ideas for future days
 
