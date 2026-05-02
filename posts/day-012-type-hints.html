@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 012 · Type hints, the useful 20% — Learn with Pradeep</title>
+  <meta name="description" content="The handful of typing patterns that pay for themselves: the | shorthand, Optional, list[T], dict[K, V], and when to reach for TypedDict.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 012 &middot; Typing &middot; Intermediate</div>
+      <h1>Type hints, the useful 20%</h1>
+      <p class="subtitle">
+        You don't need to type everything. You need to type the public
+        edges &mdash; and use the four or five constructs that catch
+        real bugs.
+      </p>
+      <div class="article-meta">
+        <span>13 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.10+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use the modern <code>X | Y</code> union syntax, the built-in
+        generics (<code>list[int]</code>, not <code>List[int]</code>),
+        and reach for <code>TypedDict</code> when a function takes or
+        returns a structured dict. Skip the rest until you need it.</p>
+      </div>
+
+      <p>
+        Type hints became culturally Pythonic somewhere around 3.9.
+        The mistake most teams make is going all-in &mdash; annotating
+        every loop variable &mdash; and burning out on the busywork.
+        The 20% that actually matters is small.
+      </p>
+
+      <h2>The modern union syntax</h2>
+
+      <p>
+        Since Python 3.10, <code>X | Y</code> replaces
+        <code>Union[X, Y]</code>, and <code>X | None</code> replaces
+        <code>Optional[X]</code>. Read like English, no imports needed.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Old, still works</span>
+<span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">Optional</span>, <span class="tok-n">Union</span>
+<span class="tok-k">def</span> <span class="tok-f">find_user</span>(<span class="tok-n">id</span>: <span class="tok-n">int</span>) -&gt; <span class="tok-f">Optional</span>[<span class="tok-n">User</span>]: ...
+
+<span class="tok-c"># Modern, no import</span>
+<span class="tok-k">def</span> <span class="tok-f">find_user</span>(<span class="tok-n">id</span>: <span class="tok-n">int</span>) -&gt; <span class="tok-n">User</span> | <span class="tok-k">None</span>: ...
+<span class="tok-k">def</span> <span class="tok-f">parse</span>(<span class="tok-n">value</span>: <span class="tok-n">str</span> | <span class="tok-n">int</span>) -&gt; <span class="tok-n">bool</span>: ...</code></pre>
+
+      <h2>Built-in generics</h2>
+
+      <p>
+        Use the lowercase, built-in versions. The capitalized
+        <code>List</code>, <code>Dict</code>, <code>Tuple</code>,
+        <code>Set</code> from <code>typing</code> are deprecated for
+        new code.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">tally</span>(<span class="tok-n">words</span>: <span class="tok-n">list</span>[<span class="tok-n">str</span>]) -&gt; <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">int</span>]:
+    <span class="tok-n">counts</span>: <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">int</span>] = {}
+    <span class="tok-k">for</span> <span class="tok-n">w</span> <span class="tok-k">in</span> <span class="tok-n">words</span>:
+        <span class="tok-n">counts</span>[<span class="tok-n">w</span>] = <span class="tok-n">counts</span>.<span class="tok-f">get</span>(<span class="tok-n">w</span>, <span class="tok-n">0</span>) + <span class="tok-n">1</span>
+    <span class="tok-k">return</span> <span class="tok-n">counts</span></code></pre>
+
+      <h2>The 80/20 rule for where to annotate</h2>
+
+      <p>Three places earn their keep, the rest are optional:</p>
+
+      <ul>
+        <li><strong>Function signatures</strong> &mdash; especially the public API of a module.</li>
+        <li><strong>Class attributes</strong> &mdash; particularly on dataclasses, where they're already required.</li>
+        <li><strong>Containers whose contents aren't obvious</strong> &mdash; <code>users: dict[str, User]</code> tells the next reader something they couldn't infer.</li>
+      </ul>
+
+      <p>
+        Local variables in a short function rarely need annotation &mdash;
+        the assignment usually makes the type obvious.
+      </p>
+
+      <h2>TypedDict for structured dicts</h2>
+
+      <p>
+        When a function takes or returns a dict with a known schema
+        (config, JSON payloads, API responses), <code>TypedDict</code>
+        documents the keys without forcing you to make a class.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">TypedDict</span>
+
+<span class="tok-k">class</span> <span class="tok-f">DeviceConfig</span>(<span class="tok-n">TypedDict</span>):
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">port</span>: <span class="tok-n">int</span>
+    <span class="tok-n">vlans</span>: <span class="tok-n">list</span>[<span class="tok-n">int</span>]
+
+<span class="tok-k">def</span> <span class="tok-f">apply_config</span>(<span class="tok-n">cfg</span>: <span class="tok-n">DeviceConfig</span>) -&gt; <span class="tok-k">None</span>:
+    <span class="tok-n">port</span> = <span class="tok-n">cfg</span>[<span class="tok-s">"port"</span>]      <span class="tok-c"># type-checker knows this is int</span></code></pre>
+
+      <h2>One escape hatch: <code>Any</code></h2>
+
+      <p>
+        Sometimes you genuinely don't know the type &mdash; the value
+        comes from <code>json.loads</code>, or a third-party library
+        with no stubs. Use <code>Any</code>. It's not a defeat; it's
+        a clear signal to readers and to the type checker.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">Any</span>
+
+<span class="tok-k">def</span> <span class="tok-f">parse_response</span>(<span class="tok-n">raw</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">Any</span>]:
+    <span class="tok-k">return</span> <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">raw</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          Type hints don't run. Python ignores them at runtime. To
+          actually catch errors, run <code>mypy</code> or
+          <code>pyright</code> in CI. Without a checker, type hints
+          are documentation &mdash; useful, but not enforced.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a single module in your project &mdash; the one with
+          the cleanest public API. Add type hints to <em>only</em>
+          its top-level functions. Run <code>mypy</code> on it. Note
+          how many real bugs the type checker flags before you've
+          touched a single internal function.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-011-match.html">
+        <span class="label">← Previous</span>
+        <span class="title">match isn't switch</span>
+      </a>
+      <a class="next" href="day-013-subprocess.html">
+        <span class="label">Next →</span>
+        <span class="title">subprocess.run, done right</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

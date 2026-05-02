@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 019 · uv: pip and venv, but fast — Learn with Pradeep</title>
+  <meta name="description" content="uv replaces pip, venv, pip-tools, and pyenv with one Rust-based tool. Lockfiles, Python version management, and 10-100x speedup.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 019 &middot; Tooling &middot; Beginner</div>
+      <h1>uv: pip and venv, but fast</h1>
+      <p class="subtitle">
+        One Rust binary that replaces <code>pip</code>,
+        <code>venv</code>, <code>pip-tools</code>, and
+        <code>pyenv</code>. The Python tooling consolidation has
+        finally happened.
+      </p>
+      <div class="article-meta">
+        <span>20 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Any Python</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>uv</code> is a single binary that installs Python,
+        creates virtualenvs, manages dependencies, and locks them &mdash;
+        all 10&ndash;100&times; faster than the pip toolchain. Start with
+        <code>uv init</code>, <code>uv add &lt;pkg&gt;</code>,
+        <code>uv run &lt;script&gt;</code>.</p>
+      </div>
+
+      <p>
+        The Python packaging conversation has been a mess for fifteen
+        years: <code>pip</code>, <code>pipenv</code>,
+        <code>pip-tools</code>, <code>poetry</code>, <code>pdm</code>,
+        <code>conda</code>, <code>pyenv</code>. The <code>uv</code>
+        team (the same folks behind <code>ruff</code>) collapsed all
+        of it into one Rust-based command-line tool.
+      </p>
+
+      <h2>Install once, use everywhere</h2>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># macOS / Linux</span>
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+<span class="tok-c"># Windows</span>
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre>
+
+      <p>
+        No Python required to install <code>uv</code> &mdash; it's a
+        standalone binary. It can then install any Python version it
+        needs.
+      </p>
+
+      <h2>The five commands you'll use daily</h2>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Start a new project</span>
+uv init my-app
+cd my-app
+
+<span class="tok-c"># Add a dependency (also creates the venv on first call)</span>
+uv add httpx
+
+<span class="tok-c"># Add a dev-only dependency</span>
+uv add --dev pytest
+
+<span class="tok-c"># Run a script in the project's environment</span>
+uv run python main.py
+uv run pytest
+
+<span class="tok-c"># Sync the environment to the lockfile (after pulling changes)</span>
+uv sync</code></pre>
+
+      <p>
+        That's the whole loop. <code>uv init</code> creates a
+        <code>pyproject.toml</code>; <code>uv add</code> resolves and
+        records the dependency in <code>pyproject.toml</code> and
+        <code>uv.lock</code>; <code>uv run</code> guarantees you're
+        running against the locked environment without you having to
+        activate anything.
+      </p>
+
+      <h2>Speed: the part you have to see to believe</h2>
+
+      <p>
+        On a fresh machine, installing a typical web project's
+        dependencies takes <code>pip</code> something like 30&ndash;60
+        seconds. <code>uv</code> does it in 1&ndash;3. Once the cache
+        is warm, repeat installs are essentially instant. This isn't
+        a marginal improvement &mdash; it changes how often you're
+        willing to blow away and rebuild your environment.
+      </p>
+
+      <h2>It manages Python itself, too</h2>
+
+      <p>
+        No more <code>pyenv</code>, no more "which Python is
+        <code>python3</code>?". Pin a Python version in
+        <code>pyproject.toml</code> and uv installs and uses it.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Install a specific Python version</span>
+uv python install 3.12
+
+<span class="tok-c"># Pin this project to it</span>
+uv python pin 3.12
+
+<span class="tok-c"># See what's available</span>
+uv python list</code></pre>
+
+      <h2>Single-file scripts with inline metadata</h2>
+
+      <p>
+        For one-file utility scripts, you can declare dependencies
+        inline using <a href="https://peps.python.org/pep-0723/">PEP 723</a>.
+        <code>uv run</code> picks them up, sets up an ephemeral
+        environment, and runs the script.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># probe.py</span>
+<span class="tok-c"># /// script</span>
+<span class="tok-c"># requires-python = "&gt;=3.12"</span>
+<span class="tok-c"># dependencies = ["httpx", "rich"]</span>
+<span class="tok-c"># ///</span>
+
+<span class="tok-k">import</span> <span class="tok-n">httpx</span>
+<span class="tok-k">from</span> <span class="tok-n">rich</span> <span class="tok-k">import</span> <span class="tok-n">print</span>
+
+<span class="tok-f">print</span>(<span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.github.com"</span>).<span class="tok-f">json</span>())</code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code>uv run probe.py     <span class="tok-c"># Just works. No venv, no pip install.</span></code></pre>
+
+      <p>
+        For automation scripts that don't deserve a full project,
+        this is transformative.
+      </p>
+
+      <div class="callout">
+        <p>
+          Already deep in <code>poetry</code> or <code>pdm</code>?
+          You don't have to migrate. But for new projects &mdash;
+          and for any context where install speed matters (CI,
+          Docker images, Codespaces) &mdash; <code>uv</code> is the
+          new default to reach for.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Install <code>uv</code> on your dev machine. Pick a small
+          existing project. Inside it, run
+          <code>uv init --no-readme</code>, then <code>uv add</code>
+          each of its dependencies. Compare the time to install
+          versus your current workflow.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-018-pytest.html">
+        <span class="label">← Previous</span>
+        <span class="title">pytest, the test you'll actually write</span>
+      </a>
+      <a class="next" href="day-020-generators.html">
+        <span class="label">Next →</span>
+        <span class="title">Generators: lazy by default</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

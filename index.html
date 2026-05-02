@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learn — Daily Python Skills · Pradeep Gadde</title>
+  <meta name="description" content="A daily Python skill, distilled. One small, useful idea every day from Pradeep Gadde.">
+  <meta property="og:title" content="Learn — Daily Python Skills">
+  <meta property="og:description" content="A daily Python skill, distilled. One small, useful idea every day.">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/" aria-current="page">Learn</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="eyebrow">A daily field guide</div>
+      <h1>Daily Python<br>skills, <em>distilled</em>.</h1>
+      <p class="lede">
+        One small, sharp Python idea every day &mdash; the kind of thing
+        you wish someone had shown you earlier. No fluff, no framework
+        evangelism. Just the move, the why, and a snippet you can paste
+        into a REPL right now.
+      </p>
+
+      <div class="hero-meta">
+        <div class="stat">
+          Skills published
+          <strong id="stat-count">011</strong>
+        </div>
+        <div class="stat">
+          Reading time each
+          <strong>~3 min</strong>
+        </div>
+        <div class="stat">
+          New entry
+          <strong>Every day</strong>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="posts-section">
+    <div class="section-head">
+      <h2>The collection</h2>
+      <span class="count" id="count-label">011 entries</span>
+    </div>
+
+    <!--
+      ============================================================
+      POST INDEX
+      Newest entry first. The first card in the list gets the
+      "featured" class — move it to the new top card on each
+      publishing day.
+      ============================================================
+    -->
+    <div class="posts" id="post-list">
+
+      <a class="post-card featured" href="posts/day-011-match.html">
+        <span class="day-no">Day 011 &middot; Syntax</span>
+        <h3>match isn't switch</h3>
+        <p class="excerpt">
+          Treat <code>match</code> as value-comparison and you'll be
+          unimpressed. Treat it as <em>shape</em>-comparison and it
+          replaces a chapter of code.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">syntax</span>
+            <span class="tag">3.10+</span>
+            <span class="tag">patterns</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-010-contextmanager.html">
+        <span class="day-no">Day 010 &middot; Standard library</span>
+        <h3>Custom with-blocks in 5 lines</h3>
+        <p class="excerpt">
+          Decorate a generator with <code>@contextmanager</code>:
+          setup before <code>yield</code>, cleanup after. That's the
+          whole API.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">contextlib</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-009-batched.html">
+        <span class="day-no">Day 009 &middot; Standard library</span>
+        <h3>itertools.batched, finally</h3>
+        <p class="excerpt">
+          The hand-rolled <code>chunked()</code> helper every codebase
+          had for twenty years is now a built-in. Works on generators,
+          not just sequences.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">3.12+</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-008-cache.html">
+        <span class="day-no">Day 008 &middot; Standard library</span>
+        <h3>@cache: memoization in one line</h3>
+        <p class="excerpt">
+          One decorator turns a slow pure function into a fast one.
+          The cache lives for the lifetime of the process.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">performance</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-007-dataclasses.html">
+        <span class="day-no">Day 007 &middot; Standard library</span>
+        <h3>dataclasses, with kw_only</h3>
+        <p class="excerpt">
+          One decorator replaces forty lines of class boilerplate. A
+          handful of options turn it into a real configuration tool.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">classes</span>
+            <span class="tag">3.10+</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-006-walrus.html">
+        <span class="day-no">Day 006 &middot; Syntax</span>
+        <h3>The walrus that earns its keep</h3>
+        <p class="excerpt">
+          <code>:=</code> is divisive. Used in the right two or three
+          places, it's a code-shrinking, intent-clarifying gem.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">syntax</span>
+            <span class="tag">3.8+</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-005-enumerate.html">
+        <span class="day-no">Day 005 &middot; Built-ins</span>
+        <h3>enumerate, and the start= you forgot</h3>
+        <p class="excerpt">
+          The most-loved built-in has a forgotten parameter that does
+          exactly what you keep doing manually.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">built-ins</span>
+            <span class="tag">loops</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-004-dict-get.html">
+        <span class="day-no">Day 004 &middot; Built-ins</span>
+        <h3>dict.get and the missing-key dance</h3>
+        <p class="excerpt">
+          Three tools, three different jobs. Knowing which to reach for
+          is what separates clean code from a forest of
+          <code>if key in d</code>.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">built-ins</span>
+            <span class="tag">dicts</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-003-counter.html">
+        <span class="day-no">Day 003 &middot; Standard library</span>
+        <h3>Counting anything with Counter</h3>
+        <p class="excerpt">
+          A dict that tallies, with a top-N method and arithmetic
+          between counters. The cleanest tool in the standard library.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">collections</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-002-pathlib.html">
+        <span class="day-no">Day 002 &middot; Standard library</span>
+        <h3>Stop using os.path. Use pathlib.</h3>
+        <p class="excerpt">
+          Paths are objects, not strings. Once that clicks, half your
+          file-handling code disappears.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">files</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-001-f-strings.html">
+        <span class="day-no">Day 001 &middot; Strings</span>
+        <h3>The hidden grammar of f-strings</h3>
+        <p class="excerpt">
+          You've used <code>f"{name}"</code> a thousand times. The
+          mini-language inside the braces is where the real power lives.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">strings</span>
+            <span class="tag">formatting</span>
+            <span class="tag">debugging</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="https://github.com/pradeepgadde">GitHub</a> &middot;
+    Rendered with care, no trackers
+  </footer>
+
+  <script>
+    // Auto-update the post counter from the actual list
+    (function () {
+      const list = document.getElementById('post-list');
+      if (!list) return;
+      const cards = list.querySelectorAll('.post-card');
+      const n = cards.length;
+      const padded = String(n).padStart(3, '0');
+      const countEl = document.getElementById('stat-count');
+      const labelEl = document.getElementById('count-label');
+      if (countEl) countEl.textContent = padded;
+      if (labelEl) labelEl.textContent = padded + (n === 1 ? ' entry' : ' entries');
+    })();
+  </script>
+
+</body>
+</html>

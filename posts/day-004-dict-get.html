@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 004 · dict.get and the missing-key dance — Learn with Pradeep</title>
+  <meta name="description" content="dict[key] crashes on missing keys. dict.get returns a default, dict.setdefault inserts one, defaultdict avoids the question entirely.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 004 &middot; Built-ins &middot; Beginner</div>
+      <h1>dict.get and the missing-key dance</h1>
+      <p class="subtitle">
+        Three tools, three different jobs. Knowing which to reach for is
+        what separates clean code from a forest of <code>if key in d</code>.
+      </p>
+      <div class="article-meta">
+        <span>05 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>d.get(k, default)</code> reads safely.
+        <code>d.setdefault(k, default)</code> reads-or-inserts.
+        <code>defaultdict(list)</code> auto-creates the default the
+        first time you touch a key. Pick whichever matches your intent.</p>
+      </div>
+
+      <p>
+        Missing keys raise <code>KeyError</code>, which is the right
+        default &mdash; loud failures beat silent bugs. But sometimes
+        you genuinely have an absent-means-default situation, and the
+        idiomatic Python for it is shorter than what most people write.
+      </p>
+
+      <h2>Just reading: <code>get</code></h2>
+
+      <p>
+        <code>get</code> never raises. Pass a default, get it back when
+        the key isn't there. Without a default, you get <code>None</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">config</span> = {<span class="tok-s">"host"</span>: <span class="tok-s">"localhost"</span>, <span class="tok-s">"port"</span>: <span class="tok-n">8080</span>}
+
+<span class="tok-n">timeout</span> = <span class="tok-n">config</span>.<span class="tok-f">get</span>(<span class="tok-s">"timeout"</span>, <span class="tok-n">30</span>)
+<span class="tok-n">debug</span>   = <span class="tok-n">config</span>.<span class="tok-f">get</span>(<span class="tok-s">"debug"</span>, <span class="tok-k">False</span>)
+
+<span class="tok-c"># Compare the verbose version that's everywhere:</span>
+<span class="tok-n">timeout</span> = <span class="tok-n">config</span>[<span class="tok-s">"timeout"</span>] <span class="tok-k">if</span> <span class="tok-s">"timeout"</span> <span class="tok-k">in</span> <span class="tok-n">config</span> <span class="tok-k">else</span> <span class="tok-n">30</span></code></pre>
+
+      <p>
+        Two important things <code>get</code> does <em>not</em> do: it
+        doesn't insert anything into the dict, and it doesn't help if
+        the value is present-but-None. For that, you want a real
+        <code>or</code> or an explicit <code>is None</code> check.
+      </p>
+
+      <h2>Reading or inserting: <code>setdefault</code></h2>
+
+      <p>
+        <code>setdefault</code> is the operation people don't realize
+        they need. It returns the existing value if the key is there;
+        otherwise it inserts the default and returns it. One call, one
+        lookup, no race.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">groups</span> = {}
+<span class="tok-k">for</span> <span class="tok-n">user</span>, <span class="tok-n">team</span> <span class="tok-k">in</span> <span class="tok-n">memberships</span>:
+    <span class="tok-n">groups</span>.<span class="tok-f">setdefault</span>(<span class="tok-n">team</span>, []).<span class="tok-f">append</span>(<span class="tok-n">user</span>)
+
+<span class="tok-c"># groups is now {'platform': ['ada','linus'], 'data': ['guido'], ...}</span></code></pre>
+
+      <p>
+        That's the entire group-by pattern. The list is created on first
+        sight of each team, and appended to on every visit afterward.
+      </p>
+
+      <h2>The lazier option: <code>defaultdict</code></h2>
+
+      <p>
+        If almost every read also inserts, <code>defaultdict</code>
+        skips the <code>setdefault</code> step. Pass it a factory
+        function (the type itself works as a factory:
+        <code>list</code>, <code>set</code>, <code>int</code>) and missing
+        keys are auto-populated.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">collections</span> <span class="tok-k">import</span> <span class="tok-n">defaultdict</span>
+
+<span class="tok-n">groups</span> = <span class="tok-f">defaultdict</span>(<span class="tok-n">list</span>)
+<span class="tok-k">for</span> <span class="tok-n">user</span>, <span class="tok-n">team</span> <span class="tok-k">in</span> <span class="tok-n">memberships</span>:
+    <span class="tok-n">groups</span>[<span class="tok-n">team</span>].<span class="tok-f">append</span>(<span class="tok-n">user</span>)
+
+<span class="tok-c"># int as factory gives you a free counter:</span>
+<span class="tok-n">tally</span> = <span class="tok-f">defaultdict</span>(<span class="tok-n">int</span>)
+<span class="tok-k">for</span> <span class="tok-n">word</span> <span class="tok-k">in</span> <span class="tok-n">text</span>.<span class="tok-f">split</span>():
+    <span class="tok-n">tally</span>[<span class="tok-n">word</span>] += <span class="tok-n">1</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For pure tallying, prefer <code>Counter</code> from
+          <a href="day-003-counter.html">Day 003</a> &mdash; it's a
+          <code>defaultdict(int)</code> with superpowers.
+          <code>defaultdict</code> shines when the factory is anything
+          other than <code>int</code>.
+        </p>
+      </div>
+
+      <h2>Choosing between them</h2>
+
+      <p>The mental model that has served me well:</p>
+
+      <ul>
+        <li><strong>Reading only?</strong> Use <code>get</code>.</li>
+        <li><strong>One-off read-or-insert?</strong> Use <code>setdefault</code>.</li>
+        <li><strong>Many read-or-inserts in a loop?</strong> Use <code>defaultdict</code>.</li>
+        <li><strong>Counting?</strong> Use <code>Counter</code>.</li>
+      </ul>
+
+      <div class="challenge">
+        <p>
+          Search your codebase for <code>if .* in</code> in dict
+          contexts. Most of those can become <code>get</code>,
+          <code>setdefault</code>, or a <code>defaultdict</code>.
+          Pick one and refactor it.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-003-counter.html">
+        <span class="label">← Previous</span>
+        <span class="title">Counting anything with Counter</span>
+      </a>
+      <a class="next" href="day-005-enumerate.html">
+        <span class="label">Next →</span>
+        <span class="title">enumerate, and the start= you forgot</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 021 · Comprehensions you'll actually read later — Learn with Pradeep</title>
+  <meta name="description" content="List, dict, and set comprehensions are powerful, then unreadable. The line is around 80 characters and one level of nesting.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 021 &middot; Syntax &middot; Beginner</div>
+      <h1>Comprehensions you'll actually read later</h1>
+      <p class="subtitle">
+        List comprehensions are Python's most-loved feature and its
+        most-abused. Three rules keep them on the right side of clever.
+      </p>
+      <div class="article-meta">
+        <span>22 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>List, dict, and set comprehensions are pythonic when they
+        fit on one readable line and have at most one filter and one
+        nesting level. Past that, write a regular loop. The
+        comprehension is for clarity, not for showing off.</p>
+      </div>
+
+      <p>
+        A list comprehension says "build a list by transforming
+        these inputs." A dict comprehension says the same about a
+        dict. A set comprehension, a set. The mistake is treating
+        them as a contest in concision &mdash; the goal is a single
+        line that reads like a sentence.
+      </p>
+
+      <h2>The three flavors</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># List</span>
+<span class="tok-n">squares</span>      = [<span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10</span>)]
+
+<span class="tok-c"># Set — uniqueness for free</span>
+<span class="tok-n">unique_tags</span>  = {<span class="tok-n">t</span>.<span class="tok-f">lower</span>() <span class="tok-k">for</span> <span class="tok-n">item</span> <span class="tok-k">in</span> <span class="tok-n">items</span> <span class="tok-k">for</span> <span class="tok-n">t</span> <span class="tok-k">in</span> <span class="tok-n">item</span>.<span class="tok-n">tags</span>}
+
+<span class="tok-c"># Dict — keyed transform</span>
+<span class="tok-n">by_id</span>        = {<span class="tok-n">u</span>.<span class="tok-n">id</span>: <span class="tok-n">u</span> <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">users</span>}
+
+<span class="tok-c"># Generator — same syntax with parentheses (lazy; see Day 020)</span>
+<span class="tok-n">lengths</span>      = (<span class="tok-f">len</span>(<span class="tok-n">w</span>) <span class="tok-k">for</span> <span class="tok-n">w</span> <span class="tok-k">in</span> <span class="tok-n">words</span>)</code></pre>
+
+      <h2>Filtering and the conditional</h2>
+
+      <p>
+        An <code>if</code> at the end filters. An
+        <code>if/else</code> earlier transforms based on a condition.
+        These look similar &mdash; they're not.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Filter: only positives are included</span>
+<span class="tok-n">pos</span> = [<span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">values</span> <span class="tok-k">if</span> <span class="tok-n">x</span> &gt; <span class="tok-n">0</span>]
+
+<span class="tok-c"># Transform: every value, but negatives become 0</span>
+<span class="tok-n">clamped</span> = [<span class="tok-n">x</span> <span class="tok-k">if</span> <span class="tok-n">x</span> &gt; <span class="tok-n">0</span> <span class="tok-k">else</span> <span class="tok-n">0</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">values</span>]
+
+<span class="tok-c"># Both — filter, then transform</span>
+<span class="tok-n">scaled</span> = [<span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">2</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">values</span> <span class="tok-k">if</span> <span class="tok-n">x</span> &gt; <span class="tok-n">0</span>]</code></pre>
+
+      <h2>The line where it stops being clever</h2>
+
+      <p>
+        These two are clear:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">titles</span> = [<span class="tok-n">b</span>.<span class="tok-n">title</span> <span class="tok-k">for</span> <span class="tok-n">b</span> <span class="tok-k">in</span> <span class="tok-n">books</span>]
+<span class="tok-n">cheap</span>  = [<span class="tok-n">b</span> <span class="tok-k">for</span> <span class="tok-n">b</span> <span class="tok-k">in</span> <span class="tok-n">books</span> <span class="tok-k">if</span> <span class="tok-n">b</span>.<span class="tok-n">price</span> &lt; <span class="tok-n">10</span>]</code></pre>
+
+      <p>This is borderline:</p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">discounted_titles</span> = [
+    <span class="tok-n">b</span>.<span class="tok-n">title</span>.<span class="tok-f">upper</span>() <span class="tok-k">for</span> <span class="tok-n">b</span> <span class="tok-k">in</span> <span class="tok-n">books</span>
+    <span class="tok-k">if</span> <span class="tok-n">b</span>.<span class="tok-n">price</span> &lt; <span class="tok-n">10</span> <span class="tok-k">and</span> <span class="tok-n">b</span>.<span class="tok-n">in_stock</span>
+]</code></pre>
+
+      <p>And this is where you write a real loop:</p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># DON'T — clever to write, awful to read in three months</span>
+<span class="tok-n">flattened</span> = [
+    (<span class="tok-n">k</span>, <span class="tok-n">v</span>) <span class="tok-k">for</span> <span class="tok-n">section</span> <span class="tok-k">in</span> <span class="tok-n">config</span>.<span class="tok-f">values</span>()
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">section</span>, <span class="tok-n">dict</span>)
+    <span class="tok-k">for</span> <span class="tok-n">k</span>, <span class="tok-n">v</span> <span class="tok-k">in</span> <span class="tok-n">section</span>.<span class="tok-f">items</span>()
+    <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">k</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"_"</span>)
+]
+
+<span class="tok-c"># DO — boring, obvious, modifiable</span>
+<span class="tok-n">flattened</span> = []
+<span class="tok-k">for</span> <span class="tok-n">section</span> <span class="tok-k">in</span> <span class="tok-n">config</span>.<span class="tok-f">values</span>():
+    <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-f">isinstance</span>(<span class="tok-n">section</span>, <span class="tok-n">dict</span>):
+        <span class="tok-k">continue</span>
+    <span class="tok-k">for</span> <span class="tok-n">k</span>, <span class="tok-n">v</span> <span class="tok-k">in</span> <span class="tok-n">section</span>.<span class="tok-f">items</span>():
+        <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">k</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"_"</span>):
+            <span class="tok-n">flattened</span>.<span class="tok-f">append</span>((<span class="tok-n">k</span>, <span class="tok-n">v</span>))</code></pre>
+
+      <p>
+        My rule of thumb: a comprehension that needs more than one
+        <code>for</code> or more than one <code>if</code> is begging
+        to be a regular loop. The diff is two more lines and an order
+        of magnitude more readable.
+      </p>
+
+      <h2>Three useful idioms worth keeping in your back pocket</h2>
+
+      <p><strong>Lookup dict from a list of objects:</strong></p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">by_id</span> = {<span class="tok-n">u</span>.<span class="tok-n">id</span>: <span class="tok-n">u</span> <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">users</span>}</code></pre>
+
+      <p><strong>Inverting a dict (when values are unique):</strong></p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">name_by_id</span> = {<span class="tok-n">v</span>: <span class="tok-n">k</span> <span class="tok-k">for</span> <span class="tok-n">k</span>, <span class="tok-n">v</span> <span class="tok-k">in</span> <span class="tok-n">id_by_name</span>.<span class="tok-f">items</span>()}</code></pre>
+
+      <p><strong>Deduping while preserving order (Python 3.7+):</strong></p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">unique</span> = <span class="tok-f">list</span>(<span class="tok-f">dict</span>.<span class="tok-f">fromkeys</span>(<span class="tok-n">items</span>))</code></pre>
+
+      <div class="callout">
+        <p>
+          Comprehensions create their own scope in Python 3. The
+          loop variable doesn't leak out, which is good news. The
+          flip side: variables defined inside don't survive the
+          comprehension &mdash; if you need the running value
+          afterward, use a regular loop.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a comprehension in your codebase that's longer than
+          one line. Time how long it takes you to figure out what
+          it does. If it's more than ten seconds, rewrite it as a
+          regular loop and feel the relief.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-020-generators.html">
+        <span class="label">← Previous</span>
+        <span class="title">Generators: lazy by default</span>
+      </a>
+      <a class="next placeholder" aria-disabled="true">
+        <span class="label">Next →</span>
+        <span class="title">Coming tomorrow</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

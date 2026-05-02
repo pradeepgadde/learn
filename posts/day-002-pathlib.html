@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 002 · Stop using os.path. Use pathlib. — Learn with Pradeep</title>
+  <meta name="description" content="pathlib turns path strings into proper objects with methods. One mental model replaces os.path.join, open(), and os.listdir.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 002 &middot; Standard library &middot; Beginner</div>
+      <h1>Stop using os.path. Use pathlib.</h1>
+      <p class="subtitle">
+        Paths are objects, not strings. Once that clicks, half your file-handling
+        code disappears.
+      </p>
+      <div class="article-meta">
+        <span>03 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.6+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>pathlib.Path</code> is the modern way to deal with files.
+        Use <code>/</code> to join, <code>.read_text()</code> to read,
+        <code>.glob()</code> to search, and never type
+        <code>os.path.join</code> again.</p>
+      </div>
+
+      <p>
+        <code>os.path</code> was designed when paths were just strings.
+        That's why every operation is a free-standing function:
+        <code>os.path.join</code>, <code>os.path.exists</code>,
+        <code>os.path.dirname</code>. <code>pathlib</code>, added in Python
+        3.4, treats paths as what they actually are &mdash; objects with
+        methods. The result is code that reads like a sentence.
+      </p>
+
+      <h2>Joining paths with the <code>/</code> operator</h2>
+
+      <p>
+        The <code>/</code> operator is overloaded for <code>Path</code>
+        objects. It joins paths with the correct separator on every OS,
+        no string concatenation, no <code>os.sep</code>, no surprises
+        on Windows.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-n">project</span> = <span class="tok-f">Path</span>(<span class="tok-s">"~/code/myapp"</span>).<span class="tok-f">expanduser</span>()
+<span class="tok-n">config</span>  = <span class="tok-n">project</span> / <span class="tok-s">"settings"</span> / <span class="tok-s">"prod.toml"</span>
+
+<span class="tok-f">print</span>(<span class="tok-n">config</span>)             <span class="tok-c"># /home/pradeep/code/myapp/settings/prod.toml</span>
+<span class="tok-f">print</span>(<span class="tok-n">config</span>.<span class="tok-f">exists</span>())</code></pre>
+
+      <h2>Reading and writing in one line</h2>
+
+      <p>
+        For small files, you almost never need <code>open()</code> + a
+        with-block any more.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">notes</span> = <span class="tok-f">Path</span>(<span class="tok-s">"notes.md"</span>)
+
+<span class="tok-n">notes</span>.<span class="tok-f">write_text</span>(<span class="tok-s">"# Day 002\n\nPathlib is great."</span>)
+<span class="tok-n">contents</span> = <span class="tok-n">notes</span>.<span class="tok-f">read_text</span>()
+
+<span class="tok-c"># Bytes versions exist too:</span>
+<span class="tok-n">data</span> = <span class="tok-f">Path</span>(<span class="tok-s">"image.png"</span>).<span class="tok-f">read_bytes</span>()</code></pre>
+
+      <h2>Globbing instead of listdir + filter</h2>
+
+      <p>
+        <code>glob()</code> walks one directory level. <code>rglob()</code>
+        walks recursively. Both return generators of <code>Path</code>
+        objects, ready to filter or iterate.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">repo</span> = <span class="tok-f">Path</span>(<span class="tok-s">"."</span>)
+
+<span class="tok-c"># All Python files at any depth, skipping virtualenvs</span>
+<span class="tok-n">py_files</span> = [
+    <span class="tok-n">p</span> <span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-n">repo</span>.<span class="tok-f">rglob</span>(<span class="tok-s">"*.py"</span>)
+    <span class="tok-k">if</span> <span class="tok-s">"venv"</span> <span class="tok-k">not</span> <span class="tok-k">in</span> <span class="tok-n">p</span>.<span class="tok-n">parts</span>
+]
+<span class="tok-f">print</span>(<span class="tok-s">f"{<span class="tok-f">len</span>(py_files)} Python files"</span>)</code></pre>
+
+      <h2>The properties you'll use constantly</h2>
+
+      <p>
+        These are the four you'll reach for over and over &mdash; and they
+        don't require allocating any new strings.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">p</span> = <span class="tok-f">Path</span>(<span class="tok-s">"/var/log/nginx/access.log.gz"</span>)
+
+<span class="tok-n">p</span>.<span class="tok-n">name</span>     <span class="tok-c"># 'access.log.gz'</span>
+<span class="tok-n">p</span>.<span class="tok-n">stem</span>     <span class="tok-c"># 'access.log'</span>
+<span class="tok-n">p</span>.<span class="tok-n">suffix</span>   <span class="tok-c"># '.gz'</span>
+<span class="tok-n">p</span>.<span class="tok-n">suffixes</span> <span class="tok-c"># ['.log', '.gz']</span>
+<span class="tok-n">p</span>.<span class="tok-n">parent</span>   <span class="tok-c"># PosixPath('/var/log/nginx')</span>
+<span class="tok-n">p</span>.<span class="tok-n">parts</span>    <span class="tok-c"># ('/', 'var', 'log', 'nginx', 'access.log.gz')</span></code></pre>
+
+      <div class="callout">
+        <p>
+          Need to swap an extension? <code>p.with_suffix(".txt")</code>.
+          Need a sibling file in the same directory?
+          <code>p.with_name("other.log")</code>. Both return new
+          <code>Path</code> objects without touching the filesystem.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Open any script in your codebase that imports
+          <code>os.path</code>. Replace the imports and rewrite the path
+          handling using <code>pathlib</code>. Count the lines you
+          deleted &mdash; usually 20&ndash;40%.
+        </p>
+        <p>
+          Bonus: find a place where you wrote
+          <code>open(path).read()</code> and shorten it to
+          <code>Path(path).read_text()</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-001-f-strings.html">
+        <span class="label">← Previous</span>
+        <span class="title">The hidden grammar of f-strings</span>
+      </a>
+      <a class="next" href="day-003-counter.html">
+        <span class="label">Next →</span>
+        <span class="title">Counting anything with Counter</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

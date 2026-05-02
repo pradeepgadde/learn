@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 013 · subprocess.run, done right — Learn with Pradeep</title>
+  <meta name="description" content="The four flags that make subprocess.run safe and ergonomic: list args, check=True, capture_output=True, text=True. Plus when timeout matters.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 013 &middot; Standard library &middot; Intermediate</div>
+      <h1>subprocess.run, done right</h1>
+      <p class="subtitle">
+        Four flags turn <code>subprocess.run</code> from a footgun into
+        a tool you'd actually want to use.
+      </p>
+      <div class="article-meta">
+        <span>14 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.5+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Always pass arguments as a list, not a string. Always pass
+        <code>check=True</code>, <code>capture_output=True</code>, and
+        <code>text=True</code>. Add <code>timeout=</code> for anything
+        touching the network. Five lines, one safe call.</p>
+      </div>
+
+      <p>
+        For shelling out to <code>kubectl</code>, <code>git</code>,
+        <code>ssh</code>, or any CLI tool, <code>subprocess.run</code>
+        is the right answer. But the default behavior is unforgiving:
+        no error on failure, no captured output, bytes everywhere.
+        Four flags fix that.
+      </p>
+
+      <h2>The boilerplate-free template</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">subprocess</span>
+
+<span class="tok-n">result</span> = <span class="tok-n">subprocess</span>.<span class="tok-f">run</span>(
+    [<span class="tok-s">"git"</span>, <span class="tok-s">"rev-parse"</span>, <span class="tok-s">"--short"</span>, <span class="tok-s">"HEAD"</span>],
+    <span class="tok-n">check</span>=<span class="tok-k">True</span>,
+    <span class="tok-n">capture_output</span>=<span class="tok-k">True</span>,
+    <span class="tok-n">text</span>=<span class="tok-k">True</span>,
+)
+
+<span class="tok-n">commit</span> = <span class="tok-n">result</span>.<span class="tok-n">stdout</span>.<span class="tok-f">strip</span>()
+<span class="tok-f">print</span>(<span class="tok-s">f"Building commit {commit}"</span>)</code></pre>
+
+      <p>What each flag does:</p>
+
+      <ul>
+        <li><strong>list args</strong> &mdash; not a string. No shell, no quoting bugs, no injection risk.</li>
+        <li><strong><code>check=True</code></strong> &mdash; raises <code>CalledProcessError</code> on a non-zero exit code instead of silently succeeding.</li>
+        <li><strong><code>capture_output=True</code></strong> &mdash; collects stdout and stderr instead of letting them go to your terminal.</li>
+        <li><strong><code>text=True</code></strong> &mdash; decodes output as a string, not bytes.</li>
+      </ul>
+
+      <h2>Why <code>shell=True</code> is almost always wrong</h2>
+
+      <p>
+        It's tempting to write <code>subprocess.run("ls -la", shell=True)</code>.
+        Then someone passes a filename containing a semicolon and your
+        cron job runs <code>rm -rf /</code>. Pass a list instead and
+        the shell never sees your arguments.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Don't — shell injection waiting to happen</span>
+<span class="tok-n">subprocess</span>.<span class="tok-f">run</span>(<span class="tok-s">f"grep {pattern} {file}"</span>, <span class="tok-n">shell</span>=<span class="tok-k">True</span>)
+
+<span class="tok-c"># Do — pattern and file are passed as discrete arguments</span>
+<span class="tok-n">subprocess</span>.<span class="tok-f">run</span>([<span class="tok-s">"grep"</span>, <span class="tok-n">pattern</span>, <span class="tok-n">file</span>], <span class="tok-n">check</span>=<span class="tok-k">True</span>)</code></pre>
+
+      <p>
+        The only legitimate reason to use <code>shell=True</code> is
+        when you genuinely need a shell feature: pipes, globs, redirection.
+        And usually you can do those in Python instead.
+      </p>
+
+      <h2>Network calls need a timeout</h2>
+
+      <p>
+        Anything that hits the network or an unreliable host should
+        have a timeout. Without one, your script can hang forever.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-n">result</span> = <span class="tok-n">subprocess</span>.<span class="tok-f">run</span>(
+        [<span class="tok-s">"ssh"</span>, <span class="tok-s">"router1"</span>, <span class="tok-s">"show"</span>, <span class="tok-s">"version"</span>],
+        <span class="tok-n">check</span>=<span class="tok-k">True</span>, <span class="tok-n">capture_output</span>=<span class="tok-k">True</span>, <span class="tok-n">text</span>=<span class="tok-k">True</span>,
+        <span class="tok-n">timeout</span>=<span class="tok-n">10</span>,
+    )
+<span class="tok-k">except</span> <span class="tok-n">subprocess</span>.<span class="tok-n">TimeoutExpired</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">warning</span>(<span class="tok-s">"router1 not responding"</span>)
+<span class="tok-k">except</span> <span class="tok-n">subprocess</span>.<span class="tok-n">CalledProcessError</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">error</span>(<span class="tok-s">f"command failed: {e.stderr}"</span>)</code></pre>
+
+      <h2>Streaming output for long-running commands</h2>
+
+      <p>
+        <code>capture_output=True</code> waits for the command to finish.
+        For a long task where you want to see progress (a build, a
+        deploy), let stdout flow through to the terminal by simply
+        not capturing it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Output streams to your terminal in real time, exit code is checked</span>
+<span class="tok-n">subprocess</span>.<span class="tok-f">run</span>(
+    [<span class="tok-s">"docker"</span>, <span class="tok-s">"build"</span>, <span class="tok-s">"-t"</span>, <span class="tok-s">"app:latest"</span>, <span class="tok-s">"."</span>],
+    <span class="tok-n">check</span>=<span class="tok-k">True</span>,
+)</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <strong>Don't capture <code>stdout</code> manually with
+          <code>stdout=subprocess.PIPE</code> unless you also
+          <code>stdin=subprocess.DEVNULL</code> or read the output as
+          it streams.</strong> A child producing more than ~64KB
+          without anyone reading the pipe will deadlock. The
+          <code>capture_output=True</code> shortcut handles this
+          correctly.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find any place in your code where you call
+          <code>os.system</code>, <code>subprocess.call</code>, or
+          <code>subprocess.run(..., shell=True)</code>. Convert it to
+          the four-flag template. If it talks to the network, add a
+          timeout.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-012-type-hints.html">
+        <span class="label">← Previous</span>
+        <span class="title">Type hints, the useful 20%</span>
+      </a>
+      <a class="next" href="day-014-argparse.html">
+        <span class="label">Next →</span>
+        <span class="title">A real CLI in 12 lines of argparse</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

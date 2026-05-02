@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 014 · A real CLI in 12 lines of argparse — Learn with Pradeep</title>
+  <meta name="description" content="argparse gets a bad rap. The minimal pattern is small, and you get --help, type coercion, and choice validation for free.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 014 &middot; Standard library &middot; Beginner</div>
+      <h1>A real CLI in 12 lines of argparse</h1>
+      <p class="subtitle">
+        You don't need Click or Typer for a useful CLI. The standard
+        library has been good enough since 2011.
+      </p>
+      <div class="article-meta">
+        <span>15 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.2+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>argparse</code> in 12 lines gives you positional and
+        optional arguments, type coercion, validated choices, default
+        values, and an auto-generated <code>--help</code>. Reach for a
+        third-party CLI library only when you need subcommands or
+        Rich-style output.</p>
+      </div>
+
+      <p>
+        Every networking and DevOps tool starts as a script that takes
+        a hostname. Six months later it has six flags and no
+        <code>--help</code>. <code>argparse</code> prevents that
+        future, and the minimal version is shorter than most people
+        think.
+      </p>
+
+      <h2>The 12-line template</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">argparse</span>
+
+<span class="tok-k">def</span> <span class="tok-f">main</span>():
+    <span class="tok-n">p</span> = <span class="tok-n">argparse</span>.<span class="tok-f">ArgumentParser</span>(
+        <span class="tok-n">description</span>=<span class="tok-s">"Probe a router and print interface stats."</span>,
+    )
+    <span class="tok-n">p</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"host"</span>, <span class="tok-n">help</span>=<span class="tok-s">"hostname or IP of the router"</span>)
+    <span class="tok-n">p</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--port"</span>,    <span class="tok-n">type</span>=<span class="tok-n">int</span>, <span class="tok-n">default</span>=<span class="tok-n">22</span>)
+    <span class="tok-n">p</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--timeout"</span>, <span class="tok-n">type</span>=<span class="tok-n">float</span>, <span class="tok-n">default</span>=<span class="tok-n">5.0</span>)
+    <span class="tok-n">p</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--format"</span>, <span class="tok-n">choices</span>=[<span class="tok-s">"json"</span>, <span class="tok-s">"table"</span>], <span class="tok-n">default</span>=<span class="tok-s">"table"</span>)
+    <span class="tok-n">p</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--verbose"</span>, <span class="tok-s">"-v"</span>, <span class="tok-n">action</span>=<span class="tok-s">"store_true"</span>)
+    <span class="tok-n">args</span> = <span class="tok-n">p</span>.<span class="tok-f">parse_args</span>()
+    <span class="tok-f">probe</span>(<span class="tok-n">args</span>.<span class="tok-n">host</span>, <span class="tok-n">args</span>.<span class="tok-n">port</span>, <span class="tok-n">args</span>.<span class="tok-n">timeout</span>, <span class="tok-n">args</span>.<span class="tok-n">format</span>, <span class="tok-n">args</span>.<span class="tok-n">verbose</span>)
+
+<span class="tok-k">if</span> <span class="tok-n">__name__</span> == <span class="tok-s">"__main__"</span>:
+    <span class="tok-f">main</span>()</code></pre>
+
+      <p>That's it. Now run it with no args and watch:</p>
+
+      <div class="output">$ python probe.py
+usage: probe.py [-h] [--port PORT] [--timeout TIMEOUT] [--format {json,table}] [--verbose] host
+probe.py: error: the following arguments are required: host
+
+$ python probe.py --help
+usage: probe.py [-h] [--port PORT] [--timeout TIMEOUT] ...
+Probe a router and print interface stats.
+positional arguments:
+  host                  hostname or IP of the router
+options:
+  -h, --help            show this help message and exit
+  --port PORT
+  --timeout TIMEOUT
+  --format {json,table}
+  --verbose, -v</div>
+
+      <h2>The four argument flavors you actually need</h2>
+
+      <ul>
+        <li><strong>Positional:</strong> <code>p.add_argument("host")</code></li>
+        <li><strong>Optional with value:</strong> <code>p.add_argument("--port", type=int, default=22)</code></li>
+        <li><strong>Boolean flag:</strong> <code>p.add_argument("--verbose", action="store_true")</code></li>
+        <li><strong>Repeatable list:</strong> <code>p.add_argument("--tag", action="append", default=[])</code></li>
+      </ul>
+
+      <p>
+        With those four patterns you can describe almost any CLI in
+        the wild.
+      </p>
+
+      <h2>Free validation: <code>type</code> and <code>choices</code></h2>
+
+      <p>
+        <code>type</code> is any callable that takes a string and
+        returns the parsed value. <code>int</code>, <code>float</code>,
+        and <code>pathlib.Path</code> all qualify, and so does any
+        function you write.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-k">def</span> <span class="tok-f">existing_file</span>(<span class="tok-n">s</span>):
+    <span class="tok-n">p</span> = <span class="tok-f">Path</span>(<span class="tok-n">s</span>)
+    <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">p</span>.<span class="tok-f">is_file</span>():
+        <span class="tok-k">raise</span> <span class="tok-n">argparse</span>.<span class="tok-f">ArgumentTypeError</span>(<span class="tok-s">f"no such file: {s}"</span>)
+    <span class="tok-k">return</span> <span class="tok-n">p</span>
+
+<span class="tok-n">parser</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--config"</span>, <span class="tok-n">type</span>=<span class="tok-n">existing_file</span>, <span class="tok-n">required</span>=<span class="tok-k">True</span>)</code></pre>
+
+      <h2>Subcommands, when you grow into them</h2>
+
+      <p>
+        When the script has multiple distinct verbs &mdash;
+        <code>git commit</code>, <code>git push</code>, <code>kubectl
+        get</code>, <code>kubectl apply</code> &mdash; subparsers
+        keep them organized.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">p</span>   = <span class="tok-n">argparse</span>.<span class="tok-f">ArgumentParser</span>()
+<span class="tok-n">sub</span> = <span class="tok-n">p</span>.<span class="tok-f">add_subparsers</span>(<span class="tok-n">dest</span>=<span class="tok-s">"cmd"</span>, <span class="tok-n">required</span>=<span class="tok-k">True</span>)
+
+<span class="tok-n">show</span> = <span class="tok-n">sub</span>.<span class="tok-f">add_parser</span>(<span class="tok-s">"show"</span>, <span class="tok-n">help</span>=<span class="tok-s">"display config"</span>)
+<span class="tok-n">show</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"section"</span>)
+
+<span class="tok-n">apply</span> = <span class="tok-n">sub</span>.<span class="tok-f">add_parser</span>(<span class="tok-s">"apply"</span>, <span class="tok-n">help</span>=<span class="tok-s">"push config"</span>)
+<span class="tok-n">apply</span>.<span class="tok-f">add_argument</span>(<span class="tok-s">"--dry-run"</span>, <span class="tok-n">action</span>=<span class="tok-s">"store_true"</span>)
+
+<span class="tok-n">args</span> = <span class="tok-n">p</span>.<span class="tok-f">parse_args</span>()
+<span class="tok-c"># dispatch on args.cmd</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For a single-file script, argparse is fine. If you find
+          yourself wanting subcommand groups, rich help formatting,
+          and color, that's when <code>typer</code> or
+          <code>click</code> earn their dependency. But many "we need
+          a CLI library" decisions are premature.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a one-off script you have that uses <code>sys.argv</code>
+          directly. Convert it to argparse using the 12-line template.
+          Add <code>--help</code> documentation to each argument as
+          you go &mdash; you'll be glad in three months.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-013-subprocess.html">
+        <span class="label">← Previous</span>
+        <span class="title">subprocess.run, done right</span>
+      </a>
+      <a class="next" href="day-015-json-yaml.html">
+        <span class="label">Next →</span>
+        <span class="title">JSON and YAML without the footguns</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

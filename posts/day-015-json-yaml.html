@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 015 · JSON and YAML without the footguns — Learn with Pradeep</title>
+  <meta name="description" content="json.dumps with indent and sort_keys, yaml.safe_load instead of yaml.load, and tomllib for the new config standard.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 015 &middot; Standard library &middot; Beginner</div>
+      <h1>JSON and YAML without the footguns</h1>
+      <p class="subtitle">
+        Three short rules for parsing config files: pretty-print on
+        write, validate on read, never use <code>yaml.load</code>.
+      </p>
+      <div class="article-meta">
+        <span>16 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.11+ for tomllib</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>For JSON, always pass <code>indent=2, sort_keys=True</code>
+        when writing for humans. For YAML, always use
+        <code>yaml.safe_load</code> &mdash; <code>yaml.load</code> can
+        execute arbitrary Python. For config in modern projects,
+        prefer TOML and the built-in <code>tomllib</code> (3.11+).</p>
+      </div>
+
+      <p>
+        Three formats handle 99% of config-file work in Python land:
+        JSON for machine-to-machine, YAML for ops-friendly hand
+        editing, TOML for project metadata. Each has a quiet trap that
+        bites people once and never again.
+      </p>
+
+      <h2>JSON for humans</h2>
+
+      <p>
+        <code>json.dumps</code> defaults to a single line with no
+        spacing. Fine for the wire, awful for diffs and code review.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">json</span>
+
+<span class="tok-n">config</span> = {<span class="tok-s">"port"</span>: <span class="tok-n">8080</span>, <span class="tok-s">"host"</span>: <span class="tok-s">"0.0.0.0"</span>, <span class="tok-s">"tags"</span>: [<span class="tok-s">"prod"</span>, <span class="tok-s">"v2"</span>]}
+
+<span class="tok-c"># For humans</span>
+<span class="tok-f">print</span>(<span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-n">config</span>, <span class="tok-n">indent</span>=<span class="tok-n">2</span>, <span class="tok-n">sort_keys</span>=<span class="tok-k">True</span>))</code></pre>
+
+      <div class="output">{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "tags": [
+    "prod",
+    "v2"
+  ]
+}</div>
+
+      <p>
+        <code>sort_keys=True</code> is the secret sauce: any two
+        equivalent configs produce identical output, so
+        <code>git diff</code> shows real changes only.
+      </p>
+
+      <h2>The <code>default=</code> escape hatch</h2>
+
+      <p>
+        JSON doesn't know about <code>datetime</code>, <code>Path</code>,
+        <code>set</code>, or your dataclass. The <code>default</code>
+        callback handles whatever the encoder doesn't.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">datetime</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-k">def</span> <span class="tok-f">to_json</span>(<span class="tok-n">obj</span>):
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">datetime</span>): <span class="tok-k">return</span> <span class="tok-n">obj</span>.<span class="tok-f">isoformat</span>()
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">Path</span>):     <span class="tok-k">return</span> <span class="tok-f">str</span>(<span class="tok-n">obj</span>)
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">set</span>):      <span class="tok-k">return</span> <span class="tok-f">sorted</span>(<span class="tok-n">obj</span>)
+    <span class="tok-k">raise</span> <span class="tok-f">TypeError</span>(<span class="tok-s">f"can't serialize {<span class="tok-f">type</span>(obj).__name__}"</span>)
+
+<span class="tok-n">payload</span> = {<span class="tok-s">"when"</span>: <span class="tok-n">datetime</span>.<span class="tok-f">utcnow</span>(), <span class="tok-s">"path"</span>: <span class="tok-f">Path</span>(<span class="tok-s">"/etc/app"</span>)}
+<span class="tok-f">print</span>(<span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-n">payload</span>, <span class="tok-n">default</span>=<span class="tok-n">to_json</span>))</code></pre>
+
+      <h2>YAML: <code>safe_load</code>, always</h2>
+
+      <p>
+        PyYAML's <code>load</code> can construct arbitrary Python
+        objects, including ones that execute code. A malicious YAML
+        file can run shell commands. <code>safe_load</code> only
+        produces basic types (dict, list, str, int, float, bool, None).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">yaml</span>
+
+<span class="tok-c"># NEVER do this on untrusted input:</span>
+<span class="tok-c"># yaml.load(open("config.yml"), Loader=yaml.Loader)</span>
+
+<span class="tok-c"># Always:</span>
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"config.yml"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">config</span> = <span class="tok-n">yaml</span>.<span class="tok-f">safe_load</span>(<span class="tok-n">f</span>)
+
+<span class="tok-c"># And to write:</span>
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"config.yml"</span>, <span class="tok-s">"w"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">yaml</span>.<span class="tok-f">safe_dump</span>(<span class="tok-n">config</span>, <span class="tok-n">f</span>, <span class="tok-n">sort_keys</span>=<span class="tok-k">False</span>, <span class="tok-n">default_flow_style</span>=<span class="tok-k">False</span>)</code></pre>
+
+      <p>
+        <code>default_flow_style=False</code> forces block style
+        (one item per line) instead of inline brackets. Much more
+        readable for nested configs.
+      </p>
+
+      <h2>TOML for project config</h2>
+
+      <p>
+        Since Python 3.11, parsing TOML is built in. No third-party
+        library, no <code>pip install</code>. This is the format
+        <code>pyproject.toml</code> uses, and increasingly the format
+        for app config.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">tomllib</span>     <span class="tok-c"># 3.11+; on older versions: import tomli as tomllib</span>
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"pyproject.toml"</span>, <span class="tok-s">"rb"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">data</span> = <span class="tok-n">tomllib</span>.<span class="tok-f">load</span>(<span class="tok-n">f</span>)
+
+<span class="tok-f">print</span>(<span class="tok-n">data</span>[<span class="tok-s">"project"</span>][<span class="tok-s">"name"</span>])</code></pre>
+
+      <p>
+        Note the <code>"rb"</code> mode &mdash; <code>tomllib</code>
+        wants bytes, not text. It's deliberately read-only; for
+        writing, use <code>tomli-w</code>.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>YAML's "Norway problem":</strong> the unquoted string
+          <code>NO</code> parses as <code>False</code>. Country code
+          for Norway. <code>ON</code>, <code>OFF</code>, and
+          <code>YES</code> have similar issues. When in doubt, quote
+          your strings, or use TOML, where there are no surprises.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a config file in your project. If it's YAML, grep your
+          codebase for <code>yaml.load</code> &mdash; replace any with
+          <code>safe_load</code>. If it's JSON written by your code,
+          add <code>indent=2, sort_keys=True</code>. Commit. The next
+          diff will be dramatically clearer.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-014-argparse.html">
+        <span class="label">← Previous</span>
+        <span class="title">A real CLI in 12 lines of argparse</span>
+      </a>
+      <a class="next" href="day-016-logging.html">
+        <span class="label">Next →</span>
+        <span class="title">Logging that doesn't suck</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

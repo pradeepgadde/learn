@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 016 · Logging that doesn't suck — Learn with Pradeep</title>
+  <meta name="description" content="Stop using print for diagnostics. The minimal logging setup is six lines and gives you levels, timestamps, module names, and log routing.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 016 &middot; Standard library &middot; Beginner</div>
+      <h1>Logging that doesn't suck</h1>
+      <p class="subtitle">
+        <code>logging</code> has a bad reputation because the docs lead
+        with the hard part. The easy version is six lines and worth
+        every minute.
+      </p>
+      <div class="article-meta">
+        <span>17 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Call <code>logging.basicConfig()</code> once at the top of
+        your entry point. In every module, do
+        <code>log = logging.getLogger(__name__)</code>. Use
+        <code>log.info()</code>, <code>log.warning()</code>,
+        <code>log.error()</code> instead of <code>print</code>. You
+        get levels, timestamps, and routing for free.</p>
+      </div>
+
+      <p>
+        Print statements are fine for one-off scripts. The moment
+        something runs unattended &mdash; a cron job, a service, a
+        long-running CLI &mdash; you want timestamps, levels, and
+        the ability to silence noise without editing source. That's
+        what <code>logging</code> does.
+      </p>
+
+      <h2>The minimal setup</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># In your entry-point script (the one with `if __name__ == "__main__":`)</span>
+<span class="tok-k">import</span> <span class="tok-n">logging</span>
+
+<span class="tok-n">logging</span>.<span class="tok-f">basicConfig</span>(
+    <span class="tok-n">level</span>=<span class="tok-n">logging</span>.<span class="tok-n">INFO</span>,
+    <span class="tok-n">format</span>=<span class="tok-s">"%(asctime)s %(levelname)-8s %(name)s: %(message)s"</span>,
+    <span class="tok-n">datefmt</span>=<span class="tok-s">"%H:%M:%S"</span>,
+)
+
+<span class="tok-n">log</span> = <span class="tok-n">logging</span>.<span class="tok-f">getLogger</span>(<span class="tok-n">__name__</span>)
+<span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"Starting up"</span>)</code></pre>
+
+      <div class="output">14:03:21 INFO     __main__: Starting up</div>
+
+      <p>
+        Six lines, and you've replaced <code>print</code> with
+        something you'll never need to rip out.
+      </p>
+
+      <h2>The five levels, and when to use each</h2>
+
+      <ul>
+        <li><strong><code>debug</code></strong> &mdash; detail you only want when something's wrong. Variable values, branch traces.</li>
+        <li><strong><code>info</code></strong> &mdash; "this happened." Connection opened, file processed, request handled.</li>
+        <li><strong><code>warning</code></strong> &mdash; "this is unusual but I handled it." Retry succeeded, deprecated config used.</li>
+        <li><strong><code>error</code></strong> &mdash; "this operation failed but the program continues." Caught exceptions, partial failures.</li>
+        <li><strong><code>critical</code></strong> &mdash; "the program can't continue." Use sparingly.</li>
+      </ul>
+
+      <p>
+        Want everything? <code>level=logging.DEBUG</code>. Want only
+        problems? <code>level=logging.WARNING</code>. One line, no
+        code change to switch.
+      </p>
+
+      <h2>The cardinal rule: use <code>__name__</code></h2>
+
+      <p>
+        <code>logging.getLogger(__name__)</code> in every module gives
+        you a per-module logger. The name shows up in every log line,
+        so you instantly know where a message came from.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># in app/network/probe.py</span>
+<span class="tok-k">import</span> <span class="tok-n">logging</span>
+<span class="tok-n">log</span> = <span class="tok-n">logging</span>.<span class="tok-f">getLogger</span>(<span class="tok-n">__name__</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">ping</span>(<span class="tok-n">host</span>):
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"pinging %s"</span>, <span class="tok-n">host</span>)
+    <span class="tok-c">...</span></code></pre>
+
+      <div class="output">14:03:21 INFO     app.network.probe: pinging router1</div>
+
+      <p>
+        Bonus: you can now silence one chatty module without touching
+        the others: <code>logging.getLogger("app.network.probe").setLevel("WARNING")</code>.
+      </p>
+
+      <h2>Lazy formatting matters</h2>
+
+      <p>
+        Pass arguments to the logger; don't pre-format them. If the
+        message is below the threshold and would be discarded, the
+        formatting is skipped entirely.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Don't — formats the f-string even when DEBUG is off</span>
+<span class="tok-n">log</span>.<span class="tok-f">debug</span>(<span class="tok-s">f"processed {<span class="tok-f">len</span>(items)} items in {elapsed:.2f}s"</span>)
+
+<span class="tok-c"># Do — % formatting is deferred to the logging machinery</span>
+<span class="tok-n">log</span>.<span class="tok-f">debug</span>(<span class="tok-s">"processed %d items in %.2fs"</span>, <span class="tok-f">len</span>(<span class="tok-n">items</span>), <span class="tok-n">elapsed</span>)</code></pre>
+
+      <p>
+        For most code this is a micro-optimization. For tight loops or
+        DEBUG-level logs that gather a lot of context, it matters.
+      </p>
+
+      <h2>Logging exceptions</h2>
+
+      <p>
+        Inside an <code>except</code> block, use <code>log.exception</code>
+        &mdash; it logs the message at ERROR level and includes the full
+        traceback automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-f">connect</span>(<span class="tok-n">host</span>)
+<span class="tok-k">except</span> <span class="tok-n">ConnectionError</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">exception</span>(<span class="tok-s">"failed to connect to %s"</span>, <span class="tok-n">host</span>)
+    <span class="tok-c"># Don't re-raise unless you actually want to crash</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For structured logging (JSON output to ship to Loki, ELK,
+          Splunk), look at <code>structlog</code>. For more readable
+          terminal output during development, look at
+          <code>rich.logging</code>. Both layer cleanly on top of the
+          standard <code>logging</code> module.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Open a script you've written. Replace every
+          <code>print</code> that's a diagnostic (not a CLI output)
+          with the appropriate <code>log.info</code> /
+          <code>log.warning</code> / <code>log.error</code>. Add the
+          <code>basicConfig</code> at the top. Now you can run it
+          with <code>--verbose</code> support next week without
+          rewriting anything.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-015-json-yaml.html">
+        <span class="label">← Previous</span>
+        <span class="title">JSON and YAML without the footguns</span>
+      </a>
+      <a class="next" href="day-017-requests.html">
+        <span class="label">Next →</span>
+        <span class="title">HTTP with httpx, the requests killer</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 017 · HTTP with httpx, the requests killer — Learn with Pradeep</title>
+  <meta name="description" content="httpx is the modern requests: same API, plus async, HTTP/2, proper timeouts, and connection pooling done right via Client().">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 017 &middot; Third-party &middot; Intermediate</div>
+      <h1>HTTP with httpx, the requests killer</h1>
+      <p class="subtitle">
+        Same API as <code>requests</code>, plus the things
+        <code>requests</code> never grew up to support: async, HTTP/2,
+        and a sane timeout default.
+      </p>
+      <div class="article-meta">
+        <span>18 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>httpx</code> is a drop-in replacement for
+        <code>requests</code> with explicit timeouts, real connection
+        pooling via <code>Client()</code>, optional async, and HTTP/2.
+        Use a <code>Client</code> as a context manager for any script
+        that makes more than one request.</p>
+      </div>
+
+      <p>
+        <code>requests</code> defined ergonomic Python HTTP for a
+        decade. <code>httpx</code> is what it would look like if it
+        were designed today &mdash; same friendly API, none of the
+        legacy gotchas.
+      </p>
+
+      <h2>The familiar API</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">httpx</span>
+
+<span class="tok-n">r</span> = <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.github.com/users/pradeepgadde"</span>)
+<span class="tok-n">r</span>.<span class="tok-f">raise_for_status</span>()
+<span class="tok-n">data</span> = <span class="tok-n">r</span>.<span class="tok-f">json</span>()
+<span class="tok-f">print</span>(<span class="tok-n">data</span>[<span class="tok-s">"public_repos"</span>])</code></pre>
+
+      <p>
+        If you know <code>requests</code>, you know <code>httpx</code>.
+        <code>get</code>, <code>post</code>, <code>put</code>,
+        <code>delete</code>, <code>r.json()</code>, <code>r.text</code>,
+        <code>r.status_code</code> &mdash; all there, all behave the
+        same.
+      </p>
+
+      <h2>Use a <code>Client</code> for multiple requests</h2>
+
+      <p>
+        Each top-level <code>httpx.get()</code> opens a new connection.
+        That's wasteful when you're hitting the same host repeatedly.
+        A <code>Client</code> keeps connections alive between requests.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">Client</span>(<span class="tok-n">base_url</span>=<span class="tok-s">"https://api.github.com"</span>, <span class="tok-n">timeout</span>=<span class="tok-n">10.0</span>) <span class="tok-k">as</span> <span class="tok-n">client</span>:
+    <span class="tok-k">for</span> <span class="tok-n">user</span> <span class="tok-k">in</span> <span class="tok-n">users</span>:
+        <span class="tok-n">r</span> = <span class="tok-n">client</span>.<span class="tok-f">get</span>(<span class="tok-s">f"/users/{user}"</span>)
+        <span class="tok-n">r</span>.<span class="tok-f">raise_for_status</span>()
+        <span class="tok-f">print</span>(<span class="tok-n">user</span>, <span class="tok-n">r</span>.<span class="tok-f">json</span>()[<span class="tok-s">"public_repos"</span>])</code></pre>
+
+      <p>
+        Three things to notice. The <code>Client</code> is a context
+        manager so connections close cleanly. <code>base_url</code>
+        means you write paths, not full URLs. <code>timeout</code>
+        applies to every request automatically.
+      </p>
+
+      <h2>Timeouts are not optional</h2>
+
+      <p>
+        Where <code>requests</code> defaults to no timeout (your script
+        can hang forever), <code>httpx</code> defaults to 5 seconds.
+        Override it explicitly so the value is in your code, not in a
+        library default that might change.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Single overall timeout</span>
+<span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>, <span class="tok-n">timeout</span>=<span class="tok-n">10.0</span>)
+
+<span class="tok-c"># Granular control: connect, read, write, pool</span>
+<span class="tok-n">timeout</span> = <span class="tok-n">httpx</span>.<span class="tok-f">Timeout</span>(<span class="tok-n">10.0</span>, <span class="tok-n">connect</span>=<span class="tok-n">3.0</span>)
+<span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>, <span class="tok-n">timeout</span>=<span class="tok-n">timeout</span>)
+
+<span class="tok-c"># Explicitly disable (almost never the right answer)</span>
+<span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>, <span class="tok-n">timeout</span>=<span class="tok-k">None</span>)</code></pre>
+
+      <h2>Going async, when it pays off</h2>
+
+      <p>
+        For one or two requests, sync is fine. For dozens or hundreds
+        of independent requests &mdash; pinging a fleet of devices,
+        scraping pages, fanning out to APIs &mdash; the async client
+        is dramatically faster.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">asyncio</span>, <span class="tok-n">httpx</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">client</span>, <span class="tok-n">user</span>):
+    <span class="tok-n">r</span> = <span class="tok-k">await</span> <span class="tok-n">client</span>.<span class="tok-f">get</span>(<span class="tok-s">f"/users/{user}"</span>)
+    <span class="tok-k">return</span> <span class="tok-n">user</span>, <span class="tok-n">r</span>.<span class="tok-f">json</span>()[<span class="tok-s">"public_repos"</span>]
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">main</span>(<span class="tok-n">users</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>(<span class="tok-n">base_url</span>=<span class="tok-s">"https://api.github.com"</span>) <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">gather</span>(<span class="tok-o">*</span>(<span class="tok-f">fetch</span>(<span class="tok-n">c</span>, <span class="tok-n">u</span>) <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">users</span>))
+
+<span class="tok-n">results</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">run</span>(<span class="tok-f">main</span>([<span class="tok-s">"torvalds"</span>, <span class="tok-s">"gvanrossum"</span>, <span class="tok-s">"pradeepgadde"</span>]))</code></pre>
+
+      <p>
+        Same <code>get</code>/<code>post</code> API, just
+        <code>AsyncClient</code> and <code>await</code>. Twenty
+        requests in parallel take roughly as long as one.
+      </p>
+
+      <h2>The friendly extras</h2>
+
+      <p>
+        Two things that hide under the surface but are worth knowing:
+      </p>
+
+      <ul>
+        <li><code>httpx.get(url, params={"q": "python"})</code> &mdash; URL-encodes for you, handles list values correctly.</li>
+        <li><code>client.headers["Authorization"] = "Bearer ..."</code> on the client applies to every request from that client. Set once.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          Already on <code>requests</code>? Don't migrate for the sake
+          of it. Reach for <code>httpx</code> when you start a new
+          project, when you need async, when you need HTTP/2, or when
+          a flaky service makes you wish for proper timeouts.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a script that hits a single host more than three times
+          using individual <code>requests.get</code> calls. Wrap them
+          in a <code>Client</code> with <code>base_url</code> and a
+          timeout. Time the before and after &mdash; you'll often see
+          a 2&ndash;5x speedup from connection reuse alone.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-016-logging.html">
+        <span class="label">← Previous</span>
+        <span class="title">Logging that doesn't suck</span>
+      </a>
+      <a class="next" href="day-018-pytest.html">
+        <span class="label">Next →</span>
+        <span class="title">pytest, the test you'll actually write</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

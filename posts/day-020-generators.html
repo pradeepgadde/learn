@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 020 · Generators: lazy by default — Learn with Pradeep</title>
+  <meta name="description" content="A function with yield is a generator. Process unbounded streams in constant memory, compose pipelines, and use yield from for delegation.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 020 &middot; Syntax &middot; Intermediate</div>
+      <h1>Generators: lazy by default</h1>
+      <p class="subtitle">
+        Replace one keyword and your function streams instead of
+        accumulating. The difference between OOM-ing on a 10 GB log
+        and processing it in 50 MB.
+      </p>
+      <div class="article-meta">
+        <span>21 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Replace <code>return some_list</code> with a loop of
+        <code>yield</code>s and your function becomes a generator &mdash;
+        items are produced one at a time, on demand. Memory stays
+        flat regardless of input size. Use generator expressions
+        <code>(x for x in ...)</code> for inline cases, and
+        <code>yield from</code> to delegate.</p>
+      </div>
+
+      <p>
+        The single biggest win in Python's design is treating
+        iteration as a first-class concept. Generators let any
+        function participate in that protocol, which means you can
+        process arbitrarily large data sources without holding them
+        in memory.
+      </p>
+
+      <h2>The two-character refactor</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Eager: builds the whole list before returning</span>
+<span class="tok-k">def</span> <span class="tok-f">errors</span>(<span class="tok-n">log</span>):
+    <span class="tok-n">out</span> = []
+    <span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log</span>:
+        <span class="tok-k">if</span> <span class="tok-s">"ERROR"</span> <span class="tok-k">in</span> <span class="tok-n">line</span>:
+            <span class="tok-n">out</span>.<span class="tok-f">append</span>(<span class="tok-n">line</span>)
+    <span class="tok-k">return</span> <span class="tok-n">out</span>
+
+<span class="tok-c"># Lazy: yields one line at a time, ever-bounded memory</span>
+<span class="tok-k">def</span> <span class="tok-f">errors</span>(<span class="tok-n">log</span>):
+    <span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log</span>:
+        <span class="tok-k">if</span> <span class="tok-s">"ERROR"</span> <span class="tok-k">in</span> <span class="tok-n">line</span>:
+            <span class="tok-k">yield</span> <span class="tok-n">line</span></code></pre>
+
+      <p>
+        The caller iterates either the same way:
+        <code>for e in errors(open("app.log")): ...</code>. The
+        difference is that the eager version reads the whole 10 GB
+        file before you see a single line; the lazy version starts
+        producing immediately and never holds more than one line at
+        a time.
+      </p>
+
+      <h2>Generator expressions</h2>
+
+      <p>
+        For one-off generators, use generator expressions &mdash;
+        same syntax as a list comprehension but with parentheses.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># List comprehension: builds the full list</span>
+<span class="tok-n">squares</span> = [<span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10_000_000</span>)]   <span class="tok-c"># ~80 MB</span>
+
+<span class="tok-c"># Generator expression: produces on demand</span>
+<span class="tok-n">squares</span> = (<span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10_000_000</span>))   <span class="tok-c"># a few hundred bytes</span>
+
+<span class="tok-n">total</span> = <span class="tok-f">sum</span>(<span class="tok-n">squares</span>)        <span class="tok-c"># Streams through, never materializes</span></code></pre>
+
+      <p>
+        When you pass a generator to <code>sum</code>,
+        <code>min</code>, <code>max</code>, <code>any</code>,
+        <code>all</code>, or <code>"".join</code>, you can drop the
+        outer brackets entirely:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># No need for [ ] inside sum()</span>
+<span class="tok-n">total</span> = <span class="tok-f">sum</span>(<span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">values</span>)
+<span class="tok-n">has_error</span> = <span class="tok-f">any</span>(<span class="tok-s">"ERROR"</span> <span class="tok-k">in</span> <span class="tok-n">line</span> <span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log</span>)</code></pre>
+
+      <h2>Composing pipelines</h2>
+
+      <p>
+        Generators chain. The output of one feeds the next, and
+        nothing materializes until you iterate the end of the chain.
+        This is the Python equivalent of Unix pipes.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">read_lines</span>(<span class="tok-n">path</span>):
+    <span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-n">path</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+        <span class="tok-k">yield</span> <span class="tok-k">from</span> <span class="tok-n">f</span>
+
+<span class="tok-k">def</span> <span class="tok-f">non_blank</span>(<span class="tok-n">lines</span>):
+    <span class="tok-k">return</span> (<span class="tok-n">l</span>.<span class="tok-f">rstrip</span>() <span class="tok-k">for</span> <span class="tok-n">l</span> <span class="tok-k">in</span> <span class="tok-n">lines</span> <span class="tok-k">if</span> <span class="tok-n">l</span>.<span class="tok-f">strip</span>())
+
+<span class="tok-k">def</span> <span class="tok-f">parsed</span>(<span class="tok-n">lines</span>):
+    <span class="tok-k">return</span> (<span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">l</span>) <span class="tok-k">for</span> <span class="tok-n">l</span> <span class="tok-k">in</span> <span class="tok-n">lines</span>)
+
+<span class="tok-c"># Composes top-to-bottom, processes one record at a time</span>
+<span class="tok-k">for</span> <span class="tok-n">record</span> <span class="tok-k">in</span> <span class="tok-f">parsed</span>(<span class="tok-f">non_blank</span>(<span class="tok-f">read_lines</span>(<span class="tok-s">"events.ndjson"</span>))):
+    <span class="tok-f">handle</span>(<span class="tok-n">record</span>)</code></pre>
+
+      <h2><code>yield from</code> for delegation</h2>
+
+      <p>
+        When a generator wants to yield everything from another
+        iterable, write <code>yield from</code> instead of a manual
+        loop.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">walk_files</span>(<span class="tok-n">root</span>):
+    <span class="tok-k">for</span> <span class="tok-n">subdir</span> <span class="tok-k">in</span> <span class="tok-n">root</span>.<span class="tok-f">iterdir</span>():
+        <span class="tok-k">if</span> <span class="tok-n">subdir</span>.<span class="tok-f">is_dir</span>():
+            <span class="tok-k">yield</span> <span class="tok-k">from</span> <span class="tok-f">walk_files</span>(<span class="tok-n">subdir</span>)
+        <span class="tok-k">else</span>:
+            <span class="tok-k">yield</span> <span class="tok-n">subdir</span></code></pre>
+
+      <p>
+        Without <code>yield from</code> you'd need a nested
+        <code>for</code> loop with another <code>yield</code> &mdash;
+        more typing, same result.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>One caveat:</strong> generators are single-use.
+          Once you've iterated through one, it's exhausted &mdash;
+          iterating again gives you zero items. If you need to
+          consume the same data twice, materialize it into a list
+          first, or wrap the generator in a function so each call
+          starts fresh.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a function in your code that builds a list and
+          returns it. If callers only iterate the result once,
+          delete the list, replace <code>append</code> with
+          <code>yield</code>, and remove the
+          <code>return</code>. Run your tests &mdash; they should
+          still pass, and your function now scales.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-019-uv.html">
+        <span class="label">← Previous</span>
+        <span class="title">uv: pip and venv, but fast</span>
+      </a>
+      <a class="next" href="day-021-comprehensions.html">
+        <span class="label">Next →</span>
+        <span class="title">Comprehensions you'll actually read later</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

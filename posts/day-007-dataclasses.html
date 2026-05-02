@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 007 · dataclasses, with kw_only — Learn with Pradeep</title>
+  <meta name="description" content="@dataclass turns a class boilerplate into one decorator. frozen=True gives immutability, kw_only=True forces keyword args, field() handles mutable defaults.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 007 &middot; Standard library &middot; Intermediate</div>
+      <h1>dataclasses, with kw_only</h1>
+      <p class="subtitle">
+        One decorator replaces forty lines of class boilerplate.
+        A handful of options turn it into a real configuration tool.
+      </p>
+      <div class="article-meta">
+        <span>08 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.10+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>@dataclass</code> generates <code>__init__</code>,
+        <code>__repr__</code>, and <code>__eq__</code> from your type
+        annotations. <code>frozen=True</code> makes instances immutable.
+        <code>kw_only=True</code> forces callers to use keyword args,
+        which is gold for any class with more than three fields.</p>
+      </div>
+
+      <p>
+        Dataclasses arrived in Python 3.7 and have only gotten better.
+        If you're still writing <code>__init__</code> by hand to assign
+        five attributes, you're doing manual labor a decorator was
+        built to do for you.
+      </p>
+
+      <h2>The boilerplate it deletes</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Before</span>
+<span class="tok-k">class</span> <span class="tok-f">Point</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>, <span class="tok-n">label</span>=<span class="tok-s">""</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">x</span> = <span class="tok-n">x</span>
+        <span class="tok-n">self</span>.<span class="tok-n">y</span> = <span class="tok-n">y</span>
+        <span class="tok-n">self</span>.<span class="tok-n">label</span> = <span class="tok-n">label</span>
+    <span class="tok-k">def</span> <span class="tok-f">__repr__</span>(<span class="tok-n">self</span>):
+        <span class="tok-k">return</span> <span class="tok-s">f"Point(x={self.x}, y={self.y}, label={self.label!r})"</span>
+    <span class="tok-k">def</span> <span class="tok-f">__eq__</span>(<span class="tok-n">self</span>, <span class="tok-n">other</span>):
+        <span class="tok-k">return</span> (<span class="tok-n">self</span>.<span class="tok-n">x</span>, <span class="tok-n">self</span>.<span class="tok-n">y</span>, <span class="tok-n">self</span>.<span class="tok-n">label</span>) == (<span class="tok-n">other</span>.<span class="tok-n">x</span>, <span class="tok-n">other</span>.<span class="tok-n">y</span>, <span class="tok-n">other</span>.<span class="tok-n">label</span>)
+
+<span class="tok-c"># After</span>
+<span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>
+
+<span class="tok-o">@</span><span class="tok-f">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Point</span>:
+    <span class="tok-n">x</span>: <span class="tok-n">float</span>
+    <span class="tok-n">y</span>: <span class="tok-n">float</span>
+    <span class="tok-n">label</span>: <span class="tok-n">str</span> = <span class="tok-s">""</span></code></pre>
+
+      <h2>Mutable defaults: use <code>field</code></h2>
+
+      <p>
+        You can't write <code>tags: list = []</code> &mdash; that
+        default would be shared across instances, the classic Python
+        gotcha. Dataclasses notice and raise. The fix is
+        <code>field(default_factory=list)</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>, <span class="tok-n">field</span>
+
+<span class="tok-o">@</span><span class="tok-f">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Server</span>:
+    <span class="tok-n">name</span>: <span class="tok-n">str</span>
+    <span class="tok-n">tags</span>: <span class="tok-n">list</span>[<span class="tok-n">str</span>] = <span class="tok-f">field</span>(<span class="tok-n">default_factory</span>=<span class="tok-n">list</span>)
+    <span class="tok-n">env</span>:  <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">str</span>] = <span class="tok-f">field</span>(<span class="tok-n">default_factory</span>=<span class="tok-n">dict</span>)</code></pre>
+
+      <h2>Immutable: <code>frozen=True</code></h2>
+
+      <p>
+        Frozen dataclasses can't have their fields reassigned, and they
+        become hashable &mdash; usable as dict keys or set members.
+        Use this for value objects: configuration, coordinates, anything
+        that represents a fact, not a state.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-f">dataclass</span>(<span class="tok-n">frozen</span>=<span class="tok-k">True</span>)
+<span class="tok-k">class</span> <span class="tok-f">Coord</span>:
+    <span class="tok-n">lat</span>: <span class="tok-n">float</span>
+    <span class="tok-n">lon</span>: <span class="tok-n">float</span>
+
+<span class="tok-n">visited</span> = {<span class="tok-f">Coord</span>(<span class="tok-n">37.77</span>, -<span class="tok-n">122.42</span>), <span class="tok-f">Coord</span>(<span class="tok-n">40.71</span>, -<span class="tok-n">74.00</span>)}</code></pre>
+
+      <h2>The Python 3.10 upgrade: <code>kw_only=True</code></h2>
+
+      <p>
+        Positional arguments are fine for two or three fields. Past
+        that, callers start guessing the order. <code>kw_only=True</code>
+        forces them to be explicit.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-f">dataclass</span>(<span class="tok-n">kw_only</span>=<span class="tok-k">True</span>)
+<span class="tok-k">class</span> <span class="tok-f">RetryConfig</span>:
+    <span class="tok-n">max_attempts</span>: <span class="tok-n">int</span> = <span class="tok-n">3</span>
+    <span class="tok-n">backoff</span>:      <span class="tok-n">float</span> = <span class="tok-n">0.5</span>
+    <span class="tok-n">jitter</span>:       <span class="tok-n">bool</span> = <span class="tok-k">True</span>
+    <span class="tok-n">retry_on</span>:     <span class="tok-n">tuple</span> = (<span class="tok-n">ConnectionError</span>,)
+
+<span class="tok-c"># Caller code is self-documenting:</span>
+<span class="tok-n">cfg</span> = <span class="tok-f">RetryConfig</span>(<span class="tok-n">max_attempts</span>=<span class="tok-n">5</span>, <span class="tok-n">backoff</span>=<span class="tok-n">1.0</span>)</code></pre>
+
+      <p>
+        You can also mark individual fields kw-only using
+        <code>field(kw_only=True)</code> &mdash; useful when most fields
+        are positional but a few are flag-like.
+      </p>
+
+      <div class="callout">
+        <p>
+          Need conversion or validation? Add a
+          <code>__post_init__(self)</code> method &mdash; it runs after
+          the generated <code>__init__</code>. For real schema
+          validation though, reach for <code>pydantic</code> or
+          <code>attrs</code>; dataclasses are deliberately minimal.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a class in your code with a hand-written
+          <code>__init__</code> that does nothing but assign attributes.
+          Convert it to a dataclass. The diff will be satisfying.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-006-walrus.html">
+        <span class="label">← Previous</span>
+        <span class="title">The walrus that earns its keep</span>
+      </a>
+      <a class="next" href="day-008-cache.html">
+        <span class="label">Next →</span>
+        <span class="title">@cache: memoization in one line</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

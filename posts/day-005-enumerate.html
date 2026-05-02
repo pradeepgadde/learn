@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 005 · enumerate, and the start= you forgot — Learn with Pradeep</title>
+  <meta name="description" content="enumerate gives you (index, item) pairs. Its start= parameter makes 1-based human-readable listings trivial. Combine with zip for parallel iteration.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 005 &middot; Built-ins &middot; Beginner</div>
+      <h1>enumerate, and the start= you forgot</h1>
+      <p class="subtitle">
+        The most-loved built-in has a forgotten parameter that does
+        exactly what you keep doing manually.
+      </p>
+      <div class="article-meta">
+        <span>06 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>enumerate(items, start=1)</code> gives you a 1-based
+        index without any <code>+1</code> arithmetic. Stop maintaining
+        a manual counter. Combine with <code>zip</code> when you need
+        the index across two parallel sequences.</p>
+      </div>
+
+      <p>
+        Everyone knows <code>enumerate</code>. What most code reviews
+        catch is that people still write the C-style loop next to it &mdash;
+        a manual counter that increments at the bottom &mdash; or use
+        <code>range(len(things))</code> and then index back in. Both
+        are giveaways.
+      </p>
+
+      <h2>The smell to delete</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Manual counter — delete on sight</span>
+<span class="tok-n">i</span> = <span class="tok-n">0</span>
+<span class="tok-k">for</span> <span class="tok-n">item</span> <span class="tok-k">in</span> <span class="tok-n">items</span>:
+    <span class="tok-f">process</span>(<span class="tok-n">i</span>, <span class="tok-n">item</span>)
+    <span class="tok-n">i</span> += <span class="tok-n">1</span>
+
+<span class="tok-c"># range(len()) anti-pattern — delete on sight</span>
+<span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-f">len</span>(<span class="tok-n">items</span>)):
+    <span class="tok-f">process</span>(<span class="tok-n">i</span>, <span class="tok-n">items</span>[<span class="tok-n">i</span>])
+
+<span class="tok-c"># The right way</span>
+<span class="tok-k">for</span> <span class="tok-n">i</span>, <span class="tok-n">item</span> <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(<span class="tok-n">items</span>):
+    <span class="tok-f">process</span>(<span class="tok-n">i</span>, <span class="tok-n">item</span>)</code></pre>
+
+      <h2>The forgotten <code>start=</code></h2>
+
+      <p>
+        For human-facing output &mdash; line numbers, "step 1 of N",
+        ranked lists &mdash; you want 1-based indexing. Most people
+        write <code>i + 1</code> inside the loop. <code>enumerate</code>
+        has a <code>start</code> parameter exactly for this.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">tasks</span> = [<span class="tok-s">"Wake up"</span>, <span class="tok-s">"Make coffee"</span>, <span class="tok-s">"Open editor"</span>, <span class="tok-s">"Ship"</span>]
+
+<span class="tok-k">for</span> <span class="tok-n">n</span>, <span class="tok-n">task</span> <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(<span class="tok-n">tasks</span>, <span class="tok-n">start</span>=<span class="tok-n">1</span>):
+    <span class="tok-f">print</span>(<span class="tok-s">f"{n}. {task}"</span>)</code></pre>
+
+      <div class="output">1. Wake up
+2. Make coffee
+3. Open editor
+4. Ship</div>
+
+      <p>
+        It works with any starting integer. Reading a file? Pass
+        <code>start=1</code> and your line numbers match what your
+        editor shows you.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">for</span> <span class="tok-n">lineno</span>, <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(<span class="tok-n">file</span>, <span class="tok-n">start</span>=<span class="tok-n">1</span>):
+    <span class="tok-k">if</span> <span class="tok-s">"TODO"</span> <span class="tok-k">in</span> <span class="tok-n">line</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">f"{path}:{lineno}: {line.strip()}"</span>)</code></pre>
+
+      <h2>enumerate over a zip</h2>
+
+      <p>
+        When you need an index <em>and</em> two parallel sequences,
+        wrap a <code>zip</code> in <code>enumerate</code>. The unpacking
+        nests cleanly.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">names</span>  = [<span class="tok-s">"Ada"</span>, <span class="tok-s">"Linus"</span>, <span class="tok-s">"Guido"</span>]
+<span class="tok-n">scores</span> = [<span class="tok-n">88</span>, <span class="tok-n">94</span>, <span class="tok-n">99</span>]
+
+<span class="tok-k">for</span> <span class="tok-n">rank</span>, (<span class="tok-n">name</span>, <span class="tok-n">score</span>) <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(<span class="tok-f">zip</span>(<span class="tok-n">names</span>, <span class="tok-n">scores</span>), <span class="tok-n">start</span>=<span class="tok-n">1</span>):
+    <span class="tok-f">print</span>(<span class="tok-s">f"#{rank}: {name:&lt;6} {score}"</span>)</code></pre>
+
+      <div class="output">#1: Ada    88
+#2: Linus  94
+#3: Guido  99</div>
+
+      <div class="callout">
+        <p>
+          On Python 3.10+, <code>zip(a, b, strict=True)</code> raises
+          if the inputs aren't the same length &mdash; a free safety
+          check that catches off-by-one bugs at the source.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Grep your codebase for <code>range(len(</code>. Almost every
+          hit is a missed <code>enumerate</code>. Pick one and refactor
+          it &mdash; the loop body usually loses an index expression
+          and gets clearer.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-004-dict-get.html">
+        <span class="label">← Previous</span>
+        <span class="title">dict.get and the missing-key dance</span>
+      </a>
+      <a class="next" href="day-006-walrus.html">
+        <span class="label">Next →</span>
+        <span class="title">The walrus that earns its keep</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

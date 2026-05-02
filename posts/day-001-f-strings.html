@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 001 · The hidden grammar of f-strings — Learn with Pradeep</title>
+  <meta name="description" content="The little mini-language inside Python's f-strings — padding, alignment, numeric formatting, and the = debug trick.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 001 &middot; Strings &middot; Beginner</div>
+      <h1>The hidden grammar of f-strings</h1>
+      <p class="subtitle">
+        You've used <code>f"{name}"</code> a thousand times. The mini-language
+        inside the braces is where the real power lives.
+      </p>
+      <div class="article-meta">
+        <span>02 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Everything after the colon in <code>f"{value:spec}"</code> is a tiny
+        formatting language. Learn five symbols &mdash; <code>=</code>,
+        <code>&gt;</code>, <code>&lt;</code>, <code>^</code>, <code>,</code> &mdash;
+        and your debug prints, log lines, and CLI tables get dramatically nicer.</p>
+      </div>
+
+      <p>
+        f-strings are the most-used feature in modern Python, and the
+        most under-used. Most code stops at <code>f"Hello {name}"</code>.
+        But the colon opens a door &mdash; behind it is the same format
+        spec that <code>str.format()</code> has had since 2008, now with
+        the syntax it always deserved.
+      </p>
+
+      <h2>The <code>=</code> debug shortcut</h2>
+
+      <p>
+        Since Python 3.8, putting <code>=</code> after a name prints both
+        the name <em>and</em> the value. This is the single biggest quality-of-life
+        upgrade for print-debugging in years.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">user_id</span> = <span class="tok-n">42</span>
+<span class="tok-n">scores</span> = [<span class="tok-n">88</span>, <span class="tok-n">91</span>, <span class="tok-n">76</span>]
+
+<span class="tok-f">print</span>(<span class="tok-s">f"{user_id<span class="tok-o">=</span>}"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"{scores<span class="tok-o">=</span>}"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"{<span class="tok-f">sum</span>(scores) / <span class="tok-f">len</span>(scores)<span class="tok-o">=</span>:.2f}"</span>)</code></pre>
+
+      <div class="output">user_id=42
+scores=[88, 91, 76]
+sum(scores) / len(scores)=85.00</div>
+
+      <p>
+        Notice the third one: the <code>=</code> works on whole expressions,
+        and you can still chain a format spec after it. The next time you reach
+        for a sad <code>print("scores:", scores)</code>, reach for this instead.
+      </p>
+
+      <h2>Padding and alignment</h2>
+
+      <p>
+        Three single characters control alignment inside a fixed width:
+        <code>&gt;</code> right, <code>&lt;</code> left, <code>^</code> center.
+        Put the width after them. Put a fill character before them.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">role</span> <span class="tok-k">in</span> [(<span class="tok-s">"Ada"</span>, <span class="tok-s">"founder"</span>),
+                  (<span class="tok-s">"Linus"</span>, <span class="tok-s">"maintainer"</span>),
+                  (<span class="tok-s">"Guido"</span>, <span class="tok-s">"BDFL"</span>)]:
+    <span class="tok-f">print</span>(<span class="tok-s">f"{name:&lt;10}{role:&gt;12}"</span>)</code></pre>
+
+      <div class="output">Ada            founder
+Linus       maintainer
+Guido          BDFL</div>
+
+      <p>Want a dotted leader, like a table of contents?</p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-f">print</span>(<span class="tok-s">f"{<span class="tok-s">'Chapter 1'</span>:.&lt;30}{<span class="tok-n">12</span>}"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"{<span class="tok-s">'Chapter 2'</span>:.&lt;30}{<span class="tok-n">47</span>}"</span>)</code></pre>
+
+      <div class="output">Chapter 1.....................12
+Chapter 2.....................47</div>
+
+      <h2>Numbers that read like a human wrote them</h2>
+
+      <p>
+        Three specs cover ninety percent of what you need:
+        <code>,</code> for thousands separators, <code>.Nf</code> for
+        fixed decimals, <code>.N%</code> for percentages.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">revenue</span>   = <span class="tok-n">1_482_330.7</span>
+<span class="tok-n">conversion</span> = <span class="tok-n">0.04217</span>
+
+<span class="tok-f">print</span>(<span class="tok-s">f"Revenue:    ${revenue:,.2f}"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"Conversion: {conversion:.1%}"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"Hex of 255: {<span class="tok-n">255</span>:#06x}"</span>)</code></pre>
+
+      <div class="output">Revenue:    $1,482,330.70
+Conversion: 4.2%
+Hex of 255: 0x00ff</div>
+
+      <h2>Dates, for free</h2>
+
+      <p>
+        f-strings forward the format spec to the object's
+        <code>__format__</code> method. <code>datetime</code> uses it to
+        accept <code>strftime</code> codes directly &mdash; no separate call.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">datetime</span>
+
+<span class="tok-n">now</span> = <span class="tok-n">datetime</span>.<span class="tok-f">now</span>()
+<span class="tok-f">print</span>(<span class="tok-s">f"{now:%Y-%m-%d}"</span>)        <span class="tok-c"># 2026-05-02</span>
+<span class="tok-f">print</span>(<span class="tok-s">f"{now:%A, %B %d}"</span>)       <span class="tok-c"># Saturday, May 02</span>
+<span class="tok-f">print</span>(<span class="tok-s">f"Logged at {now:%H:%M:%S}"</span>)</code></pre>
+
+      <h2>One pro move: nested format specs</h2>
+
+      <p>
+        The width or precision can itself be an expression in braces.
+        Useful when you don't know the column size until runtime.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">width</span> = <span class="tok-f">max</span>(<span class="tok-f">len</span>(<span class="tok-n">w</span>) <span class="tok-k">for</span> <span class="tok-n">w</span> <span class="tok-k">in</span> <span class="tok-n">words</span>) + <span class="tok-n">2</span>
+<span class="tok-k">for</span> <span class="tok-n">w</span> <span class="tok-k">in</span> <span class="tok-n">words</span>:
+    <span class="tok-f">print</span>(<span class="tok-s">f"{w:&lt;{width}}{<span class="tok-f">len</span>(w)}"</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          The full grammar lives in the
+          <a href="https://docs.python.org/3/library/string.html#format-specification-mini-language">Format Specification Mini-Language</a>
+          docs. Bookmark that page; it pays off.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a script in your codebase that has at least one
+          <code>print("debug:", x, y, z)</code>-style line and rewrite
+          it using <code>f"{x=}, {y=}, {z=}"</code>.
+        </p>
+        <p>
+          Then find a place where you build a string with
+          <code>str(round(n, 2))</code> and collapse it down to
+          <code>f"{n:.2f}"</code>. You'll usually delete a line or two
+          along the way.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev placeholder" aria-disabled="true">
+        <span class="label">← Previous</span>
+        <span class="title">First entry</span>
+      </a>
+      <a class="next" href="day-002-pathlib.html">
+        <span class="label">Next →</span>
+        <span class="title">Stop using os.path. Use pathlib.</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

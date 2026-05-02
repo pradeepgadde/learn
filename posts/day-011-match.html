@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 011 · match isn't switch — Learn with Pradeep</title>
+  <meta name="description" content="Python's match statement is structural pattern matching, not a C-style switch. Destructure shapes, not just compare values.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 011 &middot; Syntax &middot; Intermediate</div>
+      <h1>match isn't switch</h1>
+      <p class="subtitle">
+        Treat <code>match</code> as a value-comparison and you'll be
+        unimpressed. Treat it as <em>shape</em>-comparison and it
+        replaces a chapter of code.
+      </p>
+      <div class="article-meta">
+        <span>12 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.10+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>match</code> is structural pattern matching, not a
+        switch. Patterns can deconstruct lists, dicts, and class
+        instances and bind their parts to variables &mdash; in one
+        step, with no nested <code>if</code> chains.</p>
+      </div>
+
+      <p>
+        When <code>match</code> arrived in Python 3.10, half the
+        community shrugged: "we already have <code>if</code>." That
+        misses the point. Pattern matching isn't about choosing
+        branches by value &mdash; it's about choosing branches by
+        <em>shape</em>, and binding the pieces while you do it.
+      </p>
+
+      <h2>The boring case (where switch would do)</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">match</span> <span class="tok-n">status</span>:
+    <span class="tok-k">case</span> <span class="tok-n">200</span>:        <span class="tok-f">handle_ok</span>()
+    <span class="tok-k">case</span> <span class="tok-n">404</span>:        <span class="tok-f">handle_missing</span>()
+    <span class="tok-k">case</span> <span class="tok-n">500</span> | <span class="tok-n">502</span> | <span class="tok-n">503</span>:  <span class="tok-f">handle_server_error</span>()
+    <span class="tok-k">case</span> <span class="tok-n">_</span>:          <span class="tok-f">handle_other</span>()</code></pre>
+
+      <p>
+        Fine. Cleaner than a long <code>if/elif</code>. But this is
+        the least interesting use of the feature.
+      </p>
+
+      <h2>Sequence patterns</h2>
+
+      <p>
+        A pattern that looks like a list matches one. The names inside
+        get bound to the elements. <code>*rest</code> works as you'd
+        expect.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">describe</span>(<span class="tok-n">items</span>):
+    <span class="tok-k">match</span> <span class="tok-n">items</span>:
+        <span class="tok-k">case</span> []:
+            <span class="tok-k">return</span> <span class="tok-s">"empty"</span>
+        <span class="tok-k">case</span> [<span class="tok-n">x</span>]:
+            <span class="tok-k">return</span> <span class="tok-s">f"singleton: {x}"</span>
+        <span class="tok-k">case</span> [<span class="tok-n">first</span>, <span class="tok-o">*</span><span class="tok-n">rest</span>]:
+            <span class="tok-k">return</span> <span class="tok-s">f"head {first}, then {<span class="tok-f">len</span>(rest)} more"</span>
+
+<span class="tok-f">describe</span>([<span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span>])    <span class="tok-c"># 'head 1, then 2 more'</span></code></pre>
+
+      <h2>Mapping patterns</h2>
+
+      <p>
+        Match a dict's <em>shape</em> &mdash; required keys, ignored
+        extras &mdash; and bind the values. Replaces a forest of
+        <code>if "x" in d and "y" in d</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">handle_event</span>(<span class="tok-n">event</span>):
+    <span class="tok-k">match</span> <span class="tok-n">event</span>:
+        <span class="tok-k">case</span> {<span class="tok-s">"type"</span>: <span class="tok-s">"login"</span>, <span class="tok-s">"user"</span>: <span class="tok-n">user</span>}:
+            <span class="tok-f">audit</span>(<span class="tok-n">user</span>)
+        <span class="tok-k">case</span> {<span class="tok-s">"type"</span>: <span class="tok-s">"error"</span>, <span class="tok-s">"code"</span>: <span class="tok-n">code</span>, <span class="tok-s">"msg"</span>: <span class="tok-n">msg</span>}:
+            <span class="tok-f">log_error</span>(<span class="tok-n">code</span>, <span class="tok-n">msg</span>)
+        <span class="tok-k">case</span> {<span class="tok-s">"type"</span>: <span class="tok-n">t</span>}:
+            <span class="tok-f">log</span>(<span class="tok-s">f"unhandled event: {t}"</span>)</code></pre>
+
+      <p>
+        Each case requires those exact keys to be present, but doesn't
+        care about extras. The matched values flow straight into the
+        body.
+      </p>
+
+      <h2>Class patterns</h2>
+
+      <p>
+        This is where match earns its keep. You can match against a
+        class and destructure its attributes in one step.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Circle</span>: <span class="tok-n">radius</span>: <span class="tok-n">float</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Rect</span>:   <span class="tok-n">w</span>: <span class="tok-n">float</span>; <span class="tok-n">h</span>: <span class="tok-n">float</span>
+
+<span class="tok-k">def</span> <span class="tok-f">area</span>(<span class="tok-n">shape</span>):
+    <span class="tok-k">match</span> <span class="tok-n">shape</span>:
+        <span class="tok-k">case</span> <span class="tok-f">Circle</span>(<span class="tok-n">radius</span>=<span class="tok-n">r</span>):
+            <span class="tok-k">return</span> <span class="tok-n">3.14159</span> <span class="tok-o">*</span> <span class="tok-n">r</span> <span class="tok-o">*</span> <span class="tok-n">r</span>
+        <span class="tok-k">case</span> <span class="tok-f">Rect</span>(<span class="tok-n">w</span>=<span class="tok-n">w</span>, <span class="tok-n">h</span>=<span class="tok-n">h</span>):
+            <span class="tok-k">return</span> <span class="tok-n">w</span> <span class="tok-o">*</span> <span class="tok-n">h</span></code></pre>
+
+      <h2>Guards</h2>
+
+      <p>
+        Add an <code>if</code> after a pattern to constrain it
+        further. The pattern matches structure; the guard adds
+        arbitrary logic.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">match</span> <span class="tok-n">point</span>:
+    <span class="tok-k">case</span> (<span class="tok-n">x</span>, <span class="tok-n">y</span>) <span class="tok-k">if</span> <span class="tok-n">x</span> == <span class="tok-n">y</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">"on the diagonal"</span>)
+    <span class="tok-k">case</span> (<span class="tok-n">x</span>, <span class="tok-n">y</span>) <span class="tok-k">if</span> <span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">x</span> + <span class="tok-n">y</span> <span class="tok-o">*</span> <span class="tok-n">y</span> &lt; <span class="tok-n">1</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">"inside unit circle"</span>)
+    <span class="tok-k">case</span> <span class="tok-n">_</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">"elsewhere"</span>)</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <strong>Trap:</strong> a bare name like <code>case x:</code>
+          is a <em>capture</em>, not a comparison &mdash; it always
+          matches and binds the value to <code>x</code>. To compare
+          against a constant, use a dotted name
+          (<code>case Color.RED:</code>) or wrap in a literal pattern.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a long <code>if/elif</code> chain in your code that
+          inspects the structure of a dict or object &mdash; webhook
+          handlers and event dispatchers are good hunting grounds.
+          Rewrite it as a <code>match</code>. Watch the indentation
+          flatten.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-010-contextmanager.html">
+        <span class="label">← Previous</span>
+        <span class="title">Custom with-blocks in 5 lines</span>
+      </a>
+      <a class="next placeholder" aria-disabled="true">
+        <span class="label">Next →</span>
+        <span class="title">Coming tomorrow</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

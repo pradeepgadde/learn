@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 006 · The walrus that earns its keep — Learn with Pradeep</title>
+  <meta name="description" content="The := operator assigns inside an expression. Used well, it eliminates duplication in loops, comprehensions, and conditionals.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 006 &middot; Syntax &middot; Intermediate</div>
+      <h1>The walrus that earns its keep</h1>
+      <p class="subtitle">
+        <code>:=</code> is divisive. Used in the right two or three
+        places, it's a code-shrinking, intent-clarifying gem.
+      </p>
+      <div class="article-meta">
+        <span>07 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>The walrus operator <code>:=</code> assigns and returns a
+        value in the same expression. It shines in three spots: while
+        loops that compute-then-test, comprehensions that need to reuse
+        an expensive value, and any conditional that wants to inspect
+        what it just computed.</p>
+      </div>
+
+      <p>
+        Introduced in PEP 572 and immediately controversial, the walrus
+        operator deserves a quieter reputation. It's not for sprinkling
+        everywhere &mdash; but it kills three specific code smells dead.
+      </p>
+
+      <h2>The compute-then-test loop</h2>
+
+      <p>
+        The classic case: read a chunk, check if it's empty, process it.
+        Without walrus you read in two places to avoid an infinite loop.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Before</span>
+<span class="tok-n">chunk</span> = <span class="tok-n">f</span>.<span class="tok-f">read</span>(<span class="tok-n">8192</span>)
+<span class="tok-k">while</span> <span class="tok-n">chunk</span>:
+    <span class="tok-f">process</span>(<span class="tok-n">chunk</span>)
+    <span class="tok-n">chunk</span> = <span class="tok-n">f</span>.<span class="tok-f">read</span>(<span class="tok-n">8192</span>)
+
+<span class="tok-c"># After</span>
+<span class="tok-k">while</span> <span class="tok-n">chunk</span> := <span class="tok-n">f</span>.<span class="tok-f">read</span>(<span class="tok-n">8192</span>):
+    <span class="tok-f">process</span>(<span class="tok-n">chunk</span>)</code></pre>
+
+      <p>
+        One read site, no duplication, no risk of the prime and the
+        loop drifting out of sync when someone edits one and forgets
+        the other.
+      </p>
+
+      <h2>Reuse inside a comprehension</h2>
+
+      <p>
+        When a list comprehension filters on an expensive expression
+        and also needs the result, you usually call it twice:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Calls expensive_check twice per item</span>
+<span class="tok-n">results</span> = [<span class="tok-f">expensive_check</span>(<span class="tok-n">x</span>) <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">items</span>
+           <span class="tok-k">if</span> <span class="tok-f">expensive_check</span>(<span class="tok-n">x</span>) <span class="tok-k">is</span> <span class="tok-k">not</span> <span class="tok-k">None</span>]
+
+<span class="tok-c"># Once, with walrus</span>
+<span class="tok-n">results</span> = [<span class="tok-n">y</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-n">items</span>
+           <span class="tok-k">if</span> (<span class="tok-n">y</span> := <span class="tok-f">expensive_check</span>(<span class="tok-n">x</span>)) <span class="tok-k">is</span> <span class="tok-k">not</span> <span class="tok-k">None</span>]</code></pre>
+
+      <h2>Inspect what you just matched</h2>
+
+      <p>
+        Regex matches are a perfect fit. You want the match object
+        if it matched, and to skip otherwise.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">re</span>
+
+<span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log</span>:
+    <span class="tok-k">if</span> <span class="tok-n">m</span> := <span class="tok-n">re</span>.<span class="tok-f">match</span>(<span class="tok-s">r"ERROR (\d+): (.+)"</span>, <span class="tok-n">line</span>):
+        <span class="tok-n">code</span>, <span class="tok-n">msg</span> = <span class="tok-n">m</span>.<span class="tok-f">groups</span>()
+        <span class="tok-f">handle</span>(<span class="tok-n">code</span>, <span class="tok-n">msg</span>)</code></pre>
+
+      <p>
+        Compare to the assignment-then-test version, which leaks
+        <code>m</code> into the surrounding scope and reads less
+        directly.
+      </p>
+
+      <h2>When NOT to use it</h2>
+
+      <p>
+        The walrus loses its value when there's no duplication to
+        eliminate. These are not improvements:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Don't — just use a normal assignment</span>
+(<span class="tok-n">x</span> := <span class="tok-n">42</span>)
+
+<span class="tok-c"># Don't — clarity loss for no gain</span>
+<span class="tok-k">if</span> (<span class="tok-n">total</span> := <span class="tok-f">sum</span>(<span class="tok-n">items</span>)):
+    <span class="tok-f">print</span>(<span class="tok-n">total</span>)
+<span class="tok-c"># Two lines is fine; the walrus is overhead here.</span></code></pre>
+
+      <div class="callout">
+        <p>
+          Rule of thumb: reach for <code>:=</code> only when you'd
+          otherwise repeat an expression or maintain a "prime the
+          loop" pattern. Anywhere else, a plain assignment on its own
+          line is more readable.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a <code>while True:</code> loop in your code that calls
+          the same function on the first line and at the bottom of the
+          loop. Collapse it with <code>:=</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-005-enumerate.html">
+        <span class="label">← Previous</span>
+        <span class="title">enumerate, and the start= you forgot</span>
+      </a>
+      <a class="next" href="day-007-dataclasses.html">
+        <span class="label">Next →</span>
+        <span class="title">dataclasses, with kw_only</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

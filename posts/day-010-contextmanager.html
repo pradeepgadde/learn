@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 010 · Custom with-blocks in 5 lines — Learn with Pradeep</title>
+  <meta name="description" content="@contextmanager turns a generator into a usable with-block. Setup before yield, cleanup after. Plus contextlib.suppress and ExitStack.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 010 &middot; Standard library &middot; Intermediate</div>
+      <h1>Custom with-blocks in 5 lines</h1>
+      <p class="subtitle">
+        <code>@contextmanager</code> turns any generator into a real
+        <code>with</code> block. Setup before <code>yield</code>,
+        teardown after. That's it.
+      </p>
+      <div class="article-meta">
+        <span>11 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.2+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate a generator with
+        <code>@contextlib.contextmanager</code>, put your setup code
+        before <code>yield</code>, your cleanup code after. You now
+        have a context manager &mdash; no <code>__enter__</code> /
+        <code>__exit__</code> class boilerplate required.</p>
+      </div>
+
+      <p>
+        The <code>with</code> statement is one of Python's quietest
+        wins. Files, locks, transactions, timers &mdash; anything
+        that needs paired setup and cleanup belongs inside a
+        <code>with</code> block. The <code>contextlib</code> module
+        makes writing your own embarrassingly easy.
+      </p>
+
+      <h2>The decorator pattern</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextlib</span> <span class="tok-k">import</span> <span class="tok-n">contextmanager</span>
+<span class="tok-k">import</span> <span class="tok-n">time</span>
+
+<span class="tok-o">@</span><span class="tok-n">contextmanager</span>
+<span class="tok-k">def</span> <span class="tok-f">timer</span>(<span class="tok-n">label</span>):
+    <span class="tok-n">start</span> = <span class="tok-n">time</span>.<span class="tok-f">perf_counter</span>()
+    <span class="tok-k">yield</span>
+    <span class="tok-n">elapsed</span> = <span class="tok-n">time</span>.<span class="tok-f">perf_counter</span>() - <span class="tok-n">start</span>
+    <span class="tok-f">print</span>(<span class="tok-s">f"{label}: {elapsed * <span class="tok-n">1000</span>:.1f}ms"</span>)
+
+<span class="tok-k">with</span> <span class="tok-f">timer</span>(<span class="tok-s">"data load"</span>):
+    <span class="tok-n">rows</span> = <span class="tok-f">load_million_rows</span>()</code></pre>
+
+      <div class="output">data load: 482.3ms</div>
+
+      <p>
+        The structure to internalize: <strong>everything before
+        <code>yield</code> runs on enter, everything after runs on exit</strong>.
+        That's the whole API.
+      </p>
+
+      <h2>Yielding a value to the <code>as</code> clause</h2>
+
+      <p>
+        Whatever you yield becomes the value bound by
+        <code>with ... as x</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">contextmanager</span>
+<span class="tok-k">def</span> <span class="tok-f">cd</span>(<span class="tok-n">path</span>):
+    <span class="tok-n">prev</span> = <span class="tok-n">Path</span>.<span class="tok-f">cwd</span>()
+    <span class="tok-n">os</span>.<span class="tok-f">chdir</span>(<span class="tok-n">path</span>)
+    <span class="tok-k">try</span>:
+        <span class="tok-k">yield</span> <span class="tok-n">path</span>
+    <span class="tok-k">finally</span>:
+        <span class="tok-n">os</span>.<span class="tok-f">chdir</span>(<span class="tok-n">prev</span>)
+
+<span class="tok-k">with</span> <span class="tok-f">cd</span>(<span class="tok-s">"/tmp"</span>) <span class="tok-k">as</span> <span class="tok-n">here</span>:
+    <span class="tok-f">print</span>(<span class="tok-s">f"Now in {here}"</span>)
+<span class="tok-c"># Back in the original directory, even if the block raised</span></code></pre>
+
+      <p>
+        The <code>try/finally</code> is essential when cleanup must
+        happen even on exception. Without it, an error inside the
+        <code>with</code> would leave you in the wrong directory.
+      </p>
+
+      <h2>Suppressing exceptions cleanly</h2>
+
+      <p>
+        For the "ignore this specific exception" pattern, skip the
+        custom context manager entirely &mdash;
+        <code>contextlib.suppress</code> is built in.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextlib</span> <span class="tok-k">import</span> <span class="tok-n">suppress</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-c"># Idempotent delete</span>
+<span class="tok-k">with</span> <span class="tok-f">suppress</span>(<span class="tok-n">FileNotFoundError</span>):
+    <span class="tok-f">Path</span>(<span class="tok-s">"cache.tmp"</span>).<span class="tok-f">unlink</span>()</code></pre>
+
+      <p>
+        Reads better than <code>try / except / pass</code>, and the
+        intent is unmistakable.
+      </p>
+
+      <h2>ExitStack for dynamic with-blocks</h2>
+
+      <p>
+        Need to manage a variable number of context managers? You
+        can't write <code>with a, b, c:</code> when the count is only
+        known at runtime. <code>ExitStack</code> solves this elegantly.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextlib</span> <span class="tok-k">import</span> <span class="tok-n">ExitStack</span>
+
+<span class="tok-k">with</span> <span class="tok-f">ExitStack</span>() <span class="tok-k">as</span> <span class="tok-n">stack</span>:
+    <span class="tok-n">files</span> = [<span class="tok-n">stack</span>.<span class="tok-f">enter_context</span>(<span class="tok-f">open</span>(<span class="tok-n">p</span>)) <span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-n">paths</span>]
+    <span class="tok-c"># All files closed in reverse order on exit</span>
+    <span class="tok-k">for</span> <span class="tok-n">f</span> <span class="tok-k">in</span> <span class="tok-n">files</span>:
+        <span class="tok-f">process</span>(<span class="tok-n">f</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          You <em>can</em> still write a context manager as a class with
+          <code>__enter__</code> and <code>__exit__</code> &mdash; and
+          it's the right call when you need to attach state or
+          subclass. For one-off setup/teardown, the decorator wins on
+          line count and clarity every time.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Write a <code>tempenv</code> context manager that sets a
+          batch of environment variables on entry and restores the
+          previous values on exit. Five lines, including the
+          <code>try/finally</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-009-batched.html">
+        <span class="label">← Previous</span>
+        <span class="title">itertools.batched, finally</span>
+      </a>
+      <a class="next" href="day-011-match.html">
+        <span class="label">Next →</span>
+        <span class="title">match isn't switch</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

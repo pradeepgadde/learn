@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 008 · @cache: memoization in one line — Learn with Pradeep</title>
+  <meta name="description" content="functools.cache memoizes a function with one decorator. Same arguments return the cached result. Use lru_cache when you need a size limit.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 008 &middot; Standard library &middot; Intermediate</div>
+      <h1>@cache: memoization in one line</h1>
+      <p class="subtitle">
+        One decorator turns a slow pure function into a fast one. The
+        cache lives for the lifetime of the process.
+      </p>
+      <div class="article-meta">
+        <span>09 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.9+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate any pure function with <code>@functools.cache</code>
+        and identical calls return instantly from a dict. Use
+        <code>@lru_cache(maxsize=N)</code> when memory matters. Both
+        require hashable arguments &mdash; that's the only catch.</p>
+      </div>
+
+      <p>
+        Memoization &mdash; remembering a function's output so you don't
+        recompute it &mdash; used to be a paragraph of bookkeeping code.
+        Since Python 3.9, it's one line.
+      </p>
+
+      <h2>The textbook example, made fast</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">cache</span>
+
+<span class="tok-o">@</span><span class="tok-n">cache</span>
+<span class="tok-k">def</span> <span class="tok-f">fib</span>(<span class="tok-n">n</span>):
+    <span class="tok-k">if</span> <span class="tok-n">n</span> &lt; <span class="tok-n">2</span>:
+        <span class="tok-k">return</span> <span class="tok-n">n</span>
+    <span class="tok-k">return</span> <span class="tok-f">fib</span>(<span class="tok-n">n</span> - <span class="tok-n">1</span>) + <span class="tok-f">fib</span>(<span class="tok-n">n</span> - <span class="tok-n">2</span>)
+
+<span class="tok-f">print</span>(<span class="tok-f">fib</span>(<span class="tok-n">100</span>))     <span class="tok-c"># instant; without @cache, effectively forever</span></code></pre>
+
+      <p>
+        Without the decorator, <code>fib(100)</code> would make
+        astronomically many redundant calls. With it, each
+        <code>n</code> is computed once and looked up forever after.
+      </p>
+
+      <h2>Real-world use: expensive lookups</h2>
+
+      <p>
+        The textbook case is recursion, but the everyday case is
+        anything that's slow and called repeatedly with the same input
+        &mdash; a network probe, a regex compile, a config parse, a DB
+        lookup of stable reference data.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">cache</span>
+<span class="tok-k">import</span> <span class="tok-n">socket</span>
+
+<span class="tok-o">@</span><span class="tok-n">cache</span>
+<span class="tok-k">def</span> <span class="tok-f">resolve</span>(<span class="tok-n">hostname</span>):
+    <span class="tok-k">return</span> <span class="tok-n">socket</span>.<span class="tok-f">gethostbyname</span>(<span class="tok-n">hostname</span>)
+
+<span class="tok-c"># Hits DNS once per hostname, even if called a thousand times</span>
+<span class="tok-k">for</span> <span class="tok-n">host</span> <span class="tok-k">in</span> <span class="tok-n">log_lines</span>:
+    <span class="tok-n">ip</span> = <span class="tok-f">resolve</span>(<span class="tok-n">host</span>)</code></pre>
+
+      <h2><code>cache</code> vs <code>lru_cache</code></h2>
+
+      <p>
+        <code>@cache</code> grows without bound. Fine for a process that
+        sees a finite set of inputs. For long-lived processes with
+        unbounded inputs, use <code>@lru_cache(maxsize=N)</code> &mdash;
+        once full, it evicts the least-recently-used entry.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">lru_cache</span>
+
+<span class="tok-o">@</span><span class="tok-f">lru_cache</span>(<span class="tok-n">maxsize</span>=<span class="tok-n">1024</span>)
+<span class="tok-k">def</span> <span class="tok-f">render_thumbnail</span>(<span class="tok-n">image_id</span>, <span class="tok-n">size</span>):
+    <span class="tok-c">...</span></code></pre>
+
+      <h2>Inspecting and clearing</h2>
+
+      <p>
+        Both decorators expose <code>cache_info()</code> and
+        <code>cache_clear()</code> on the wrapped function. Useful for
+        benchmarking and for tests.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-f">fib</span>(<span class="tok-n">100</span>)
+<span class="tok-f">print</span>(<span class="tok-n">fib</span>.<span class="tok-f">cache_info</span>())
+<span class="tok-c"># CacheInfo(hits=98, misses=101, maxsize=None, currsize=101)</span>
+
+<span class="tok-n">fib</span>.<span class="tok-f">cache_clear</span>()</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <strong>Two real gotchas.</strong> First, arguments must be
+          hashable &mdash; pass a tuple, not a list. Second, the cache
+          is per-process and lives until you clear it; don't use
+          <code>@cache</code> on a method whose result depends on
+          mutable state, or you'll cache stale answers and lose hours
+          debugging.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Profile a script you have. Find the function that gets
+          called most often with the same inputs. Add <code>@cache</code>.
+          Re-run. The speedup is often dramatic and the diff is one line.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-007-dataclasses.html">
+        <span class="label">← Previous</span>
+        <span class="title">dataclasses, with kw_only</span>
+      </a>
+      <a class="next" href="day-009-batched.html">
+        <span class="label">Next →</span>
+        <span class="title">itertools.batched, finally</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

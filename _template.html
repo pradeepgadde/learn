@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  POST TEMPLATE
+  Copy to posts/day-NNN-slug.html and fill in:
+    1. <title> and <meta description>
+    2. The day-marker, h1, subtitle, and meta block in <header>
+    3. The TL;DR
+    4. Body sections (h2 for each section)
+    5. Code blocks (use <pre class="code"> with token spans)
+    6. The "Try it yourself" challenge
+    7. The prev/next links at the bottom
+  ============================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day NNN · TITLE — Learn with Pradeep</title>
+  <meta name="description" content="ONE-SENTENCE DESCRIPTION.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day NNN &middot; CATEGORY &middot; LEVEL</div>
+      <h1>TITLE GOES HERE</h1>
+      <p class="subtitle">
+        One-sentence subtitle that hooks the reader.
+      </p>
+      <div class="article-meta">
+        <span>DD MMM YYYY</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.X+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>The single sentence (or two) that summarizes the takeaway.</p>
+      </div>
+
+      <p>Opening paragraph that sets up the problem or motivates the skill.</p>
+
+      <h2>First section heading</h2>
+      <p>Explanation paragraph.</p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># comment</span>
+<span class="tok-k">def</span> <span class="tok-f">example</span>():
+    <span class="tok-k">return</span> <span class="tok-s">"hello"</span></code></pre>
+
+      <div class="output">hello</div>
+
+      <h2>Second section heading</h2>
+      <p>More explanation.</p>
+
+      <div class="callout">
+        <p>Optional aside or pro-tip in this callout box.</p>
+      </div>
+
+      <div class="challenge">
+        <p>A small, concrete thing to try in their own code right now.</p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-PREV-slug.html">
+        <span class="label">← Previous</span>
+        <span class="title">Previous post title</span>
+      </a>
+      <a class="next placeholder" aria-disabled="true">
+        <span class="label">Next →</span>
+        <span class="title">Coming tomorrow</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
+
+<!--
+  =============================================================
+  SYNTAX TOKEN CHEAT-SHEET (wrap text in these spans inside <pre>):
+    <span class="tok-c">comment text</span>     italic muted
+    <span class="tok-s">"string"</span>          warm gold
+    <span class="tok-k">def / for / if</span>    coral keyword
+    <span class="tok-n">42 / variable</span>     light blue
+    <span class="tok-f">print / func()</span>    soft green
+    <span class="tok-o">= or operator</span>     yellow accent
+  =============================================================
+  CALLOUT VARIANTS:
+    <div class="callout">…</div>          info (diamond)
+    <div class="callout warn">…</div>     warning (red !)
+  =============================================================
+-->

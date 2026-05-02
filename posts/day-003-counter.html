@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 003 · Counting anything with Counter — Learn with Pradeep</title>
+  <meta name="description" content="collections.Counter is a dict built for tallying. .most_common() and arithmetic on counters replace pages of bookkeeping code.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 003 &middot; Standard library &middot; Beginner</div>
+      <h1>Counting anything with Counter</h1>
+      <p class="subtitle">
+        A dict that tallies, with a top-N method and arithmetic between
+        counters. The cleanest tool in the standard library.
+      </p>
+      <div class="article-meta">
+        <span>04 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.1+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>Counter</code> is a <code>dict</code> subclass for tallying.
+        Pass it any iterable, get back counts. Add or subtract counters,
+        ask for <code>.most_common(n)</code>, and skip the manual
+        <code>if x in d: d[x] += 1</code> dance forever.</p>
+      </div>
+
+      <p>
+        Almost every codebase has a hand-rolled tally somewhere &mdash;
+        a dict, a check for the key, an increment. <code>Counter</code>
+        replaces that pattern with a one-liner, and adds a few tricks
+        you'd never bother building yourself.
+      </p>
+
+      <h2>From iterable to counts in one call</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">collections</span> <span class="tok-k">import</span> <span class="tok-n">Counter</span>
+
+<span class="tok-n">votes</span> = [<span class="tok-s">"yes"</span>, <span class="tok-s">"no"</span>, <span class="tok-s">"yes"</span>, <span class="tok-s">"yes"</span>, <span class="tok-s">"abstain"</span>, <span class="tok-s">"no"</span>]
+<span class="tok-n">tally</span> = <span class="tok-f">Counter</span>(<span class="tok-n">votes</span>)
+<span class="tok-f">print</span>(<span class="tok-n">tally</span>)</code></pre>
+
+      <div class="output">Counter({'yes': 3, 'no': 2, 'abstain': 1})</div>
+
+      <p>
+        It works on any iterable &mdash; a list, a generator, the
+        characters of a string, the words from a file. Missing keys
+        return <code>0</code> instead of raising, so you can read
+        <code>tally["maybe"]</code> safely.
+      </p>
+
+      <h2>The killer method: <code>most_common</code></h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">text</span> = <span class="tok-s">"the quick brown fox jumps over the lazy dog the end"</span>
+<span class="tok-n">freq</span> = <span class="tok-f">Counter</span>(<span class="tok-n">text</span>.<span class="tok-f">split</span>())
+
+<span class="tok-f">print</span>(<span class="tok-n">freq</span>.<span class="tok-f">most_common</span>(<span class="tok-n">3</span>))</code></pre>
+
+      <div class="output">[('the', 3), ('quick', 1), ('brown', 1)]</div>
+
+      <p>
+        Returns a list of <code>(item, count)</code> tuples sorted by
+        count descending. No argument means all items, sorted. This is
+        the entire content of a hundred Stack Overflow answers about
+        "top N words in a file."
+      </p>
+
+      <h2>Counters do arithmetic</h2>
+
+      <p>
+        Add two counters and the counts add. Subtract and they subtract,
+        with negatives clamped to zero. <code>&amp;</code> is min,
+        <code>|</code> is max. This is wildly useful for diffs and
+        rolling windows.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">monday</span>  = <span class="tok-f">Counter</span>(<span class="tok-n">errors</span>=<span class="tok-n">12</span>, <span class="tok-n">warnings</span>=<span class="tok-n">48</span>, <span class="tok-n">info</span>=<span class="tok-n">130</span>)
+<span class="tok-n">tuesday</span> = <span class="tok-f">Counter</span>(<span class="tok-n">errors</span>=<span class="tok-n">8</span>,  <span class="tok-n">warnings</span>=<span class="tok-n">52</span>, <span class="tok-n">info</span>=<span class="tok-n">141</span>)
+
+<span class="tok-f">print</span>(<span class="tok-n">monday</span> + <span class="tok-n">tuesday</span>)
+<span class="tok-f">print</span>(<span class="tok-n">tuesday</span> - <span class="tok-n">monday</span>)   <span class="tok-c"># Day-over-day delta, no negatives</span></code></pre>
+
+      <div class="output">Counter({'info': 271, 'warnings': 100, 'errors': 20})
+Counter({'info': 11, 'warnings': 4})</div>
+
+      <h2>Updating in place</h2>
+
+      <p>
+        <code>update()</code> takes another iterable or mapping and
+        <em>adds</em> &mdash; it doesn't overwrite like a regular dict.
+        Easy to miss if you're coming from <code>dict.update</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">tally</span> = <span class="tok-f">Counter</span>()
+<span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log_file</span>:
+    <span class="tok-n">tally</span>.<span class="tok-f">update</span>(<span class="tok-n">line</span>.<span class="tok-f">split</span>())     <span class="tok-c"># adds to existing counts</span></code></pre>
+
+      <div class="callout warn">
+        <p>
+          <strong>Gotcha:</strong> <code>Counter</code> only counts
+          <em>hashable</em> items. Lists and dicts won't work as keys.
+          Convert to tuples first if you need to count sequences.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a log file you have lying around. In three lines, print
+          the ten most common words in it.
+        </p>
+        <p>
+          Then take two snapshots of the same file an hour apart and
+          compute the diff using counter subtraction &mdash; you've just
+          built a tiny "what changed" monitor.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-002-pathlib.html">
+        <span class="label">← Previous</span>
+        <span class="title">Stop using os.path. Use pathlib.</span>
+      </a>
+      <a class="next" href="day-004-dict-get.html">
+        <span class="label">Next →</span>
+        <span class="title">dict.get and the missing-key dance</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

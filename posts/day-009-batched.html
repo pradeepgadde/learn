@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 009 · itertools.batched, finally — Learn with Pradeep</title>
+  <meta name="description" content="Python 3.12's itertools.batched chunks any iterable into fixed-size tuples. Built-in, lazy, and works on generators where slicing fails.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand"><span class="dot"></span> Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 009 &middot; Standard library &middot; Intermediate</div>
+      <h1>itertools.batched, finally</h1>
+      <p class="subtitle">
+        Chunking an iterable into fixed-size groups was a recipe for
+        twenty years. In Python 3.12 it became a built-in.
+      </p>
+      <div class="article-meta">
+        <span>10 May 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.12+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>itertools.batched(iterable, n)</code> yields tuples of
+        size <code>n</code>, with the final tuple possibly shorter.
+        Works on any iterable (including generators), no slicing, no
+        index math. Add <code>strict=True</code> on Python 3.13+ to
+        require exact-size groups.</p>
+      </div>
+
+      <p>
+        For two decades, every Python codebase had its own
+        <code>chunked()</code>, <code>grouper()</code>, or
+        <code>batch()</code> helper. They all did the same thing
+        slightly differently. <code>itertools.batched</code> ends the
+        debate.
+      </p>
+
+      <h2>The old slicing approach</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Works only on sequences (lists, tuples, strings)</span>
+<span class="tok-k">def</span> <span class="tok-f">chunks</span>(<span class="tok-n">seq</span>, <span class="tok-n">n</span>):
+    <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">0</span>, <span class="tok-f">len</span>(<span class="tok-n">seq</span>), <span class="tok-n">n</span>):
+        <span class="tok-k">yield</span> <span class="tok-n">seq</span>[<span class="tok-n">i</span>:<span class="tok-n">i</span> + <span class="tok-n">n</span>]
+
+<span class="tok-c"># Breaks on a generator: needs len() and indexing</span></code></pre>
+
+      <h2>The new built-in</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">batched</span>
+
+<span class="tok-k">for</span> <span class="tok-n">group</span> <span class="tok-k">in</span> <span class="tok-f">batched</span>(<span class="tok-s">"ABCDEFGHIJ"</span>, <span class="tok-n">3</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">group</span>)</code></pre>
+
+      <div class="output">('A', 'B', 'C')
+('A', 'B', 'C')
+('D', 'E', 'F')
+('G', 'H', 'I')
+('J',)</div>
+
+      <p>
+        Note the last tuple is short. That's the right default behavior
+        for almost all uses &mdash; you don't lose data.
+      </p>
+
+      <h2>Where it actually shines: generators</h2>
+
+      <p>
+        Slicing requires a sequence. <code>batched</code> takes any
+        iterable, which means it works on file iterators, database
+        cursors, and other generators where you couldn't have used
+        the slicing trick.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">read_records</span>(<span class="tok-n">path</span>):
+    <span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-n">path</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+        <span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">f</span>:
+            <span class="tok-k">yield</span> <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">line</span>)
+
+<span class="tok-c"># Insert into the DB 500 at a time, never holding all of it</span>
+<span class="tok-k">for</span> <span class="tok-n">batch</span> <span class="tok-k">in</span> <span class="tok-f">batched</span>(<span class="tok-f">read_records</span>(<span class="tok-s">"events.ndjson"</span>), <span class="tok-n">500</span>):
+    <span class="tok-n">db</span>.<span class="tok-f">insert_many</span>(<span class="tok-n">batch</span>)</code></pre>
+
+      <p>
+        The whole pipeline stays lazy. Memory usage is bounded by the
+        batch size, not the file size.
+      </p>
+
+      <h2>The classic API-paging use case</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># API endpoint accepts up to 100 IDs per request</span>
+<span class="tok-n">user_ids</span> = <span class="tok-f">get_all_user_ids</span>()     <span class="tok-c"># could be a generator</span>
+
+<span class="tok-k">for</span> <span class="tok-n">id_batch</span> <span class="tok-k">in</span> <span class="tok-f">batched</span>(<span class="tok-n">user_ids</span>, <span class="tok-n">100</span>):
+    <span class="tok-n">response</span> = <span class="tok-n">api</span>.<span class="tok-f">get_users</span>(<span class="tok-n">ids</span>=<span class="tok-f">list</span>(<span class="tok-n">id_batch</span>))
+    <span class="tok-f">handle</span>(<span class="tok-n">response</span>)</code></pre>
+
+      <h2>Strict mode (3.13+)</h2>
+
+      <p>
+        Sometimes a short final tuple is a bug, not a feature &mdash;
+        you're processing fixed-format records and a partial group
+        means corrupted input. Pass <code>strict=True</code> and
+        <code>batched</code> raises <code>ValueError</code> instead of
+        yielding the runt.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">batched</span>
+
+<span class="tok-c"># Each line should have exactly 4 RGBA values</span>
+<span class="tok-k">for</span> <span class="tok-n">pixel</span> <span class="tok-k">in</span> <span class="tok-f">batched</span>(<span class="tok-n">stream</span>, <span class="tok-n">4</span>, <span class="tok-n">strict</span>=<span class="tok-k">True</span>):
+    <span class="tok-f">paint</span>(<span class="tok-o">*</span><span class="tok-n">pixel</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          On Python 3.11 or earlier, the closest equivalent is the
+          <code>more-itertools</code> third-party library, which has
+          had <code>chunked()</code> for years. Worth pulling in if
+          you can't move to 3.12 yet.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find your codebase's local <code>chunked</code> /
+          <code>batch</code> / <code>grouper</code> helper &mdash;
+          almost every project has one. Replace it with
+          <code>itertools.batched</code> and delete the helper. Update
+          the import, run the tests, ship it.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-008-cache.html">
+        <span class="label">← Previous</span>
+        <span class="title">@cache: memoization in one line</span>
+      </a>
+      <a class="next" href="day-010-contextmanager.html">
+        <span class="label">Next →</span>
+        <span class="title">Custom with-blocks in 5 lines</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
