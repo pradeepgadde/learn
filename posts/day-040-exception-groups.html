@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 040 · Exception groups: many failures, one raise — Learn with Pradeep</title>
+  <meta name="description" content="ExceptionGroup and except* let concurrent code raise multiple exceptions at once. The 3.11 feature that makes async error handling actually work.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 040 &middot; Syntax &middot; Intermediate</div>
+      <h1>Exception groups: many failures, one raise</h1>
+      <p class="subtitle">
+        Concurrent code can fail in multiple ways at once.
+        <code>ExceptionGroup</code> and <code>except*</code> let you
+        report and handle all of them &mdash; not just the first
+        one.
+      </p>
+      <div class="article-meta">
+        <span>09 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.11+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>ExceptionGroup</code> wraps multiple exceptions
+        into one. <code>except*</code> matches members by type
+        and runs the handler on the matched subset. The standard
+        way to surface failures from <code>TaskGroup</code> and
+        any operation that can produce multiple errors at once.</p>
+      </div>
+
+      <p>
+        Until 3.11, raising in Python was an all-or-nothing thing
+        &mdash; one exception, one place. Async code broke this
+        model: ten tasks could fail simultaneously and you'd only
+        see one. PEP 654 introduced exception groups to handle
+        the rest properly.
+      </p>
+
+      <h2>The grouping</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">errors</span> = []
+<span class="tok-k">for</span> <span class="tok-n">device</span> <span class="tok-k">in</span> <span class="tok-n">devices</span>:
+    <span class="tok-k">try</span>:
+        <span class="tok-f">push_config</span>(<span class="tok-n">device</span>)
+    <span class="tok-k">except</span> <span class="tok-n">Exception</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+        <span class="tok-n">errors</span>.<span class="tok-f">append</span>(<span class="tok-n">e</span>)
+
+<span class="tok-k">if</span> <span class="tok-n">errors</span>:
+    <span class="tok-k">raise</span> <span class="tok-n">ExceptionGroup</span>(<span class="tok-s">"some pushes failed"</span>, <span class="tok-n">errors</span>)</code></pre>
+
+      <p>
+        One raise carries every individual failure. The traceback
+        shows all of them, not just the first. Callers can decide
+        what to do with the whole bundle.
+      </p>
+
+      <h2>The new syntax: <code>except*</code></h2>
+
+      <p>
+        Inside an exception group, you might want to handle
+        connection errors one way and validation errors another.
+        <code>except*</code> matches members by type and runs the
+        handler on just the matched subset.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-f">push_to_fleet</span>(<span class="tok-n">devices</span>)
+<span class="tok-k">except</span><span class="tok-o">*</span> <span class="tok-n">ConnectionError</span> <span class="tok-k">as</span> <span class="tok-n">eg</span>:
+    <span class="tok-k">for</span> <span class="tok-n">err</span> <span class="tok-k">in</span> <span class="tok-n">eg</span>.<span class="tok-n">exceptions</span>:
+        <span class="tok-n">log</span>.<span class="tok-f">warning</span>(<span class="tok-s">"unreachable: %s"</span>, <span class="tok-n">err</span>)
+<span class="tok-k">except</span><span class="tok-o">*</span> <span class="tok-n">ValueError</span> <span class="tok-k">as</span> <span class="tok-n">eg</span>:
+    <span class="tok-k">for</span> <span class="tok-n">err</span> <span class="tok-k">in</span> <span class="tok-n">eg</span>.<span class="tok-n">exceptions</span>:
+        <span class="tok-n">log</span>.<span class="tok-f">error</span>(<span class="tok-s">"bad config: %s"</span>, <span class="tok-n">err</span>)</code></pre>
+
+      <p>
+        Both <code>except*</code> blocks can run in the same
+        try statement &mdash; that's the difference from
+        regular <code>except</code>, which only matches one
+        clause. Each handler receives an <code>ExceptionGroup</code>
+        containing only the matching exceptions, in their
+        original tree positions.
+      </p>
+
+      <h2>Where you'll meet them: TaskGroup</h2>
+
+      <p>
+        <code>asyncio.TaskGroup</code> (Day 039) raises an
+        <code>ExceptionGroup</code> when one or more tasks
+        fail. The pattern is symmetric.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncio</span>.<span class="tok-f">TaskGroup</span>() <span class="tok-k">as</span> <span class="tok-n">tg</span>:
+        <span class="tok-k">for</span> <span class="tok-n">host</span> <span class="tok-k">in</span> <span class="tok-n">hosts</span>:
+            <span class="tok-n">tg</span>.<span class="tok-f">create_task</span>(<span class="tok-f">probe</span>(<span class="tok-n">host</span>))
+<span class="tok-k">except</span><span class="tok-o">*</span> <span class="tok-n">TimeoutError</span> <span class="tok-k">as</span> <span class="tok-n">eg</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">warning</span>(<span class="tok-s">"%d devices timed out"</span>, <span class="tok-f">len</span>(<span class="tok-n">eg</span>.<span class="tok-n">exceptions</span>))
+<span class="tok-k">except</span><span class="tok-o">*</span> <span class="tok-n">ConnectionRefusedError</span> <span class="tok-k">as</span> <span class="tok-n">eg</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">error</span>(<span class="tok-s">"%d devices refused"</span>, <span class="tok-f">len</span>(<span class="tok-n">eg</span>.<span class="tok-n">exceptions</span>))</code></pre>
+
+      <h2>Filtering and splitting</h2>
+
+      <p>
+        For programmatic handling outside <code>except*</code>,
+        an <code>ExceptionGroup</code> has a
+        <code>.split(predicate)</code> method that partitions it
+        into matched and unmatched groups.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-f">do_batch</span>()
+<span class="tok-k">except</span> <span class="tok-n">ExceptionGroup</span> <span class="tok-k">as</span> <span class="tok-n">eg</span>:
+    <span class="tok-n">retryable</span>, <span class="tok-n">fatal</span> = <span class="tok-n">eg</span>.<span class="tok-f">split</span>(<span class="tok-n">TimeoutError</span>)
+    <span class="tok-k">if</span> <span class="tok-n">retryable</span>:
+        <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"will retry %d failures"</span>, <span class="tok-f">len</span>(<span class="tok-n">retryable</span>.<span class="tok-n">exceptions</span>))
+    <span class="tok-k">if</span> <span class="tok-n">fatal</span>:
+        <span class="tok-k">raise</span> <span class="tok-n">fatal</span>          <span class="tok-c"># re-raise non-retryable ones</span></code></pre>
+
+      <p>
+        <code>split</code> returns a <code>(matched, rest)</code>
+        tuple, either of which may be <code>None</code> if empty.
+      </p>
+
+      <h2>Backward compatibility</h2>
+
+      <p>
+        <code>except* X</code> only works on 3.11+. If you need to
+        run on older Pythons, you can still <em>raise</em>
+        <code>ExceptionGroup</code> using the
+        <a href="https://pypi.org/project/exceptiongroup/">exceptiongroup</a>
+        backport package, but the syntax stays
+        <code>except ExceptionGroup as eg:</code> with manual
+        iteration.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>Don't use a regular <code>except Exception</code>
+          to catch an exception group.</strong> It does match (because
+          <code>ExceptionGroup</code> inherits from
+          <code>Exception</code>) but you lose the per-type
+          handling. Use <code>except*</code> when you want
+          per-type behavior, or
+          <code>except ExceptionGroup as eg</code> when you want
+          to inspect the whole bundle.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Convert the URL checker from yesterday's challenge to
+          use <code>TaskGroup</code> instead of
+          <code>gather(return_exceptions=True)</code>. Catch the
+          resulting <code>ExceptionGroup</code> with two
+          <code>except*</code> clauses &mdash; one for timeout
+          errors, one for everything else. Watch the failure
+          summary become much more useful.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-039-asyncio-gather.html">
+        <span class="label">← Previous</span>
+        <span class="title">asyncio.gather and the patterns that scale</span>
+      </a>
+      <a class="next" href="day-041-ruff.html">
+        <span class="label">Next →</span>
+        <span class="title">ruff: the linter that ate the ecosystem</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

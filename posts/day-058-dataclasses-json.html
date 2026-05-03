@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 058 · dataclasses + JSON: the round-trip — Learn with Pradeep</title>
+  <meta name="description" content="Three ways to round-trip dataclasses through JSON: asdict + dict-construct, the default= hook, and pydantic. Pick by stakes.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 058 &middot; Standard library &middot; Intermediate</div>
+      <h1>dataclasses + JSON: the round-trip</h1>
+      <p class="subtitle">
+        Three ways to round-trip dataclasses through JSON.
+        Pick by how strict you need the validation.
+      </p>
+      <div class="article-meta">
+        <span>27 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.10+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>For simple cases use <code>asdict</code> +
+        <code>Cls(**data)</code>. For nested objects use
+        a <code>default=</code> hook on
+        <code>json.dumps</code>. For real validation
+        with type coercion, use <code>pydantic</code>
+        (Day 032). Don't write your own custom
+        serializer when one of these will do.</p>
+      </div>
+
+      <p>
+        Dataclasses (Day 007) and JSON (Day 015) come up
+        together constantly: load config, ship a payload,
+        cache to disk, send through a queue. Three
+        approaches, ordered by complexity.
+      </p>
+
+      <h2>The simplest: asdict + dict-construct</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>, <span class="tok-n">asdict</span>
+<span class="tok-k">import</span> <span class="tok-n">json</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Device</span>:
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">role</span>:     <span class="tok-n">str</span>
+    <span class="tok-n">port</span>:     <span class="tok-n">int</span> = <span class="tok-n">22</span>
+
+<span class="tok-n">d</span>    = <span class="tok-f">Device</span>(<span class="tok-s">"sw-01"</span>, <span class="tok-s">"access"</span>)
+<span class="tok-n">data</span> = <span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-f">asdict</span>(<span class="tok-n">d</span>))
+
+<span class="tok-c"># Round-trip back</span>
+<span class="tok-n">restored</span> = <span class="tok-f">Device</span>(<span class="tok-o">**</span><span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">data</span>))</code></pre>
+
+      <p>
+        Works perfectly for flat dataclasses with
+        JSON-native types. Two limitations:
+        <code>Device(**data)</code> doesn't validate
+        types &mdash; it'll happily build a
+        <code>Device</code> with <code>port="22"</code>
+        instead of an int. And nested non-JSON types
+        (datetimes, paths, enums) need explicit
+        handling.
+      </p>
+
+      <h2>Nested types: the <code>default=</code> hook</h2>
+
+      <p>
+        For values that aren't JSON-native, pass a
+        <code>default</code> function that converts them
+        to something that is.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">datetime</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+<span class="tok-k">from</span> <span class="tok-n">enum</span> <span class="tok-k">import</span> <span class="tok-n">Enum</span>
+
+<span class="tok-k">def</span> <span class="tok-f">to_json</span>(<span class="tok-n">obj</span>):
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">datetime</span>): <span class="tok-k">return</span> <span class="tok-n">obj</span>.<span class="tok-f">isoformat</span>()
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">Path</span>):     <span class="tok-k">return</span> <span class="tok-f">str</span>(<span class="tok-n">obj</span>)
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">Enum</span>):     <span class="tok-k">return</span> <span class="tok-n">obj</span>.<span class="tok-n">value</span>
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">set</span>):      <span class="tok-k">return</span> <span class="tok-f">sorted</span>(<span class="tok-n">obj</span>)
+    <span class="tok-k">raise</span> <span class="tok-n">TypeError</span>(<span class="tok-n">obj</span>)
+
+<span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-f">asdict</span>(<span class="tok-n">device</span>), <span class="tok-n">default</span>=<span class="tok-n">to_json</span>, <span class="tok-n">indent</span>=<span class="tok-n">2</span>)</code></pre>
+
+      <p>
+        The reverse direction (parsing those strings
+        back into typed objects on load) gets manual.
+        That's where the next approach earns its keep.
+      </p>
+
+      <h2>Real round-trip with pydantic</h2>
+
+      <p>
+        For payloads that come from outside or need
+        validation, pydantic gives you both directions
+        for free.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>
+<span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">datetime</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Device</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">hostname</span>:   <span class="tok-n">str</span>
+    <span class="tok-n">role</span>:       <span class="tok-n">str</span>
+    <span class="tok-n">port</span>:       <span class="tok-n">int</span>      = <span class="tok-n">22</span>
+    <span class="tok-n">last_seen</span>:  <span class="tok-n">datetime</span> = <span class="tok-k">None</span>
+    <span class="tok-n">config_dir</span>: <span class="tok-n">Path</span>     = <span class="tok-n">Path</span>(<span class="tok-s">"/etc"</span>)
+
+<span class="tok-c"># Out</span>
+<span class="tok-n">payload</span>  = <span class="tok-n">device</span>.<span class="tok-f">model_dump_json</span>()
+
+<span class="tok-c"># In, with full validation and type coercion</span>
+<span class="tok-n">restored</span> = <span class="tok-n">Device</span>.<span class="tok-f">model_validate_json</span>(<span class="tok-n">payload</span>)
+<span class="tok-c"># last_seen comes back as a real datetime
+# config_dir comes back as a real Path
+# port="22" would still be coerced to int
+# missing required fields raise ValidationError</span></code></pre>
+
+      <p>
+        For data crossing a process or network boundary,
+        the validation alone is worth the dependency.
+      </p>
+
+      <h2>One pitfall: dataclass field order on load</h2>
+
+      <p>
+        <code>Device(**data)</code> uses keyword arguments,
+        so JSON key order doesn't matter. But if any
+        dataclass field has no default and is missing
+        from the JSON, you'll get a confusing
+        <code>TypeError</code> from
+        <code>__init__</code>, not the kind of
+        nice "missing field" error pydantic gives.
+        For defensive parsing, default everything to
+        <code>None</code> and validate after.
+      </p>
+
+      <h2>Storing dataclasses in SQLite</h2>
+
+      <p>
+        Pairing today's pattern with Day 037: use
+        <code>asdict</code> to insert, parse the result
+        row back into the dataclass.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"INSERT INTO devices VALUES (:hostname, :role, :port)"</span>,
+             <span class="tok-f">asdict</span>(<span class="tok-n">device</span>))
+
+<span class="tok-c"># On read</span>
+<span class="tok-n">conn</span>.<span class="tok-n">row_factory</span> = <span class="tok-n">sqlite3</span>.<span class="tok-n">Row</span>
+<span class="tok-n">row</span>      = <span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"SELECT * FROM devices WHERE hostname=?"</span>,
+                         (<span class="tok-n">name</span>,)).<span class="tok-f">fetchone</span>()
+<span class="tok-n">restored</span> = <span class="tok-f">Device</span>(<span class="tok-o">**</span><span class="tok-n">row</span>)</code></pre>
+
+      <p>
+        Tidy and dependency-free. For richer types
+        (datetimes, JSON-encoded sub-fields), upgrade
+        to pydantic.
+      </p>
+
+      <div class="callout">
+        <p>
+          A small middle-ground: <code>msgspec</code>
+          and <code>attrs</code> + <code>cattrs</code>
+          both give you faster, type-validated
+          serialization than pydantic with smaller
+          dependencies. Worth a look if pydantic feels
+          heavy for your use case.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a dataclass you serialize today. Make a
+          tiny round-trip test:
+          <code>assert Cls(**asdict(obj)) == obj</code>.
+          If it fails because of a non-JSON-native field,
+          add a <code>default=</code> hook. If you find
+          yourself wanting validation on load, port to
+          pydantic. The right tool for the job becomes
+          obvious very quickly.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-057-re.html">
+        <span class="label">← Previous</span>
+        <span class="title">re: regex features past the basics</span>
+      </a>
+      <a class="next" href="day-059-pathlib-advanced.html">
+        <span class="label">Next →</span>
+        <span class="title">pathlib advanced: resolve, relative_to, walk</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

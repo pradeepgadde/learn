@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 050 · typer: argparse without the boilerplate — Learn with Pradeep</title>
+  <meta name="description" content="typer turns type-annotated functions into rich CLIs. Sub-commands, validation, completion, and help text — all from the function signature.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 050 &middot; Third-party &middot; Beginner</div>
+      <h1>typer: argparse without the boilerplate</h1>
+      <p class="subtitle">
+        Type-annotated functions become rich CLIs. Sub-commands,
+        validation, shell completion, colored help &mdash; all
+        derived from the function signature.
+      </p>
+      <div class="article-meta">
+        <span>19 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate a function with <code>@app.command()</code>,
+        annotate the parameters with types and defaults, run
+        <code>app()</code>. typer handles parsing, validation,
+        and help generation. Sub-commands, options, and
+        flags all come from the signature.</p>
+      </div>
+
+      <p>
+        We covered <code>argparse</code> on Day 014 &mdash; the
+        standard-library answer. <code>typer</code> (built on
+        the same ideas as <code>click</code>) gives you the
+        same CLI for half the code, plus rich features like
+        shell completion and pretty <code>--help</code>
+        output. Same author as FastAPI; same design
+        philosophy.
+      </p>
+
+      <h2>The minimal CLI</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">typer</span>
+
+<span class="tok-n">app</span> = <span class="tok-n">typer</span>.<span class="tok-f">Typer</span>()
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">probe</span>(<span class="tok-n">host</span>: <span class="tok-n">str</span>, <span class="tok-n">port</span>: <span class="tok-n">int</span> = <span class="tok-n">22</span>, <span class="tok-n">verbose</span>: <span class="tok-n">bool</span> = <span class="tok-k">False</span>):
+    <span class="tok-s">"""Connect to HOST and report status."""</span>
+    <span class="tok-k">if</span> <span class="tok-n">verbose</span>:
+        <span class="tok-n">typer</span>.<span class="tok-f">echo</span>(<span class="tok-s">f"connecting to {host}:{port}..."</span>)
+    <span class="tok-c"># do the thing</span>
+
+<span class="tok-k">if</span> <span class="tok-n">__name__</span> == <span class="tok-s">"__main__"</span>:
+    <span class="tok-f">app</span>()</code></pre>
+
+      <p>
+        That gives you <code>probe HOST [--port 22]
+        [--verbose]</code>, full <code>--help</code>, type
+        validation that rejects <code>--port abc</code>,
+        and a <code>--install-completion</code> flag for
+        free. The function signature <em>is</em> the CLI.
+      </p>
+
+      <h2>Sub-commands</h2>
+
+      <p>
+        Add more <code>@app.command()</code> functions and
+        each becomes a sub-command. Like <code>git add</code>,
+        <code>git commit</code>, <code>git push</code> &mdash;
+        the same pattern.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">app</span> = <span class="tok-n">typer</span>.<span class="tok-f">Typer</span>()
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">deploy</span>(<span class="tok-n">env</span>: <span class="tok-n">str</span>, <span class="tok-n">version</span>: <span class="tok-n">str</span>):
+    <span class="tok-s">"""Deploy VERSION to ENV."""</span>
+    <span class="tok-c">...</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">rollback</span>(<span class="tok-n">env</span>: <span class="tok-n">str</span>):
+    <span class="tok-s">"""Roll back the last deploy in ENV."""</span>
+    <span class="tok-c">...</span>
+
+<span class="tok-c"># Usage:
+#   mytool deploy staging v1.2.3
+#   mytool rollback staging
+#   mytool --help          (lists all sub-commands)</span></code></pre>
+
+      <h2>Rich options with <code>typer.Option</code></h2>
+
+      <p>
+        For options that need a short alias, a help string,
+        a constraint, or env-var fallback, wrap the default
+        in <code>typer.Option(...)</code>. The function
+        signature still reads naturally.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">Annotated</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">deploy</span>(
+    <span class="tok-n">env</span>: <span class="tok-n">Annotated</span>[<span class="tok-n">str</span>, <span class="tok-n">typer</span>.<span class="tok-f">Argument</span>(<span class="tok-n">help</span>=<span class="tok-s">"Target env"</span>)],
+    <span class="tok-n">version</span>: <span class="tok-n">Annotated</span>[<span class="tok-n">str</span>, <span class="tok-n">typer</span>.<span class="tok-f">Option</span>(<span class="tok-s">"--version"</span>, <span class="tok-s">"-v"</span>,
+                                       <span class="tok-n">envvar</span>=<span class="tok-s">"DEPLOY_VERSION"</span>)],
+    <span class="tok-n">dry_run</span>: <span class="tok-n">Annotated</span>[<span class="tok-n">bool</span>, <span class="tok-n">typer</span>.<span class="tok-f">Option</span>(<span class="tok-s">"--dry-run"</span>,
+                                       <span class="tok-n">help</span>=<span class="tok-s">"Plan only"</span>)] = <span class="tok-k">False</span>,
+):
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        <code>Annotated[T, ...]</code> is the modern way to
+        attach metadata to types. Both <code>typer</code>
+        and <code>pydantic</code> v2 use it. Old-style
+        defaults (<code>x: str = typer.Option(...)</code>)
+        also work, but mypy is happier with
+        <code>Annotated</code>.
+      </p>
+
+      <h2>Choices via Enum</h2>
+
+      <p>
+        Constrain to a fixed set of values? Use a string
+        Enum &mdash; typer renders it as a constrained
+        argument with auto-completion.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">enum</span> <span class="tok-k">import</span> <span class="tok-n">StrEnum</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Env</span>(<span class="tok-n">StrEnum</span>):
+    <span class="tok-n">DEV</span>     = <span class="tok-s">"dev"</span>
+    <span class="tok-n">STAGING</span> = <span class="tok-s">"staging"</span>
+    <span class="tok-n">PROD</span>    = <span class="tok-s">"prod"</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">deploy</span>(<span class="tok-n">env</span>: <span class="tok-n">Env</span>):
+    <span class="tok-c">...</span>
+
+<span class="tok-c"># mytool deploy banana  -->  Error: Invalid value 'banana'.
+#                              Must be one of: dev, staging, prod</span></code></pre>
+
+      <h2>Confirmation prompts and password input</h2>
+
+      <p>
+        Built-in helpers for the things every CLI eventually
+        needs.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">delete</span>(<span class="tok-n">name</span>: <span class="tok-n">str</span>):
+    <span class="tok-n">typer</span>.<span class="tok-f">confirm</span>(<span class="tok-s">f"Really delete {name}?"</span>, <span class="tok-n">abort</span>=<span class="tok-k">True</span>)
+    <span class="tok-c"># aborts the program if the user says no</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">command</span>()
+<span class="tok-k">def</span> <span class="tok-f">login</span>(<span class="tok-n">user</span>: <span class="tok-n">str</span>):
+    <span class="tok-n">password</span> = <span class="tok-n">typer</span>.<span class="tok-f">prompt</span>(<span class="tok-s">"Password"</span>, <span class="tok-n">hide_input</span>=<span class="tok-k">True</span>)
+    <span class="tok-c">...</span></code></pre>
+
+      <h2>Pairs perfectly with rich</h2>
+
+      <p>
+        Since typer uses the <code>rich</code> library
+        internally for help formatting, your colored output
+        from Day 031 fits in seamlessly &mdash; tables,
+        progress bars, panels &mdash; all play well together.
+      </p>
+
+      <div class="callout">
+        <p>
+          For a single-script with one command, plain
+          <code>argparse</code> (Day 014) is fine and
+          ships with Python &mdash; no extra dependency. As
+          soon as you have two sub-commands or want
+          <code>--install-completion</code>, jump to typer.
+          The migration is straightforward enough that
+          starting with argparse and switching later is a
+          valid path too.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take any argparse script you've written. Convert
+          it to typer. Count the lines you deleted &mdash;
+          usually 30–50% reduction with no functionality
+          lost. Add <code>typer install-completion</code>
+          and tab-complete in your shell for the first time.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-049-functools.html">
+        <span class="label">← Previous</span>
+        <span class="title">functools: partial, reduce, and friends</span>
+      </a>
+      <a class="next" href="day-051-zoneinfo.html">
+        <span class="label">Next →</span>
+        <span class="title">zoneinfo: timezones in the stdlib (and pendulum)</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

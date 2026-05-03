@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 039 · asyncio.gather and the patterns that scale — Learn with Pradeep</title>
+  <meta name="description" content="gather is the fan-out, TaskGroup is the safer 3.11+ replacement, Semaphore caps concurrency. The three primitives you actually need.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 039 &middot; Standard library &middot; Intermediate</div>
+      <h1>asyncio.gather and the patterns that scale</h1>
+      <p class="subtitle">
+        Fan out a thousand requests on one event loop. Three
+        primitives &mdash; <code>gather</code>, <code>TaskGroup</code>,
+        and <code>Semaphore</code> &mdash; cover most real
+        async work.
+      </p>
+      <div class="article-meta">
+        <span>08 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.11+ for TaskGroup</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>asyncio.gather(*coros, return_exceptions=True)</code>
+        for a fan-out where individual failures shouldn't crash
+        the rest. On 3.11+, prefer <code>TaskGroup</code> &mdash;
+        it cancels siblings on failure, which is usually safer.
+        Cap concurrency with a <code>Semaphore</code> so you
+        don't overwhelm the upstream.</p>
+      </div>
+
+      <p>
+        asyncio gets a reputation for being hard. Most of that
+        difficulty comes from people learning every primitive at
+        once. In practice three constructs cover almost all
+        application code &mdash; the rest is for library authors.
+      </p>
+
+      <h2>The fan-out: <code>gather</code></h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">asyncio</span>, <span class="tok-n">httpx</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">client</span>, <span class="tok-n">url</span>):
+    <span class="tok-n">r</span> = <span class="tok-k">await</span> <span class="tok-n">client</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>, <span class="tok-n">timeout</span>=<span class="tok-n">5</span>)
+    <span class="tok-k">return</span> <span class="tok-n">url</span>, <span class="tok-n">r</span>.<span class="tok-n">status_code</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">main</span>(<span class="tok-n">urls</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-n">results</span> = <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">gather</span>(
+            <span class="tok-o">*</span>(<span class="tok-f">fetch</span>(<span class="tok-n">c</span>, <span class="tok-n">u</span>) <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">urls</span>),
+            <span class="tok-n">return_exceptions</span>=<span class="tok-k">True</span>,
+        )
+    <span class="tok-k">for</span> <span class="tok-n">r</span> <span class="tok-k">in</span> <span class="tok-n">results</span>:
+        <span class="tok-f">print</span>(<span class="tok-n">r</span>)
+
+<span class="tok-n">asyncio</span>.<span class="tok-f">run</span>(<span class="tok-f">main</span>(<span class="tok-n">urls</span>))</code></pre>
+
+      <p>
+        <code>return_exceptions=True</code> is critical for
+        fan-out. Without it, the first failure cancels the others
+        and you lose all in-flight results. With it, exceptions
+        become return values you can iterate over.
+      </p>
+
+      <h2>The 3.11 upgrade: <code>TaskGroup</code></h2>
+
+      <p>
+        <code>TaskGroup</code> is structured concurrency &mdash;
+        the async equivalent of a function returning only after
+        all its work is done. If any task raises, siblings are
+        cancelled and the original exception propagates.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">main</span>(<span class="tok-n">urls</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncio</span>.<span class="tok-f">TaskGroup</span>() <span class="tok-k">as</span> <span class="tok-n">tg</span>:
+            <span class="tok-n">tasks</span> = [<span class="tok-n">tg</span>.<span class="tok-f">create_task</span>(<span class="tok-f">fetch</span>(<span class="tok-n">c</span>, <span class="tok-n">u</span>)) <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">urls</span>]
+        <span class="tok-c"># All tasks done here. Results in t.result() for each task.</span>
+        <span class="tok-k">return</span> [<span class="tok-n">t</span>.<span class="tok-f">result</span>() <span class="tok-k">for</span> <span class="tok-n">t</span> <span class="tok-k">in</span> <span class="tok-n">tasks</span>]</code></pre>
+
+      <p>
+        When to prefer <code>TaskGroup</code> over
+        <code>gather</code>: if a partial result is useless
+        (you need all of them or none), TaskGroup is safer
+        because it doesn't leave orphan tasks running on
+        failure. <code>gather(return_exceptions=True)</code>
+        is right when you genuinely want partial success.
+      </p>
+
+      <h2>Bound concurrency: <code>Semaphore</code></h2>
+
+      <p>
+        Launching 10,000 concurrent connections will exhaust
+        file descriptors and crash the upstream. Cap concurrent
+        in-flight tasks with a semaphore.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">bounded_fetch</span>(<span class="tok-n">sem</span>, <span class="tok-n">client</span>, <span class="tok-n">url</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">sem</span>:
+        <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-f">fetch</span>(<span class="tok-n">client</span>, <span class="tok-n">url</span>)
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">main</span>(<span class="tok-n">urls</span>):
+    <span class="tok-n">sem</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">Semaphore</span>(<span class="tok-n">50</span>)
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">gather</span>(
+            <span class="tok-o">*</span>(<span class="tok-f">bounded_fetch</span>(<span class="tok-n">sem</span>, <span class="tok-n">c</span>, <span class="tok-n">u</span>) <span class="tok-k">for</span> <span class="tok-n">u</span> <span class="tok-k">in</span> <span class="tok-n">urls</span>),
+            <span class="tok-n">return_exceptions</span>=<span class="tok-k">True</span>,
+        )</code></pre>
+
+      <p>
+        At any moment, at most 50 fetches are in-flight; the
+        rest are queued, waiting on the semaphore. Submit 5000
+        tasks, the system handles them in waves of 50.
+      </p>
+
+      <h2>Per-task timeouts: <code>asyncio.timeout</code></h2>
+
+      <p>
+        Since 3.11, <code>asyncio.timeout</code> is a context
+        manager that cancels its body if it exceeds the limit.
+        Cleaner than <code>wait_for</code> for nested code.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">probe</span>(<span class="tok-n">host</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncio</span>.<span class="tok-f">timeout</span>(<span class="tok-n">5</span>):
+        <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">asyncssh</span>.<span class="tok-f">connect</span>(<span class="tok-n">host</span>) <span class="tok-k">as</span> <span class="tok-n">c</span>:
+            <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-n">c</span>.<span class="tok-f">run</span>(<span class="tok-s">"show version"</span>)</code></pre>
+
+      <h2>Don't block the loop</h2>
+
+      <p>
+        The cardinal asyncio rule: never call a synchronous
+        blocking function from a coroutine. <code>time.sleep</code>,
+        <code>requests.get</code>, <code>open(...).read()</code>
+        on a slow disk &mdash; they freeze the entire event loop
+        and every other task on it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Use the async equivalents</span>
+<span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">sleep</span>(<span class="tok-n">1</span>)              <span class="tok-c"># not time.sleep</span>
+<span class="tok-k">await</span> <span class="tok-n">httpx_async_client</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>)   <span class="tok-c"># not requests.get</span>
+
+<span class="tok-c"># For unavoidably-blocking calls (a sync library), offload to a thread</span>
+<span class="tok-n">result</span> = <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">to_thread</span>(<span class="tok-n">slow_sync_func</span>, <span class="tok-n">arg</span>)</code></pre>
+
+      <div class="callout">
+        <p>
+          When in doubt: I/O-bound and high concurrency? asyncio.
+          I/O-bound and modest concurrency (under 100)?
+          ThreadPoolExecutor is simpler. CPU-bound? Neither &mdash;
+          use ProcessPoolExecutor (Day 038).
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Build a tiny URL checker. Take a list of URLs, fan out
+          with <code>gather</code> + <code>return_exceptions=True</code>,
+          cap at 25 concurrent with a <code>Semaphore</code>, set
+          a 10-second per-request timeout. Print one line per
+          URL: status, time, or the error class. You've just
+          built a useful production tool.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-038-concurrent-futures.html">
+        <span class="label">← Previous</span>
+        <span class="title">concurrent.futures: parallelism without the threads tax</span>
+      </a>
+      <a class="next" href="day-040-exception-groups.html">
+        <span class="label">Next →</span>
+        <span class="title">Exception groups: many failures, one raise</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

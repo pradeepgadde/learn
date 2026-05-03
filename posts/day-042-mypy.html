@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 042 · mypy: turn type hints into a real check — Learn with Pradeep</title>
+  <meta name="description" content="mypy validates the type hints you wrote on Day 012. Adopt incrementally with --strict on a single module, then expand. The strictness flags that earn their keep.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 042 &middot; Tooling &middot; Intermediate</div>
+      <h1>mypy: turn type hints into a real check</h1>
+      <p class="subtitle">
+        Type hints are documentation until a checker enforces them.
+        mypy is the original. Adopt one module at a time.
+      </p>
+      <div class="article-meta">
+        <span>11 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Run <code>mypy your_package/</code> to catch type
+        errors. Don't try to type-check everything on day one &mdash;
+        adopt module-by-module with <code>strict = true</code>
+        per-module overrides. Three flags carry most of the value:
+        <code>--strict</code>, <code>--disallow-untyped-defs</code>,
+        <code>--warn-unused-ignores</code>.</p>
+      </div>
+
+      <p>
+        Type hints (Day 012) are documentation. mypy turns them
+        into enforced checks: a function that returns
+        <code>str | None</code> can't be passed to one that
+        expects <code>str</code> without you handling the
+        <code>None</code> case explicitly. The errors mypy
+        catches are real bugs, not style nits.
+      </p>
+
+      <h2>The minimal run</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add --dev mypy
+
+<span class="tok-c"># Check a package or module</span>
+mypy src/myapp/
+
+<span class="tok-c"># Output looks like:
+# src/myapp/network.py:42: error: Argument 1 to "connect" has
+#   incompatible type "str | None"; expected "str"  [arg-type]</span></code></pre>
+
+      <p>
+        Each error includes the file, line, the type mismatch,
+        and a rule code in brackets you can ignore selectively.
+      </p>
+
+      <h2>Configuration in pyproject.toml</h2>
+
+<pre class="code"><span class="code-label">toml</span><code>[tool.mypy]
+python_version = "3.12"
+
+<span class="tok-c"># Reasonable starting strictness</span>
+warn_return_any = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+<span class="tok-c"># Per-module overrides for incremental adoption</span>
+[[tool.mypy.overrides]]
+module = "myapp.core.*"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "myapp.legacy.*"
+ignore_errors = true</code></pre>
+
+      <p>
+        The per-module override pattern is how you adopt mypy
+        without rewriting your codebase. New code goes under
+        <code>strict = true</code>; legacy code is excluded
+        entirely. Migrate modules one at a time, removing them
+        from the ignore list as they get cleaned up.
+      </p>
+
+      <h2>The flags that matter</h2>
+
+      <ul>
+        <li><strong><code>--strict</code></strong> &mdash; turns on all the strict-mode flags at once. The default is too lenient; you almost certainly want this on the modules you care about.</li>
+        <li><strong><code>--disallow-untyped-defs</code></strong> &mdash; refuses to check functions that have no annotations at all (otherwise they pass silently). Forces you to annotate before mypy will help.</li>
+        <li><strong><code>--warn-unused-ignores</code></strong> &mdash; surfaces stale <code>type: ignore</code> comments. As code evolves, suppressions become unnecessary; this catches them.</li>
+      </ul>
+
+      <h2>Suppressing errors locally</h2>
+
+      <p>
+        Sometimes mypy is wrong, or you genuinely need to do
+        something it can't model. Use <code># type: ignore[code]</code>
+        with the rule code &mdash; never just <code># type: ignore</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Bad: silences ALL errors on this line, including future ones</span>
+<span class="tok-n">result</span> = <span class="tok-f">spooky</span>(<span class="tok-n">x</span>)  <span class="tok-c"># type: ignore</span>
+
+<span class="tok-c"># Good: silences only the specific error you intended</span>
+<span class="tok-n">result</span> = <span class="tok-f">spooky</span>(<span class="tok-n">x</span>)  <span class="tok-c"># type: ignore[arg-type]</span></code></pre>
+
+      <h2>Stub files for typeless dependencies</h2>
+
+      <p>
+        Some libraries don't ship type information. mypy will
+        complain that "module has no type stubs". Two fixes:
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Look for an official stub package — they're conventionally named types-X</span>
+pip install types-requests types-PyYAML</code></pre>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c"># If no stubs exist, silence the missing-import warning per-module</span>
+[[tool.mypy.overrides]]
+module = ["paramiko.*", "netmiko.*"]
+ignore_missing_imports = true</code></pre>
+
+      <h2>Generic types, briefly</h2>
+
+      <p>
+        For containers whose contents matter, type the contents.
+        Most cases are <code>list[X]</code>, <code>dict[K, V]</code>,
+        <code>tuple[X, ...]</code> for variable-length tuples or
+        <code>tuple[X, Y, Z]</code> for fixed-length.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">parse_devices</span>(<span class="tok-n">paths</span>: <span class="tok-n">list</span>[<span class="tok-n">Path</span>]) -&gt; <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">DeviceConfig</span>]:
+    <span class="tok-k">return</span> {<span class="tok-n">p</span>.<span class="tok-n">stem</span>: <span class="tok-n">DeviceConfig</span>.<span class="tok-f">model_validate_json</span>(<span class="tok-n">p</span>.<span class="tok-f">read_text</span>())
+            <span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-n">paths</span>}</code></pre>
+
+      <h2>mypy vs pyright</h2>
+
+      <p>
+        <code>pyright</code> (Microsoft) is the other major
+        type-checker, with first-class editor support via
+        Pylance in VS Code. It's faster than mypy and slightly
+        stricter by default. For interactive editing, pyright
+        is the de-facto standard. For CI, both work; pick by
+        which gives clearer errors on your codebase.
+      </p>
+
+      <div class="callout">
+        <p>
+          <strong>Don't try to type-check everything on day one.</strong>
+          Pick one new module, add types, run mypy, fix the errors,
+          ship. Repeat next week with another module. Inertia is
+          the killer of type-checker adoption; momentum is the
+          fix.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add <code>mypy</code> to your most-tested module. Set
+          <code>strict = true</code> for that module only. Run.
+          Fix what comes up. Most "errors" turn out to be either
+          missed <code>None</code> handling or genuine
+          documentation gaps. Both are wins.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-041-ruff.html">
+        <span class="label">← Previous</span>
+        <span class="title">ruff: the linter that ate the ecosystem</span>
+      </a>
+      <a class="next" href="day-043-slots.html">
+        <span class="label">Next →</span>
+        <span class="title">__slots__: free memory savings</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

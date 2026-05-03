@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 052 · hashlib + hmac: hashing and signatures done right — Learn with Pradeep</title>
+  <meta name="description" content="hashlib for content fingerprints. hmac for verified signatures. compare_digest to defeat timing attacks. The crypto basics every backend touches.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 052 &middot; Standard library &middot; Intermediate</div>
+      <h1>hashlib + hmac: hashing and signatures done right</h1>
+      <p class="subtitle">
+        <code>hashlib</code> for content fingerprints,
+        <code>hmac</code> for verified signatures,
+        <code>compare_digest</code> to defeat timing attacks.
+        The crypto basics every backend touches.
+      </p>
+      <div class="article-meta">
+        <span>21 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use SHA-256 (or BLAKE2) from <code>hashlib</code>
+        for content fingerprints &mdash; never MD5 or SHA-1.
+        Use <code>hmac.new(key, msg, "sha256")</code> for
+        signed payloads. Always compare digests with
+        <code>hmac.compare_digest</code>, never
+        <code>==</code>. For password hashing, use
+        <code>passlib</code> or <code>argon2-cffi</code>,
+        not raw hashing.</p>
+      </div>
+
+      <p>
+        Hashing comes up in three contexts: integrity
+        (does this file match what I expected?), keying
+        (deduplication, content-addressable storage), and
+        signatures (did this come from someone who knows
+        the secret?). Each has its right tool.
+      </p>
+
+      <h2>Content fingerprints with hashlib</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">hashlib</span>
+
+<span class="tok-c"># For small in-memory data</span>
+<span class="tok-n">digest</span> = <span class="tok-n">hashlib</span>.<span class="tok-f">sha256</span>(<span class="tok-n">b</span><span class="tok-s">"hello"</span>).<span class="tok-f">hexdigest</span>()
+
+<span class="tok-c"># For files, stream in chunks — never read the whole thing</span>
+<span class="tok-k">def</span> <span class="tok-f">file_sha256</span>(<span class="tok-n">path</span>):
+    <span class="tok-n">h</span> = <span class="tok-n">hashlib</span>.<span class="tok-f">sha256</span>()
+    <span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-n">path</span>, <span class="tok-s">"rb"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+        <span class="tok-k">while</span> <span class="tok-n">chunk</span> := <span class="tok-n">f</span>.<span class="tok-f">read</span>(<span class="tok-n">65536</span>):
+            <span class="tok-n">h</span>.<span class="tok-f">update</span>(<span class="tok-n">chunk</span>)
+    <span class="tok-k">return</span> <span class="tok-n">h</span>.<span class="tok-f">hexdigest</span>()</code></pre>
+
+      <p>
+        On 3.11+, there's a one-liner for the file case:
+        <code>hashlib.file_digest(open(path, "rb"),
+        "sha256").hexdigest()</code>. Same chunking,
+        less code.
+      </p>
+
+      <h2>What to use, what to avoid</h2>
+
+      <ul>
+        <li><strong>SHA-256</strong> &mdash; the safe default. Universal support, fast on modern CPUs (most have hardware acceleration).</li>
+        <li><strong>BLAKE2 / BLAKE3</strong> &mdash; faster than SHA-256 in pure software, equally secure. Use when speed matters.</li>
+        <li><strong>SHA-1, MD5</strong> &mdash; broken for security purposes. Fine as non-crypto checksums (caching keys, deduplication where collisions are tolerable). Never for signatures.</li>
+      </ul>
+
+      <h2>HMAC: signatures with a shared secret</h2>
+
+      <p>
+        Webhook payloads, session tokens, signed URLs &mdash;
+        anywhere "did this come from a party that knows the
+        secret?" matters. Hashing alone is <em>not</em>
+        enough &mdash; an attacker can compute a hash of
+        anything. HMAC mixes in a key.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">hmac</span>, <span class="tok-n">hashlib</span>
+
+<span class="tok-n">secret</span> = <span class="tok-n">b</span><span class="tok-s">"shared-with-the-other-side"</span>
+
+<span class="tok-k">def</span> <span class="tok-f">sign</span>(<span class="tok-n">payload</span>: <span class="tok-n">bytes</span>) -&gt; <span class="tok-n">str</span>:
+    <span class="tok-k">return</span> <span class="tok-n">hmac</span>.<span class="tok-f">new</span>(<span class="tok-n">secret</span>, <span class="tok-n">payload</span>, <span class="tok-s">"sha256"</span>).<span class="tok-f">hexdigest</span>()
+
+<span class="tok-k">def</span> <span class="tok-f">verify</span>(<span class="tok-n">payload</span>: <span class="tok-n">bytes</span>, <span class="tok-n">signature</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">bool</span>:
+    <span class="tok-n">expected</span> = <span class="tok-f">sign</span>(<span class="tok-n">payload</span>)
+    <span class="tok-k">return</span> <span class="tok-n">hmac</span>.<span class="tok-f">compare_digest</span>(<span class="tok-n">expected</span>, <span class="tok-n">signature</span>)</code></pre>
+
+      <p>
+        That's the GitHub-webhook pattern (and Stripe, and
+        Slack, and most others) in three lines.
+      </p>
+
+      <h2>The timing-attack defense</h2>
+
+      <p>
+        <code>compare_digest</code> takes the same time
+        regardless of where two strings differ.
+        <code>==</code> short-circuits at the first
+        mismatched byte, which leaks information about the
+        secret one byte at a time over many requests.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># BAD — timing reveals how many bytes the attacker got right</span>
+<span class="tok-k">if</span> <span class="tok-n">submitted_token</span> == <span class="tok-n">expected_token</span>:
+    <span class="tok-c">...</span>
+
+<span class="tok-c"># GOOD — constant time</span>
+<span class="tok-k">if</span> <span class="tok-n">hmac</span>.<span class="tok-f">compare_digest</span>(<span class="tok-n">submitted_token</span>, <span class="tok-n">expected_token</span>):
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        Use <code>compare_digest</code> for any string
+        comparison involving secrets &mdash; tokens, API
+        keys, signatures. The cost is essentially zero;
+        the safety is real.
+      </p>
+
+      <h2>Don't roll your own password hashing</h2>
+
+      <p>
+        <code>hashlib.sha256(password)</code> is wrong for
+        passwords. It's too fast &mdash; an attacker with a
+        leaked database can try billions of passwords per
+        second. Use a function deliberately built for
+        password hashing.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Use argon2-cffi (current best practice) or passlib</span>
+<span class="tok-k">from</span> <span class="tok-n">argon2</span> <span class="tok-k">import</span> <span class="tok-n">PasswordHasher</span>
+
+<span class="tok-n">ph</span>     = <span class="tok-f">PasswordHasher</span>()
+<span class="tok-n">stored</span> = <span class="tok-n">ph</span>.<span class="tok-f">hash</span>(<span class="tok-s">"correct horse battery staple"</span>)
+<span class="tok-n">ph</span>.<span class="tok-f">verify</span>(<span class="tok-n">stored</span>, <span class="tok-s">"correct horse battery staple"</span>)   <span class="tok-c"># True / raises</span></code></pre>
+
+      <p>
+        Argon2 is intentionally slow (tens of milliseconds
+        per check) and memory-hard, defeating GPU and
+        ASIC brute-forcing. The standard library has
+        <code>hashlib.scrypt</code> and
+        <code>hashlib.pbkdf2_hmac</code>, both better than
+        plain SHA-256 but worse than Argon2 for new code.
+      </p>
+
+      <div class="callout">
+        <p>
+          For full-blown encryption (AES, RSA, asymmetric
+          keys), reach for <a href="https://cryptography.io/">cryptography</a>.
+          The standard library doesn't include encryption
+          primitives directly &mdash; deliberately, because
+          getting them right is hard and outsourcing to a
+          well-maintained library is the correct call.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a script that compares secrets with
+          <code>==</code> &mdash; a webhook verifier, a
+          token check, an API-key compare. Switch to
+          <code>hmac.compare_digest</code>. Two-second
+          fix for a real class of attack.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-051-zoneinfo.html">
+        <span class="label">← Previous</span>
+        <span class="title">zoneinfo: timezones in the stdlib (and pendulum)</span>
+      </a>
+      <a class="next" href="day-053-secrets.html">
+        <span class="label">Next →</span>
+        <span class="title">secrets: not random, secure</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

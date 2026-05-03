@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 033 · tenacity: retries done right — Learn with Pradeep</title>
+  <meta name="description" content="tenacity is the retry decorator. Exponential backoff, retry-on-exception filters, max attempts, jitter — all declarative, all in one decorator.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 033 &middot; Third-party &middot; Intermediate</div>
+      <h1>tenacity: retries done right</h1>
+      <p class="subtitle">
+        Exponential backoff, jitter, retry-on-exception filters, and
+        max attempts &mdash; all declarative, all in one decorator.
+        Stop writing while-loops with sleeps.
+      </p>
+      <div class="article-meta">
+        <span>02 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>@retry</code> wraps any function with retry logic.
+        Combine <code>stop_after_attempt</code>,
+        <code>wait_exponential</code>, and
+        <code>retry_if_exception_type</code> to express almost any
+        retry policy. Add <code>reraise=True</code> so the original
+        exception bubbles up, not <code>RetryError</code>.</p>
+      </div>
+
+      <p>
+        Every codebase that talks to a network has a hand-rolled
+        retry loop somewhere. They all have subtle bugs &mdash; no
+        backoff, no jitter, retrying on exceptions that won't
+        succeed on retry, swallowing the real error.
+        <code>tenacity</code> turns the policy into a declaration.
+      </p>
+
+      <h2>The boilerplate it deletes</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Before — a thousand small bugs waiting</span>
+<span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">url</span>):
+    <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">3</span>):
+        <span class="tok-k">try</span>:
+            <span class="tok-k">return</span> <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>)
+        <span class="tok-k">except</span> <span class="tok-n">Exception</span>:
+            <span class="tok-n">time</span>.<span class="tok-f">sleep</span>(<span class="tok-n">2</span>)
+    <span class="tok-k">raise</span> <span class="tok-n">RuntimeError</span>(<span class="tok-s">"gave up"</span>)
+
+<span class="tok-c"># After</span>
+<span class="tok-k">from</span> <span class="tok-n">tenacity</span> <span class="tok-k">import</span> <span class="tok-n">retry</span>, <span class="tok-n">stop_after_attempt</span>, <span class="tok-n">wait_exponential</span>
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(<span class="tok-n">stop</span>=<span class="tok-f">stop_after_attempt</span>(<span class="tok-n">3</span>),
+       <span class="tok-n">wait</span>=<span class="tok-f">wait_exponential</span>(<span class="tok-n">multiplier</span>=<span class="tok-n">1</span>, <span class="tok-n">min</span>=<span class="tok-n">1</span>, <span class="tok-n">max</span>=<span class="tok-n">10</span>),
+       <span class="tok-n">reraise</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">url</span>):
+    <span class="tok-k">return</span> <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>)</code></pre>
+
+      <p>
+        Same intent, dramatically clearer. <code>reraise=True</code>
+        is important &mdash; without it, the failure becomes a
+        <code>RetryError</code> wrapping the real exception, which
+        breaks every <code>except SpecificError</code> upstream.
+      </p>
+
+      <h2>Retry only on the right exceptions</h2>
+
+      <p>
+        Retrying on <em>any</em> exception is almost always wrong.
+        A <code>ValueError</code> in your URL parsing won't fix
+        itself. Retry on the specific transient failures.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">tenacity</span> <span class="tok-k">import</span> <span class="tok-n">retry</span>, <span class="tok-n">retry_if_exception_type</span>
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(
+    <span class="tok-n">stop</span>=<span class="tok-f">stop_after_attempt</span>(<span class="tok-n">5</span>),
+    <span class="tok-n">wait</span>=<span class="tok-f">wait_exponential</span>(<span class="tok-n">multiplier</span>=<span class="tok-n">1</span>, <span class="tok-n">max</span>=<span class="tok-n">30</span>),
+    <span class="tok-n">retry</span>=<span class="tok-f">retry_if_exception_type</span>((<span class="tok-n">httpx</span>.<span class="tok-n">TimeoutException</span>,
+                                       <span class="tok-n">httpx</span>.<span class="tok-n">ConnectError</span>)),
+    <span class="tok-n">reraise</span>=<span class="tok-k">True</span>,
+)
+<span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">url</span>):
+    <span class="tok-n">r</span> = <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-n">url</span>, <span class="tok-n">timeout</span>=<span class="tok-n">5</span>)
+    <span class="tok-n">r</span>.<span class="tok-f">raise_for_status</span>()
+    <span class="tok-k">return</span> <span class="tok-n">r</span></code></pre>
+
+      <p>
+        Notice this retries on connection problems but not on
+        <code>HTTPStatusError</code> from <code>raise_for_status()</code>
+        &mdash; a 404 isn't a transient failure, retrying it is
+        useless and rude to the upstream. Add 5xx-only retry by
+        using <code>retry_if_result</code> with a status check.
+      </p>
+
+      <h2>Jitter prevents thundering herds</h2>
+
+      <p>
+        If a service comes back online after a brief outage and
+        every retrying client hits it at exactly the same time, you
+        just DDoSed it. Add jitter so retries spread out.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">tenacity</span> <span class="tok-k">import</span> <span class="tok-n">wait_random_exponential</span>
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(<span class="tok-n">wait</span>=<span class="tok-f">wait_random_exponential</span>(<span class="tok-n">multiplier</span>=<span class="tok-n">1</span>, <span class="tok-n">max</span>=<span class="tok-n">60</span>),
+       <span class="tok-n">stop</span>=<span class="tok-f">stop_after_attempt</span>(<span class="tok-n">8</span>),
+       <span class="tok-n">reraise</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">probe_device</span>(<span class="tok-n">host</span>):
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        <code>wait_random_exponential</code> is exponential backoff
+        with built-in randomness &mdash; usually what you want for
+        anything talking to a shared service.
+      </p>
+
+      <h2>Combining stop conditions</h2>
+
+      <p>
+        Stop after N attempts <em>or</em> M seconds, whichever
+        comes first. Useful for "try hard but don't block forever."
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">tenacity</span> <span class="tok-k">import</span> <span class="tok-n">stop_after_attempt</span>, <span class="tok-n">stop_after_delay</span>
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(<span class="tok-n">stop</span>=(<span class="tok-f">stop_after_attempt</span>(<span class="tok-n">10</span>) | <span class="tok-f">stop_after_delay</span>(<span class="tok-n">30</span>)),
+       <span class="tok-n">wait</span>=<span class="tok-f">wait_exponential</span>(),
+       <span class="tok-n">reraise</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">poll_until_ready</span>():
+    <span class="tok-c">...</span></code></pre>
+
+      <h2>Logging each retry</h2>
+
+      <p>
+        For debugging or audit, hook into each retry attempt.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">tenacity</span> <span class="tok-k">import</span> <span class="tok-n">retry</span>, <span class="tok-n">before_sleep_log</span>
+<span class="tok-k">import</span> <span class="tok-n">logging</span>
+
+<span class="tok-n">log</span> = <span class="tok-n">logging</span>.<span class="tok-f">getLogger</span>(<span class="tok-n">__name__</span>)
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(<span class="tok-n">stop</span>=<span class="tok-f">stop_after_attempt</span>(<span class="tok-n">3</span>),
+       <span class="tok-n">wait</span>=<span class="tok-f">wait_exponential</span>(),
+       <span class="tok-n">before_sleep</span>=<span class="tok-f">before_sleep_log</span>(<span class="tok-n">log</span>, <span class="tok-n">logging</span>.<span class="tok-n">WARNING</span>),
+       <span class="tok-n">reraise</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">fetch</span>(<span class="tok-n">url</span>):
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        Each retry now emits "Retrying fetch in 2.0s as it raised
+        ConnectError" at WARNING level. Combined with structured
+        logging (Day 016), you get a complete audit trail of
+        retries.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>Don't retry non-idempotent operations blindly.</strong>
+          A retried <code>POST /charge-card</code> can charge the
+          card twice. Either make the operation idempotent (with an
+          idempotency key) or only retry on errors that prove the
+          request didn't reach the server (connect errors, not
+          read timeouts).
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a <code>for i in range(N): try/except</code> retry
+          loop in your code. Replace it with <code>@retry</code>.
+          Pick the right exception types to retry on (not "any
+          exception"). Add <code>reraise=True</code>. Delete the
+          loop. Sleep better.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-032-pydantic.html">
+        <span class="label">← Previous</span>
+        <span class="title">pydantic: config validation that pays off</span>
+      </a>
+      <a class="next" href="day-034-structlog.html">
+        <span class="label">Next →</span>
+        <span class="title">structlog for JSON logs you can grep</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

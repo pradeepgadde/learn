@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 038 · concurrent.futures: parallelism without the threads tax — Learn with Pradeep</title>
+  <meta name="description" content="ThreadPoolExecutor for I/O, ProcessPoolExecutor for CPU. The same map and submit API. The right starting point for parallel work in Python.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 038 &middot; Standard library &middot; Intermediate</div>
+      <h1>concurrent.futures: parallelism without the threads tax</h1>
+      <p class="subtitle">
+        ThreadPoolExecutor for I/O, ProcessPoolExecutor for CPU. The
+        same <code>map</code> and <code>submit</code> API.
+      </p>
+      <div class="article-meta">
+        <span>07 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.2+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>For I/O-bound work (HTTP, SSH, disk), use
+        <code>ThreadPoolExecutor</code>. For CPU-bound work (number
+        crunching, parsing, image processing), use
+        <code>ProcessPoolExecutor</code>. Both share an API:
+        <code>executor.map(fn, iterable)</code> for the simple case,
+        <code>executor.submit(fn, arg)</code> + <code>as_completed</code>
+        for results in finishing order.</p>
+      </div>
+
+      <p>
+        Before reaching for asyncio (Day 039) or threads
+        directly, try <code>concurrent.futures</code>. The API is
+        small, the parallelism model is explicit, and switching
+        between threads and processes is a one-class swap.
+      </p>
+
+      <h2>The map pattern: same operation on every input</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">concurrent</span>.<span class="tok-n">futures</span> <span class="tok-k">import</span> <span class="tok-n">ThreadPoolExecutor</span>
+<span class="tok-k">import</span> <span class="tok-n">httpx</span>
+
+<span class="tok-k">def</span> <span class="tok-f">probe</span>(<span class="tok-n">host</span>):
+    <span class="tok-n">r</span> = <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-s">f"https://{host}"</span>, <span class="tok-n">timeout</span>=<span class="tok-n">5</span>)
+    <span class="tok-k">return</span> <span class="tok-n">host</span>, <span class="tok-n">r</span>.<span class="tok-n">status_code</span>
+
+<span class="tok-n">hosts</span> = [<span class="tok-s">"github.com"</span>, <span class="tok-s">"google.com"</span>, <span class="tok-s">"python.org"</span>]
+
+<span class="tok-k">with</span> <span class="tok-f">ThreadPoolExecutor</span>(<span class="tok-n">max_workers</span>=<span class="tok-n">10</span>) <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-k">for</span> <span class="tok-n">host</span>, <span class="tok-n">status</span> <span class="tok-k">in</span> <span class="tok-n">ex</span>.<span class="tok-f">map</span>(<span class="tok-n">probe</span>, <span class="tok-n">hosts</span>):
+        <span class="tok-f">print</span>(<span class="tok-n">host</span>, <span class="tok-n">status</span>)</code></pre>
+
+      <p>
+        <code>map</code> preserves input order in the output. The
+        <code>with</code> block waits for all tasks to finish
+        before exiting, even if one raised &mdash; tasks aren't
+        cancelled, just collected.
+      </p>
+
+      <h2>The submit pattern: results as they complete</h2>
+
+      <p>
+        When tasks have wildly varying durations (slow probes,
+        fast probes), don't wait in submission order. Use
+        <code>submit</code> + <code>as_completed</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">concurrent</span>.<span class="tok-n">futures</span> <span class="tok-k">import</span> <span class="tok-n">ThreadPoolExecutor</span>, <span class="tok-n">as_completed</span>
+
+<span class="tok-k">with</span> <span class="tok-f">ThreadPoolExecutor</span>(<span class="tok-n">max_workers</span>=<span class="tok-n">25</span>) <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-c"># Submit returns a Future immediately, no blocking</span>
+    <span class="tok-n">futures</span> = {<span class="tok-n">ex</span>.<span class="tok-f">submit</span>(<span class="tok-n">probe</span>, <span class="tok-n">h</span>): <span class="tok-n">h</span> <span class="tok-k">for</span> <span class="tok-n">h</span> <span class="tok-k">in</span> <span class="tok-n">hosts</span>}
+
+    <span class="tok-k">for</span> <span class="tok-n">fut</span> <span class="tok-k">in</span> <span class="tok-f">as_completed</span>(<span class="tok-n">futures</span>):
+        <span class="tok-n">host</span> = <span class="tok-n">futures</span>[<span class="tok-n">fut</span>]
+        <span class="tok-k">try</span>:
+            <span class="tok-n">_</span>, <span class="tok-n">status</span> = <span class="tok-n">fut</span>.<span class="tok-f">result</span>()
+            <span class="tok-f">print</span>(<span class="tok-s">f"{host}: {status}"</span>)
+        <span class="tok-k">except</span> <span class="tok-n">Exception</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+            <span class="tok-f">print</span>(<span class="tok-s">f"{host}: failed ({e})"</span>)</code></pre>
+
+      <p>
+        The <code>{future: input}</code> dict pattern is essential
+        &mdash; <code>as_completed</code> yields futures, not
+        original inputs, so you need a way to map back.
+      </p>
+
+      <h2>Threads vs processes: pick by workload</h2>
+
+      <p>
+        The Python GIL means CPU-bound work in threads doesn't
+        actually run in parallel &mdash; threads take turns. For
+        I/O-bound work, this doesn't matter (threads release the
+        GIL while waiting on the network or disk).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">concurrent</span>.<span class="tok-n">futures</span> <span class="tok-k">import</span> <span class="tok-n">ProcessPoolExecutor</span>
+
+<span class="tok-k">def</span> <span class="tok-f">crunch</span>(<span class="tok-n">n</span>):
+    <span class="tok-c"># Pure CPU work — sieve, image filter, regex on huge text</span>
+    <span class="tok-k">return</span> <span class="tok-f">sum</span>(<span class="tok-n">i</span> <span class="tok-o">*</span> <span class="tok-n">i</span> <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">n</span>))
+
+<span class="tok-k">with</span> <span class="tok-f">ProcessPoolExecutor</span>() <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-n">results</span> = <span class="tok-f">list</span>(<span class="tok-n">ex</span>.<span class="tok-f">map</span>(<span class="tok-n">crunch</span>, [<span class="tok-n">10_000_000</span>] <span class="tok-o">*</span> <span class="tok-n">8</span>))</code></pre>
+
+      <p>
+        <code>ProcessPoolExecutor</code> defaults to
+        <code>os.cpu_count()</code> workers. Each worker is a
+        separate Python process with its own memory and GIL, so
+        CPU-bound work scales to your core count.
+      </p>
+
+      <h2>The process-pool gotcha: pickling</h2>
+
+      <p>
+        Process pools <em>pickle</em> arguments and return values
+        to ship them between processes. That means lambdas,
+        local functions, and unpicklable objects (file handles,
+        sockets, locks) don't work. Top-level functions only.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># DON'T — lambda can't be pickled</span>
+<span class="tok-k">with</span> <span class="tok-f">ProcessPoolExecutor</span>() <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-n">ex</span>.<span class="tok-f">map</span>(<span class="tok-k">lambda</span> <span class="tok-n">x</span>: <span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">2</span>, <span class="tok-n">items</span>)   <span class="tok-c"># PicklingError</span>
+
+<span class="tok-c"># DO — module-level function</span>
+<span class="tok-k">def</span> <span class="tok-f">double</span>(<span class="tok-n">x</span>): <span class="tok-k">return</span> <span class="tok-n">x</span> <span class="tok-o">*</span> <span class="tok-n">2</span>
+
+<span class="tok-k">with</span> <span class="tok-f">ProcessPoolExecutor</span>() <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-n">ex</span>.<span class="tok-f">map</span>(<span class="tok-n">double</span>, <span class="tok-n">items</span>)</code></pre>
+
+      <h2>Sizing the pool</h2>
+
+      <p>
+        Two rules of thumb that work most of the time:
+      </p>
+
+      <ul>
+        <li><strong>I/O-bound (threads):</strong> 10–50 workers per pool. The bottleneck is the upstream service, not your CPU.</li>
+        <li><strong>CPU-bound (processes):</strong> <code>os.cpu_count()</code> &mdash; the default. More processes than cores = thrashing.</li>
+      </ul>
+
+      <p>
+        For a busy SSH fleet, <code>max_workers=25</code> is a
+        good starting point. Your auth server or the target
+        devices will tell you when you've gone too high.
+      </p>
+
+      <div class="callout">
+        <p>
+          For very large numbers of I/O-bound tasks (thousands of
+          HTTP requests, hundreds of SSH connections), asyncio
+          (Day 039) scales further than threads. The crossover
+          is around 100–500 concurrent tasks &mdash; below that,
+          threads are simpler.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a script that makes 10+ HTTP requests in a loop.
+          Wrap it in <code>ThreadPoolExecutor</code> with
+          <code>max_workers=10</code>. Time the before and after.
+          You'll usually see a 5&ndash;10x speedup with no other
+          changes.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-037-sqlite.html">
+        <span class="label">← Previous</span>
+        <span class="title">sqlite3: the database in your stdlib</span>
+      </a>
+      <a class="next" href="day-039-asyncio-gather.html">
+        <span class="label">Next →</span>
+        <span class="title">asyncio.gather and the patterns that scale</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

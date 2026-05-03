@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 059 · pathlib advanced: resolve, relative_to, walk — Learn with Pradeep</title>
+  <meta name="description" content="Beyond the basics: resolve absolute paths, escape symlinks, compute relative paths safely, and use Path.walk (3.12) for tree iteration.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 059 &middot; Standard library &middot; Intermediate</div>
+      <h1>pathlib advanced: resolve, relative_to, walk</h1>
+      <p class="subtitle">
+        Beyond the basics &mdash; resolve absolute paths,
+        escape symlinks, compute relative paths safely,
+        and use <code>Path.walk</code> (3.12) for tree
+        iteration.
+      </p>
+      <div class="article-meta">
+        <span>28 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.12+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>resolve()</code> gives the absolute,
+        symlink-followed path. <code>relative_to(other)</code>
+        computes a relative path or raises if not
+        possible. <code>Path.walk()</code> in 3.12
+        replaces <code>os.walk</code> with a pathlib-native
+        version. <code>is_relative_to</code> is the safe
+        "is this path inside that one" check.</p>
+      </div>
+
+      <p>
+        Day 002 covered the basics &mdash; constructing
+        paths, reading and writing, joining with
+        <code>/</code>. Today: the operations that come
+        up in real scripts and have non-obvious correct
+        answers.
+      </p>
+
+      <h2>resolve: the canonical absolute path</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-n">p</span> = <span class="tok-f">Path</span>(<span class="tok-s">"./logs/../logs/app.log"</span>)
+<span class="tok-n">p</span>.<span class="tok-f">resolve</span>()
+<span class="tok-c"># PosixPath('/home/pradeep/projects/myapp/logs/app.log')</span></code></pre>
+
+      <p>
+        Three things <code>resolve</code> does at once:
+        makes the path absolute, removes
+        <code>..</code> and <code>.</code> components,
+        and follows symlinks. Compare to
+        <code>absolute()</code>, which just prepends the
+        cwd without normalizing &mdash; usually not
+        what you want.
+      </p>
+
+      <p>
+        Pass <code>strict=True</code> to require the
+        path to actually exist (raises
+        <code>FileNotFoundError</code> if not). Useful
+        when "this path must be real" is part of your
+        precondition.
+      </p>
+
+      <h2>relative_to: the inverse of joining</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">root</span> = <span class="tok-f">Path</span>(<span class="tok-s">"/srv/app"</span>)
+<span class="tok-n">file</span> = <span class="tok-f">Path</span>(<span class="tok-s">"/srv/app/configs/devices/sw-01.yml"</span>)
+
+<span class="tok-n">file</span>.<span class="tok-f">relative_to</span>(<span class="tok-n">root</span>)
+<span class="tok-c"># PosixPath('configs/devices/sw-01.yml')</span>
+
+<span class="tok-c"># Raises ValueError if file isn't actually inside root</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"/etc/passwd"</span>).<span class="tok-f">relative_to</span>(<span class="tok-n">root</span>)
+<span class="tok-c"># ValueError: '/etc/passwd' is not in the subpath of '/srv/app'</span></code></pre>
+
+      <p>
+        Useful when displaying paths to users, or when
+        building URLs that mirror the directory tree.
+      </p>
+
+      <h2>The "is this path safe?" check</h2>
+
+      <p>
+        For any code that takes a user-supplied path and
+        joins it with a base directory, you need to
+        check the result didn't escape via
+        <code>../../etc/passwd</code>. Python 3.9 added
+        <code>is_relative_to</code> for exactly this.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">UPLOAD_DIR</span> = <span class="tok-f">Path</span>(<span class="tok-s">"/srv/uploads"</span>).<span class="tok-f">resolve</span>()
+
+<span class="tok-k">def</span> <span class="tok-f">safe_join</span>(<span class="tok-n">user_input</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">Path</span>:
+    <span class="tok-n">candidate</span> = (<span class="tok-n">UPLOAD_DIR</span> / <span class="tok-n">user_input</span>).<span class="tok-f">resolve</span>()
+    <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">candidate</span>.<span class="tok-f">is_relative_to</span>(<span class="tok-n">UPLOAD_DIR</span>):
+        <span class="tok-k">raise</span> <span class="tok-n">ValueError</span>(<span class="tok-s">f"path escape: {user_input}"</span>)
+    <span class="tok-k">return</span> <span class="tok-n">candidate</span>
+
+<span class="tok-f">safe_join</span>(<span class="tok-s">"image.png"</span>)               <span class="tok-c"># OK</span>
+<span class="tok-f">safe_join</span>(<span class="tok-s">"../../etc/passwd"</span>)        <span class="tok-c"># raises</span>
+<span class="tok-f">safe_join</span>(<span class="tok-s">"./safe/file.txt"</span>)         <span class="tok-c"># OK</span></code></pre>
+
+      <p>
+        The <code>resolve</code> step is critical &mdash;
+        without it, <code>..</code> in the middle of
+        the path doesn't get normalized. This pattern
+        is one of the standard fixes for path-traversal
+        vulnerabilities.
+      </p>
+
+      <h2>Path.walk: the 3.12 upgrade to os.walk</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Python 3.12+</span>
+<span class="tok-k">for</span> <span class="tok-n">dirpath</span>, <span class="tok-n">dirnames</span>, <span class="tok-n">filenames</span> <span class="tok-k">in</span> <span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">walk</span>():
+    <span class="tok-c"># dirpath is a Path; dirnames and filenames are lists of strings</span>
+    <span class="tok-c"># Mutating dirnames in-place prunes the walk (same as os.walk)</span>
+    <span class="tok-n">dirnames</span>[:] = [<span class="tok-n">d</span> <span class="tok-k">for</span> <span class="tok-n">d</span> <span class="tok-k">in</span> <span class="tok-n">dirnames</span> <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">d</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"."</span>)]
+    <span class="tok-k">for</span> <span class="tok-n">name</span> <span class="tok-k">in</span> <span class="tok-n">filenames</span>:
+        <span class="tok-n">file</span> = <span class="tok-n">dirpath</span> / <span class="tok-n">name</span>
+        <span class="tok-c"># do something with file</span></code></pre>
+
+      <p>
+        Cleaner than <code>os.walk</code> because the
+        first element is a real <code>Path</code>
+        object, not a string &mdash; chain pathlib calls
+        directly. The ability to prune with
+        <code>dirnames[:] = ...</code> is unchanged.
+      </p>
+
+      <p>
+        On Python 3.11 or older, stick with
+        <code>os.walk</code> or
+        <code>Path.rglob</code>. <code>rglob</code> is
+        nicer for "find files matching a pattern,"
+        <code>walk</code> is nicer for "visit every
+        directory and decide what to do per dir."
+      </p>
+
+      <h2>Useful one-liners</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Get the parts of a path as a tuple</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"/etc/nginx/sites-enabled/default"</span>).<span class="tok-n">parts</span>
+<span class="tok-c"># ('/', 'etc', 'nginx', 'sites-enabled', 'default')</span>
+
+<span class="tok-c"># Stem (filename without extension), suffix (extension with dot)</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"backup.tar.gz"</span>).<span class="tok-n">stem</span>      <span class="tok-c"># 'backup.tar'</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"backup.tar.gz"</span>).<span class="tok-n">suffix</span>    <span class="tok-c"># '.gz'</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"backup.tar.gz"</span>).<span class="tok-n">suffixes</span>  <span class="tok-c"># ['.tar', '.gz']</span>
+
+<span class="tok-c"># Replace just the suffix</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"report.md"</span>).<span class="tok-f">with_suffix</span>(<span class="tok-s">".html"</span>)    <span class="tok-c"># PosixPath('report.html')</span>
+
+<span class="tok-c"># Replace just the filename</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"/etc/nginx/old.conf"</span>).<span class="tok-f">with_name</span>(<span class="tok-s">"new.conf"</span>)
+<span class="tok-c"># PosixPath('/etc/nginx/new.conf')</span>
+
+<span class="tok-c"># Read multi-line file as a list</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"hosts.txt"</span>).<span class="tok-f">read_text</span>().<span class="tok-f">splitlines</span>()</code></pre>
+
+      <h2>Mkdir patterns</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># The "mkdir -p" equivalent</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"deeply/nested/dir"</span>).<span class="tok-f">mkdir</span>(<span class="tok-n">parents</span>=<span class="tok-k">True</span>, <span class="tok-n">exist_ok</span>=<span class="tok-k">True</span>)
+<span class="tok-c"># Creates all parents, doesn't error if it already exists</span></code></pre>
+
+      <p>
+        Both flags off (the default) is rarely what you
+        want. <code>parents=True, exist_ok=True</code>
+        is the form you want roughly 95% of the time.
+      </p>
+
+      <div class="callout">
+        <p>
+          One closing tip: <code>Path("~/.config/myapp")
+          .expanduser()</code> turns
+          <code>~</code> into the actual home
+          directory. Without it, you'll be looking for a
+          literal <code>~</code> directory.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Audit any code that takes a user-supplied
+          filename and joins it with a base directory.
+          Add the
+          <code>safe_join</code> pattern from above. If
+          you'd never written that check, you're not
+          alone &mdash; and now your code handles a
+          whole class of attack it didn't before.
+        </p>
+      </div>
+
+      <p style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); font-style: italic; color: var(--ink-soft);">
+        That wraps February &mdash; 28 days, 28 small
+        techniques. We've covered the production
+        toolkit (pydantic, tenacity, structlog, ruff,
+        mypy), the standard-library deep-cuts
+        (<code>sqlite3</code>,
+        <code>concurrent.futures</code>, async
+        primitives, exception groups), and a handful
+        of low-level performance tools
+        (<code>__slots__</code>, <code>weakref</code>,
+        <code>heapq</code>, <code>bisect</code>).
+        March picks up with web work and observability.
+        See you on Day 060.
+      </p>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-058-dataclasses-json.html">
+        <span class="label">← Previous</span>
+        <span class="title">dataclasses + JSON: the round-trip</span>
+      </a>
+      <a class="next" href="../">
+        <span class="label">Next →</span>
+        <span class="title">Back to all entries</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

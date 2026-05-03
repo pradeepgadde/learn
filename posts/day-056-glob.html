@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 056 · glob vs pathlib.glob: pick your matcher — Learn with Pradeep</title>
+  <meta name="description" content="Two glob APIs, three patterns. ** for recursion, the case-sensitivity gotcha, and when to skip glob entirely for os.scandir.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 056 &middot; Standard library &middot; Beginner</div>
+      <h1>glob vs pathlib.glob: pick your matcher</h1>
+      <p class="subtitle">
+        Two glob APIs, three patterns. <code>**</code> for
+        recursion, the case-sensitivity gotcha, and when
+        to skip glob entirely for <code>os.scandir</code>.
+      </p>
+      <div class="article-meta">
+        <span>25 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.5+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>Path.rglob("*.py")</code> for recursive
+        matches &mdash; it's the cleanest API. The
+        old-style <code>glob.glob</code> works too but
+        returns strings; <code>pathlib</code>'s version
+        returns <code>Path</code> objects. For very
+        large trees where you need attribute info too,
+        <code>os.scandir</code> beats both.</p>
+      </div>
+
+      <p>
+        Glob patterns are universal &mdash; everyone knows
+        <code>*.txt</code>. Python has two ways to use
+        them, and three patterns worth memorizing.
+      </p>
+
+      <h2>The patterns</h2>
+
+      <ul>
+        <li><strong><code>*</code></strong> &mdash; any string of characters in a single path segment, except path separators.</li>
+        <li><strong><code>?</code></strong> &mdash; exactly one character.</li>
+        <li><strong><code>[abc]</code></strong> &mdash; one character from the set.</li>
+        <li><strong><code>**</code></strong> &mdash; zero or more directories (recursive). <em>Only</em> when used as a full path segment.</li>
+      </ul>
+
+      <h2>pathlib.glob: the modern API</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-c"># All .py files in the current directory (non-recursive)</span>
+<span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">"*.py"</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">p</span>)
+
+<span class="tok-c"># Recursive — every .py anywhere under the current dir</span>
+<span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">rglob</span>(<span class="tok-s">"*.py"</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">p</span>)
+<span class="tok-c"># rglob('*.py') is equivalent to glob('**/*.py')</span></code></pre>
+
+      <p>
+        Returns a generator of <code>Path</code>
+        objects &mdash; lazy and memory-friendly.
+      </p>
+
+      <h2>The old API still works</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">glob</span>
+
+<span class="tok-n">glob</span>.<span class="tok-f">glob</span>(<span class="tok-s">"*.py"</span>)               <span class="tok-c"># list of strings</span>
+<span class="tok-n">glob</span>.<span class="tok-f">iglob</span>(<span class="tok-s">"**/*.py"</span>, <span class="tok-n">recursive</span>=<span class="tok-k">True</span>)   <span class="tok-c"># lazy iterator</span></code></pre>
+
+      <p>
+        Mostly worth knowing because older codebases use
+        it. New code: prefer <code>pathlib</code>.
+      </p>
+
+      <h2>The recursion gotcha: <code>**</code> needs <code>/</code> separators</h2>
+
+      <p>
+        <code>**</code> only matches directory boundaries
+        when it's a full path segment. <code>**foo</code>
+        is just <code>*foo</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Recursive — works</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">"**/*.py"</span>)
+
+<span class="tok-c"># NOT recursive — ** is just * here</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">"**.py"</span>)</code></pre>
+
+      <h2>Case sensitivity bites cross-platform</h2>
+
+      <p>
+        <code>*.py</code> matches <code>app.py</code> on
+        all platforms. <code>*.PY</code> matches
+        <code>app.PY</code> on Linux but matches
+        <code>app.py</code> on Windows and macOS
+        (case-insensitive filesystems).
+      </p>
+
+      <p>
+        Python 3.12 added a <code>case_sensitive=</code>
+        parameter to <code>Path.glob</code> for explicit
+        control:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Always case-sensitive, on every platform</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">rglob</span>(<span class="tok-s">"*.PY"</span>, <span class="tok-n">case_sensitive</span>=<span class="tok-k">True</span>)
+
+<span class="tok-c"># Always case-insensitive</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">rglob</span>(<span class="tok-s">"*.PY"</span>, <span class="tok-n">case_sensitive</span>=<span class="tok-k">False</span>)</code></pre>
+
+      <p>
+        Pre-3.12, the safe pattern is to either lowercase
+        everything before comparing, or to glob with
+        <code>fnmatch</code> against a known list.
+      </p>
+
+      <h2>What glob doesn't do: hidden files</h2>
+
+      <p>
+        By design, <code>*</code> doesn't match files
+        starting with a dot. To get them too:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Won't match .gitignore, .env, .DS_Store...</span>
+<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">"*"</span>)
+
+<span class="tok-c"># Either iterate explicitly...</span>
+[<span class="tok-n">p</span> <span class="tok-k">for</span> <span class="tok-n">p</span> <span class="tok-k">in</span> <span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">iterdir</span>()]
+
+<span class="tok-c"># ...or pattern them in</span>
+<span class="tok-f">list</span>(<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">".*"</span>)) + <span class="tok-f">list</span>(<span class="tok-f">Path</span>(<span class="tok-s">"."</span>).<span class="tok-f">glob</span>(<span class="tok-s">"*"</span>))</code></pre>
+
+      <h2>For huge trees: <code>os.scandir</code></h2>
+
+      <p>
+        Glob calls <code>os.stat</code> implicitly to
+        decide what to recurse into. For trees with
+        millions of files where you also need attributes
+        (size, mtime, type), <code>os.scandir</code>
+        gets all the metadata in one syscall per
+        directory entry &mdash; dramatically faster.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">os</span>
+
+<span class="tok-k">def</span> <span class="tok-f">find_big_files</span>(<span class="tok-n">root</span>, <span class="tok-n">min_bytes</span>=<span class="tok-n">10</span> <span class="tok-o">*</span> <span class="tok-n">2</span><span class="tok-o">**</span><span class="tok-n">20</span>):
+    <span class="tok-k">with</span> <span class="tok-n">os</span>.<span class="tok-f">scandir</span>(<span class="tok-n">root</span>) <span class="tok-k">as</span> <span class="tok-n">it</span>:
+        <span class="tok-k">for</span> <span class="tok-n">entry</span> <span class="tok-k">in</span> <span class="tok-n">it</span>:
+            <span class="tok-k">if</span> <span class="tok-n">entry</span>.<span class="tok-f">is_file</span>(<span class="tok-n">follow_symlinks</span>=<span class="tok-k">False</span>):
+                <span class="tok-k">if</span> <span class="tok-n">entry</span>.<span class="tok-f">stat</span>().<span class="tok-n">st_size</span> &gt;= <span class="tok-n">min_bytes</span>:
+                    <span class="tok-k">yield</span> <span class="tok-n">entry</span>.<span class="tok-n">path</span>
+            <span class="tok-k">elif</span> <span class="tok-n">entry</span>.<span class="tok-f">is_dir</span>(<span class="tok-n">follow_symlinks</span>=<span class="tok-k">False</span>):
+                <span class="tok-k">yield</span> <span class="tok-k">from</span> <span class="tok-f">find_big_files</span>(<span class="tok-n">entry</span>.<span class="tok-n">path</span>, <span class="tok-n">min_bytes</span>)</code></pre>
+
+      <p>
+        For most scripts, <code>rglob</code> is more than
+        fast enough &mdash; reach for <code>scandir</code>
+        only when you've measured a problem.
+      </p>
+
+      <div class="callout">
+        <p>
+          For pattern matching outside of file system
+          contexts &mdash; glob-checking strings against
+          patterns &mdash; use <code>fnmatch</code> from
+          the stdlib. <code>fnmatch.fnmatch("app.py",
+          "*.py")</code> returns <code>True</code> without
+          touching the disk.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a script that combines
+          <code>os.walk</code> with manual extension
+          checks. Replace with <code>Path(root).rglob(
+          "*.ext")</code>. Half the lines, same
+          behavior, returns <code>Path</code> objects
+          you can chain other pathlib calls onto.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-055-shutil.html">
+        <span class="label">← Previous</span>
+        <span class="title">shutil: the file-operations toolbox</span>
+      </a>
+      <a class="next" href="day-057-re.html">
+        <span class="label">Next →</span>
+        <span class="title">re: regex features past the basics</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 051 · zoneinfo: timezones in the stdlib (and pendulum) — Learn with Pradeep</title>
+  <meta name="description" content="zoneinfo brings IANA timezones to the stdlib since 3.9. Combined with timezone-aware datetimes, you can finally drop pytz. pendulum stays useful for arithmetic.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 051 &middot; Standard library &middot; Intermediate</div>
+      <h1>zoneinfo: timezones in the stdlib (and pendulum)</h1>
+      <p class="subtitle">
+        IANA timezones in the standard library since 3.9. You
+        can finally retire pytz. pendulum still wins for
+        date arithmetic.
+      </p>
+      <div class="article-meta">
+        <span>20 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.9+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>zoneinfo.ZoneInfo("Europe/London")</code> for
+        timezone-aware datetimes &mdash; no third-party install.
+        Always store and pass UTC; convert at display time.
+        Reach for <code>pendulum</code> when you need clean
+        date arithmetic, durations, or human-friendly
+        parsing.</p>
+      </div>
+
+      <p>
+        Datetime in Python has a long, painful history. Python
+        3.9 mostly fixed it: <code>zoneinfo</code> ships with
+        the stdlib, gives you the IANA database, and works
+        natively with <code>datetime</code>. If you're still
+        importing <code>pytz</code> in new code, stop.
+      </p>
+
+      <h2>Aware datetimes, the right way</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">datetime</span>, <span class="tok-n">timezone</span>
+<span class="tok-k">from</span> <span class="tok-n">zoneinfo</span> <span class="tok-k">import</span> <span class="tok-n">ZoneInfo</span>
+
+<span class="tok-c"># Now, in UTC — the only way to think about "now" in code</span>
+<span class="tok-n">now_utc</span> = <span class="tok-n">datetime</span>.<span class="tok-f">now</span>(<span class="tok-n">timezone</span>.<span class="tok-n">utc</span>)
+
+<span class="tok-c"># Same instant, displayed in another zone</span>
+<span class="tok-n">now_ldn</span> = <span class="tok-n">now_utc</span>.<span class="tok-f">astimezone</span>(<span class="tok-f">ZoneInfo</span>(<span class="tok-s">"Europe/London"</span>))
+<span class="tok-n">now_ind</span> = <span class="tok-n">now_utc</span>.<span class="tok-f">astimezone</span>(<span class="tok-f">ZoneInfo</span>(<span class="tok-s">"Asia/Kolkata"</span>))
+
+<span class="tok-c"># Construct with a zone explicitly</span>
+<span class="tok-n">meeting</span> = <span class="tok-f">datetime</span>(<span class="tok-n">2026</span>, <span class="tok-n">3</span>, <span class="tok-n">15</span>, <span class="tok-n">14</span>, <span class="tok-n">30</span>,
+                   <span class="tok-n">tzinfo</span>=<span class="tok-f">ZoneInfo</span>(<span class="tok-s">"America/New_York"</span>))</code></pre>
+
+      <p>
+        Two rules that solve 90% of timezone bugs: store and
+        compute in UTC, convert only at display. And never
+        use <code>datetime.now()</code> without a
+        <code>tz=</code> argument &mdash; "naive"
+        datetimes are a footgun.
+      </p>
+
+      <h2>The naive vs aware split</h2>
+
+      <p>
+        A datetime is "aware" if it has a <code>tzinfo</code>
+        attached, "naive" otherwise. They don't compare or
+        subtract &mdash; you'll get
+        <code>TypeError</code>. Pick one (aware) and stick
+        to it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">naive</span> = <span class="tok-f">datetime</span>(<span class="tok-n">2026</span>, <span class="tok-n">2</span>, <span class="tok-n">20</span>)               <span class="tok-c"># no tzinfo</span>
+<span class="tok-n">aware</span> = <span class="tok-f">datetime</span>(<span class="tok-n">2026</span>, <span class="tok-n">2</span>, <span class="tok-n">20</span>, <span class="tok-n">tzinfo</span>=<span class="tok-n">timezone</span>.<span class="tok-n">utc</span>)
+
+<span class="tok-n">aware</span> - <span class="tok-n">naive</span>
+<span class="tok-c"># TypeError: can't subtract offset-naive and offset-aware datetimes</span></code></pre>
+
+      <h2>The DST trap</h2>
+
+      <p>
+        Adding 24 hours to a datetime <em>across</em> a
+        DST transition gives you the wrong wall-clock time.
+        Use <code>timedelta</code> for elapsed time, not
+        for "tomorrow at the same hour."
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">timedelta</span>
+
+<span class="tok-n">tz</span> = <span class="tok-f">ZoneInfo</span>(<span class="tok-s">"Europe/London"</span>)
+<span class="tok-n">before_dst</span> = <span class="tok-f">datetime</span>(<span class="tok-n">2026</span>, <span class="tok-n">3</span>, <span class="tok-n">28</span>, <span class="tok-n">10</span>, <span class="tok-n">0</span>, <span class="tok-n">tzinfo</span>=<span class="tok-n">tz</span>)
+<span class="tok-n">tomorrow</span>   = <span class="tok-n">before_dst</span> + <span class="tok-f">timedelta</span>(<span class="tok-n">days</span>=<span class="tok-n">1</span>)
+<span class="tok-n">tomorrow</span>.<span class="tok-f">strftime</span>(<span class="tok-s">"%H:%M"</span>)
+<span class="tok-c"># '11:00' — DST kicked in, the wall clock moved an hour</span></code></pre>
+
+      <p>
+        For "tomorrow at this same wall-clock time", round-trip
+        through naive and re-attach the tz:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">naive</span> = <span class="tok-n">before_dst</span>.<span class="tok-f">replace</span>(<span class="tok-n">tzinfo</span>=<span class="tok-k">None</span>) + <span class="tok-f">timedelta</span>(<span class="tok-n">days</span>=<span class="tok-n">1</span>)
+<span class="tok-n">same_wallclock_tomorrow</span> = <span class="tok-n">naive</span>.<span class="tok-f">replace</span>(<span class="tok-n">tzinfo</span>=<span class="tok-n">tz</span>)</code></pre>
+
+      <h2>Parsing ISO 8601</h2>
+
+      <p>
+        Python 3.11 fixed <code>datetime.fromisoformat</code>
+        to handle the full standard, including the
+        <code>Z</code> suffix for UTC.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># 3.11+</span>
+<span class="tok-n">datetime</span>.<span class="tok-f">fromisoformat</span>(<span class="tok-s">"2026-02-20T14:30:00Z"</span>)
+<span class="tok-n">datetime</span>.<span class="tok-f">fromisoformat</span>(<span class="tok-s">"2026-02-20T14:30:00+05:30"</span>)
+<span class="tok-c"># Both give aware datetimes with the right offset</span></code></pre>
+
+      <p>
+        For ISO timestamps before 3.11 (or for less-strict
+        formats), use <code>dateutil.parser</code> or
+        <code>pendulum.parse</code>.
+      </p>
+
+      <h2>When to reach for pendulum</h2>
+
+      <p>
+        <code>pendulum</code> is a third-party library with
+        the API <code>datetime</code> wishes it had:
+        chained methods, clean arithmetic, durations as
+        first-class objects.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">pendulum</span>
+
+<span class="tok-n">now</span> = <span class="tok-n">pendulum</span>.<span class="tok-f">now</span>(<span class="tok-s">"Asia/Kolkata"</span>)
+<span class="tok-n">tomorrow</span> = <span class="tok-n">now</span>.<span class="tok-f">add</span>(<span class="tok-n">days</span>=<span class="tok-n">1</span>)            <span class="tok-c"># DST-aware</span>
+<span class="tok-n">last_friday</span> = <span class="tok-n">now</span>.<span class="tok-f">previous</span>(<span class="tok-n">pendulum</span>.<span class="tok-n">FRIDAY</span>)
+<span class="tok-n">duration</span> = <span class="tok-n">tomorrow</span> - <span class="tok-n">now</span>
+<span class="tok-n">duration</span>.<span class="tok-f">in_hours</span>()                       <span class="tok-c"># 24</span>
+
+<span class="tok-c"># Human-friendly diff</span>
+<span class="tok-n">past</span> = <span class="tok-n">pendulum</span>.<span class="tok-f">now</span>().<span class="tok-f">subtract</span>(<span class="tok-n">hours</span>=<span class="tok-n">2</span>, <span class="tok-n">minutes</span>=<span class="tok-n">15</span>)
+<span class="tok-n">past</span>.<span class="tok-f">diff_for_humans</span>()                      <span class="tok-c"># '2 hours ago'</span></code></pre>
+
+      <p>
+        For a script that lives entirely in the
+        stdlib, <code>zoneinfo</code> + <code>datetime</code>
+        is enough. For applications that do heavy date math
+        or display human-friendly times, <code>pendulum</code>
+        earns its dependency cost.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>On Windows, install
+          <code>tzdata</code></strong> &mdash;
+          <code>zoneinfo</code> needs the IANA database,
+          which Windows doesn't ship. <code>pip install
+          tzdata</code>. On Linux and macOS, the system
+          provides it.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a script that does
+          <code>datetime.utcnow()</code> (deprecated in
+          3.12) or <code>datetime.now()</code> without a
+          timezone. Replace with
+          <code>datetime.now(timezone.utc)</code>. Convert
+          to local time only when displaying. Time-zone
+          bugs that have been hiding for years suddenly
+          stop happening.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-050-typer.html">
+        <span class="label">← Previous</span>
+        <span class="title">typer: argparse without the boilerplate</span>
+      </a>
+      <a class="next" href="day-052-hashlib-hmac.html">
+        <span class="label">Next →</span>
+        <span class="title">hashlib + hmac: hashing and signatures done right</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 034 · structlog for JSON logs you can grep — Learn with Pradeep</title>
+  <meta name="description" content="structlog turns log lines into structured key-value events. Bind context once, ship JSON to Loki/ELK/Splunk. The right shape for production logs.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 034 &middot; Third-party &middot; Intermediate</div>
+      <h1>structlog for JSON logs you can grep</h1>
+      <p class="subtitle">
+        Logs as key-value events, not pre-formatted strings. Bind
+        context once. Ship JSON to your aggregator. Stop parsing
+        your own log lines with regex.
+      </p>
+      <div class="article-meta">
+        <span>03 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>structlog</code> treats logs as structured events,
+        not strings. Pass <code>key=value</code> pairs instead of
+        f-strings. Bind contextual fields like
+        <code>request_id</code> once with
+        <code>.bind()</code> and they appear in every subsequent log
+        line. Configure JSON output for production, pretty
+        terminal output for dev.</p>
+      </div>
+
+      <p>
+        The standard <code>logging</code> module from Day 016 is
+        fine for human eyes. The moment you ship logs to Loki, ELK,
+        Splunk, Datadog &mdash; anywhere logs become queryable
+        structured data &mdash; you want JSON output with named
+        fields. Building that on top of <code>logging</code>
+        is awkward; <code>structlog</code> is built for it.
+      </p>
+
+      <h2>The minimal setup</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">structlog</span>
+
+<span class="tok-n">structlog</span>.<span class="tok-f">configure</span>(
+    <span class="tok-n">processors</span>=[
+        <span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">add_log_level</span>,
+        <span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">TimeStamper</span>(<span class="tok-n">fmt</span>=<span class="tok-s">"iso"</span>),
+        <span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">JSONRenderer</span>(),
+    ],
+)
+
+<span class="tok-n">log</span> = <span class="tok-n">structlog</span>.<span class="tok-f">get_logger</span>()
+
+<span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"connected"</span>, <span class="tok-n">device</span>=<span class="tok-s">"sw-01"</span>, <span class="tok-n">port</span>=<span class="tok-n">22</span>, <span class="tok-n">latency_ms</span>=<span class="tok-n">42</span>)</code></pre>
+
+      <div class="output">{"event": "connected", "device": "sw-01", "port": 22, "latency_ms": 42, "level": "info", "timestamp": "2026-02-03T14:03:21.182Z"}</div>
+
+      <p>
+        That's a JSON document per log line. Pipe it to
+        <code>jq</code>, ship it to Loki, query by field. The
+        contrast with <code>"connected to sw-01:22 in 42ms"</code>
+        is enormous &mdash; nobody has to write a regex to extract
+        the latency.
+      </p>
+
+      <h2>Pretty output for dev, JSON for prod</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">os</span>, <span class="tok-n">structlog</span>
+
+<span class="tok-n">renderer</span> = (<span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">JSONRenderer</span>()
+            <span class="tok-k">if</span> <span class="tok-n">os</span>.<span class="tok-n">environ</span>.<span class="tok-f">get</span>(<span class="tok-s">"ENV"</span>) == <span class="tok-s">"production"</span>
+            <span class="tok-k">else</span> <span class="tok-n">structlog</span>.<span class="tok-n">dev</span>.<span class="tok-f">ConsoleRenderer</span>())
+
+<span class="tok-n">structlog</span>.<span class="tok-f">configure</span>(<span class="tok-n">processors</span>=[
+    <span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">add_log_level</span>,
+    <span class="tok-n">structlog</span>.<span class="tok-n">processors</span>.<span class="tok-f">TimeStamper</span>(<span class="tok-n">fmt</span>=<span class="tok-s">"iso"</span>),
+    <span class="tok-n">renderer</span>,
+])</code></pre>
+
+      <p>
+        <code>ConsoleRenderer</code> gives you colored, key-value
+        output that's instantly readable in a terminal. Same code,
+        same logger calls, different presentation per environment.
+      </p>
+
+      <h2>The killer feature: bound context</h2>
+
+      <p>
+        Bind a value once and every subsequent log call from that
+        logger includes it. No more passing
+        <code>request_id</code> through five function signatures
+        just to log it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">handle_request</span>(<span class="tok-n">req</span>):
+    <span class="tok-n">log</span> = <span class="tok-n">structlog</span>.<span class="tok-f">get_logger</span>().<span class="tok-f">bind</span>(
+        <span class="tok-n">request_id</span>=<span class="tok-n">req</span>.<span class="tok-n">id</span>,
+        <span class="tok-n">user</span>=<span class="tok-n">req</span>.<span class="tok-n">user</span>.<span class="tok-n">name</span>,
+    )
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"received"</span>, <span class="tok-n">path</span>=<span class="tok-n">req</span>.<span class="tok-n">path</span>)
+    <span class="tok-n">result</span> = <span class="tok-f">process</span>(<span class="tok-n">req</span>, <span class="tok-n">log</span>)
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"completed"</span>, <span class="tok-n">status</span>=<span class="tok-n">result</span>.<span class="tok-n">status</span>)</code></pre>
+
+      <div class="output">{"event": "received", "path": "/api/v1/devices", "request_id": "abc-123", "user": "pradeep", "level": "info", ...}
+{"event": "completed", "status": 200, "request_id": "abc-123", "user": "pradeep", "level": "info", ...}</div>
+
+      <p>
+        Both lines carry <code>request_id</code> and
+        <code>user</code> because they came from the same bound
+        logger. Pass <code>log</code> down to nested functions and
+        the context follows.
+      </p>
+
+      <h2>Context vars for ambient binding</h2>
+
+      <p>
+        For web frameworks where you want bound context per-request
+        without threading the logger through everything,
+        <code>contextvars</code> integration handles it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">structlog</span>.<span class="tok-n">contextvars</span> <span class="tok-k">import</span> <span class="tok-n">bind_contextvars</span>, <span class="tok-n">clear_contextvars</span>
+
+<span class="tok-k">def</span> <span class="tok-f">middleware</span>(<span class="tok-n">request</span>):
+    <span class="tok-f">clear_contextvars</span>()
+    <span class="tok-f">bind_contextvars</span>(<span class="tok-n">request_id</span>=<span class="tok-n">request</span>.<span class="tok-n">id</span>)
+    <span class="tok-c"># every log.info() in this request now includes request_id</span>
+    <span class="tok-c"># automatically — no logger threading needed</span></code></pre>
+
+      <h2>Logging exceptions with context</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-f">connect</span>(<span class="tok-n">host</span>)
+<span class="tok-k">except</span> <span class="tok-n">ConnectionError</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">exception</span>(<span class="tok-s">"connect_failed"</span>, <span class="tok-n">host</span>=<span class="tok-n">host</span>, <span class="tok-n">attempt</span>=<span class="tok-n">3</span>)</code></pre>
+
+      <p>
+        <code>log.exception</code> includes the full traceback as
+        a structured field. With JSON output, your aggregator gets
+        the stack trace as searchable text alongside the
+        contextual fields.
+      </p>
+
+      <div class="callout">
+        <p>
+          You can route stdlib <code>logging</code> through
+          structlog using
+          <code>structlog.stdlib.LoggerFactory()</code> &mdash;
+          useful when third-party libraries log via stdlib but you
+          want everything to come out in your structured pipeline.
+          The configuration takes 5 minutes to set up; the docs
+          have a complete recipe.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a script with a few <code>log.info(f"...")</code>
+          calls. Convert them to structlog: pass each variable as
+          a keyword instead of formatting it in. Configure
+          <code>JSONRenderer</code>. Pipe the output through
+          <code>jq '.'</code> and watch how much easier it is to
+          query.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-033-tenacity.html">
+        <span class="label">← Previous</span>
+        <span class="title">tenacity: retries done right</span>
+      </a>
+      <a class="next" href="day-035-cprofile.html">
+        <span class="label">Next →</span>
+        <span class="title">cProfile: find the slow line</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

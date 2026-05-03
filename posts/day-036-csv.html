@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 036 · csv module: the gotchas they don't tell you — Learn with Pradeep</title>
+  <meta name="description" content="The csv module gets the basics right but has three traps: newlines, dialects, and DictReader assumptions. Three lines of setup avoid all of them.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 036 &middot; Standard library &middot; Beginner</div>
+      <h1>csv module: the gotchas they don't tell you</h1>
+      <p class="subtitle">
+        The basics work fine. Three traps &mdash; newlines, dialects,
+        and quoting &mdash; account for most "my CSV is broken"
+        bugs in production.
+      </p>
+      <div class="article-meta">
+        <span>05 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Always open CSV files with <code>newline=""</code> &mdash;
+        otherwise embedded newlines in fields corrupt the output on
+        Windows. Use <code>DictReader</code> / <code>DictWriter</code>
+        for named columns. For unknown dialects, sniff with
+        <code>csv.Sniffer</code>. For real data work, jump to
+        <code>polars</code> or <code>pandas</code>.</p>
+      </div>
+
+      <p>
+        The standard <code>csv</code> module is the right tool for
+        config files, exports, and small data interchange. It has
+        three sharp edges that have wasted a million developer
+        hours.
+      </p>
+
+      <h2>The newline trap</h2>
+
+      <p>
+        On Windows, line endings are <code>\r\n</code>. If you
+        open a CSV file <em>without</em> <code>newline=""</code>,
+        Python's universal-newlines machinery transforms them &mdash;
+        and any embedded <code>\n</code> inside a quoted field gets
+        misread as a row break. Always pass <code>newline=""</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">csv</span>
+
+<span class="tok-c"># Always — read AND write</span>
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"data.csv"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">reader</span> = <span class="tok-n">csv</span>.<span class="tok-f">reader</span>(<span class="tok-n">f</span>)
+    <span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">reader</span>:
+        <span class="tok-f">print</span>(<span class="tok-n">row</span>)
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"out.csv"</span>, <span class="tok-s">"w"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">w</span> = <span class="tok-n">csv</span>.<span class="tok-f">writer</span>(<span class="tok-n">f</span>)
+    <span class="tok-n">w</span>.<span class="tok-f">writerow</span>([<span class="tok-s">"name"</span>, <span class="tok-s">"value"</span>])</code></pre>
+
+      <p>
+        The Python docs even say so explicitly &mdash; and ignoring
+        it produces files that look fine on your Mac and break for
+        the customer on Windows.
+      </p>
+
+      <h2>DictReader for named columns</h2>
+
+      <p>
+        Indexing rows by integer is fragile. Use
+        <code>DictReader</code> and reference columns by header
+        name &mdash; the script keeps working when columns are
+        reordered.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"devices.csv"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">csv</span>.<span class="tok-f">DictReader</span>(<span class="tok-n">f</span>):
+        <span class="tok-f">print</span>(<span class="tok-n">row</span>[<span class="tok-s">"hostname"</span>], <span class="tok-n">row</span>[<span class="tok-s">"role"</span>])</code></pre>
+
+      <p>
+        Three things to know: header detection is automatic from
+        the first row. Every value comes back as a string &mdash;
+        <code>"42"</code>, not <code>42</code>. Missing values are
+        empty strings, not <code>None</code>.
+      </p>
+
+      <h2>Writing with DictWriter</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">rows</span> = [
+    {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>},
+    {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-02"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"core"</span>, <span class="tok-s">"notes"</span>: <span class="tok-s">"new"</span>},
+]
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"out.csv"</span>, <span class="tok-s">"w"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">w</span> = <span class="tok-n">csv</span>.<span class="tok-f">DictWriter</span>(
+        <span class="tok-n">f</span>,
+        <span class="tok-n">fieldnames</span>=[<span class="tok-s">"hostname"</span>, <span class="tok-s">"role"</span>, <span class="tok-s">"notes"</span>],
+        <span class="tok-n">extrasaction</span>=<span class="tok-s">"ignore"</span>,    <span class="tok-c"># tolerate unknown keys</span>
+    )
+    <span class="tok-n">w</span>.<span class="tok-f">writeheader</span>()
+    <span class="tok-n">w</span>.<span class="tok-f">writerows</span>(<span class="tok-n">rows</span>)</code></pre>
+
+      <p>
+        <code>extrasaction="ignore"</code> is your friend &mdash;
+        without it, an extra key in any row raises
+        <code>ValueError</code>. <code>extrasaction="raise"</code>
+        is the default and surprisingly strict.
+      </p>
+
+      <h2>Sniff the dialect for unknown files</h2>
+
+      <p>
+        Customer-supplied CSVs have a different separator (comma,
+        semicolon, tab), different quote style, and different
+        line endings every time. <code>csv.Sniffer</code> guesses.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"weird.csv"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">sample</span>  = <span class="tok-n">f</span>.<span class="tok-f">read</span>(<span class="tok-n">8192</span>)
+    <span class="tok-n">f</span>.<span class="tok-f">seek</span>(<span class="tok-n">0</span>)
+    <span class="tok-n">dialect</span> = <span class="tok-n">csv</span>.<span class="tok-f">Sniffer</span>().<span class="tok-f">sniff</span>(<span class="tok-n">sample</span>)
+    <span class="tok-n">has_header</span> = <span class="tok-n">csv</span>.<span class="tok-f">Sniffer</span>().<span class="tok-f">has_header</span>(<span class="tok-n">sample</span>)
+
+    <span class="tok-n">reader</span> = <span class="tok-n">csv</span>.<span class="tok-f">reader</span>(<span class="tok-n">f</span>, <span class="tok-n">dialect</span>=<span class="tok-n">dialect</span>)
+    <span class="tok-k">if</span> <span class="tok-n">has_header</span>:
+        <span class="tok-n">headers</span> = <span class="tok-f">next</span>(<span class="tok-n">reader</span>)
+    <span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">reader</span>:
+        <span class="tok-c">...</span></code></pre>
+
+      <h2>The encoding gotcha</h2>
+
+      <p>
+        Excel exports CSVs in <code>cp1252</code> on Windows and
+        UTF-8 on macOS &mdash; with no header to indicate which.
+        If you get <code>UnicodeDecodeError</code>, try
+        <code>encoding="utf-8-sig"</code> first (handles BOM), then
+        <code>cp1252</code>, then <code>latin-1</code> (which
+        accepts any byte, never raises).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"excel-export.csv"</span>, <span class="tok-n">newline</span>=<span class="tok-s">""</span>, <span class="tok-n">encoding</span>=<span class="tok-s">"utf-8-sig"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-c">...</span></code></pre>
+
+      <h2>When to leave <code>csv</code> behind</h2>
+
+      <p>
+        For datasets with hundreds of thousands of rows, type
+        coercion needs, joins, group-bys, or aggregations &mdash;
+        reach for <code>polars</code> (fast, memory-efficient) or
+        <code>pandas</code> (ubiquitous). The stdlib
+        <code>csv</code> module is for I/O, not analysis.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">polars</span> <span class="tok-k">as</span> <span class="tok-n">pl</span>
+
+<span class="tok-n">df</span> = <span class="tok-n">pl</span>.<span class="tok-f">read_csv</span>(<span class="tok-s">"events.csv"</span>)
+<span class="tok-n">df</span>.<span class="tok-f">filter</span>(<span class="tok-n">pl</span>.<span class="tok-f">col</span>(<span class="tok-s">"level"</span>) == <span class="tok-s">"ERROR"</span>).<span class="tok-f">group_by</span>(<span class="tok-s">"service"</span>).<span class="tok-f">len</span>()</code></pre>
+
+      <div class="callout">
+        <p>
+          For "is this CSV well-formed?" validation before
+          processing, the <code>csv</code> module won't help much.
+          Run it through <code>pandas.read_csv</code> with
+          <code>on_bad_lines="warn"</code> first &mdash; it surfaces
+          row-by-row issues much more clearly.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Open a CSV-handling script you have. If it doesn't pass
+          <code>newline=""</code>, add it. If it indexes rows by
+          integer position, switch to <code>DictReader</code>.
+          Two changes, much more robust code.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-035-cprofile.html">
+        <span class="label">← Previous</span>
+        <span class="title">cProfile: find the slow line</span>
+      </a>
+      <a class="next" href="day-037-sqlite.html">
+        <span class="label">Next →</span>
+        <span class="title">sqlite3: the database in your stdlib</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

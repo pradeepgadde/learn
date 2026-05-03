@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 037 · sqlite3: the database in your stdlib — Learn with Pradeep</title>
+  <meta name="description" content="SQLite ships with Python. It handles a million rows easily, supports JSON, and replaces a dozen flat-file caches. Use parameterized queries, always.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 037 &middot; Standard library &middot; Intermediate</div>
+      <h1>sqlite3: the database in your stdlib</h1>
+      <p class="subtitle">
+        A real SQL database, ACID transactions, JSON support, no
+        server &mdash; all built into Python. Replaces a dozen
+        flat-file caches the moment your data has structure.
+      </p>
+      <div class="article-meta">
+        <span>06 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>sqlite3</code> is a complete SQL database in the
+        standard library &mdash; no install, no server. Use
+        parameterized queries (<code>?</code>) always, never
+        f-strings. Use <code>row_factory = sqlite3.Row</code> for
+        named column access. Wrap writes in
+        <code>with conn:</code> for automatic transactions. Good
+        for caches, scratch data, single-user CLIs, and millions
+        of rows.</p>
+      </div>
+
+      <p>
+        SQLite is the most-deployed database engine in the world.
+        It runs in your browser, on every phone, in every
+        <code>.app</code> bundle. The Python binding ships with
+        the standard library &mdash; you can use it right now
+        with no install.
+      </p>
+
+      <h2>The minimal usage</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">sqlite3</span>
+
+<span class="tok-c"># File path, or ":memory:" for an in-process database</span>
+<span class="tok-n">conn</span> = <span class="tok-n">sqlite3</span>.<span class="tok-f">connect</span>(<span class="tok-s">"cache.db"</span>)
+<span class="tok-n">conn</span>.<span class="tok-n">row_factory</span> = <span class="tok-n">sqlite3</span>.<span class="tok-n">Row</span>     <span class="tok-c"># dict-like row access</span>
+
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"""
+    CREATE TABLE IF NOT EXISTS devices (
+        hostname TEXT PRIMARY KEY,
+        ip       TEXT NOT NULL,
+        seen_at  TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+"""</span>)
+
+<span class="tok-c"># with-block = automatic transaction (commit on exit, rollback on exception)</span>
+<span class="tok-k">with</span> <span class="tok-n">conn</span>:
+    <span class="tok-n">conn</span>.<span class="tok-f">execute</span>(
+        <span class="tok-s">"INSERT OR REPLACE INTO devices (hostname, ip) VALUES (?, ?)"</span>,
+        (<span class="tok-s">"sw-01"</span>, <span class="tok-s">"10.0.0.1"</span>),
+    )
+
+<span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"SELECT * FROM devices"</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">row</span>[<span class="tok-s">"hostname"</span>], <span class="tok-n">row</span>[<span class="tok-s">"ip"</span>])</code></pre>
+
+      <h2>Parameterized queries, always</h2>
+
+      <p>
+        Never use string formatting to build SQL. The
+        <code>?</code> placeholder is safe; the f-string is a
+        bug factory.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># NEVER — SQL injection waiting to happen</span>
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">f"SELECT * FROM devices WHERE hostname = '{name}'"</span>)
+
+<span class="tok-c"># Always — parameter passed safely, types preserved</span>
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"SELECT * FROM devices WHERE hostname = ?"</span>, (<span class="tok-n">name</span>,))</code></pre>
+
+      <p>
+        Note the trailing comma &mdash; <code>(name,)</code> is a
+        one-element tuple, <code>(name)</code> is just
+        <code>name</code> in parentheses. SQLite needs a sequence.
+      </p>
+
+      <h2>Named placeholders for many params</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">conn</span>.<span class="tok-f">execute</span>(
+    <span class="tok-s">"INSERT INTO devices (hostname, ip, role) "</span>
+    <span class="tok-s">"VALUES (:host, :ip, :role)"</span>,
+    {<span class="tok-s">"host"</span>: <span class="tok-s">"sw-02"</span>, <span class="tok-s">"ip"</span>: <span class="tok-s">"10.0.0.2"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"core"</span>},
+)</code></pre>
+
+      <p>
+        Easier to read than counting positional args. Pairs
+        beautifully with dataclass instances:
+        <code>conn.execute(sql, dataclasses.asdict(device))</code>.
+      </p>
+
+      <h2>Bulk inserts: <code>executemany</code></h2>
+
+      <p>
+        For loading many rows, <code>executemany</code> is
+        dramatically faster than calling <code>execute</code>
+        in a loop &mdash; and even faster inside a single
+        transaction.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">rows</span> = [(<span class="tok-n">d</span>.<span class="tok-n">hostname</span>, <span class="tok-n">d</span>.<span class="tok-n">ip</span>) <span class="tok-k">for</span> <span class="tok-n">d</span> <span class="tok-k">in</span> <span class="tok-n">devices</span>]
+
+<span class="tok-k">with</span> <span class="tok-n">conn</span>:                                  <span class="tok-c"># single transaction</span>
+    <span class="tok-n">conn</span>.<span class="tok-f">executemany</span>(
+        <span class="tok-s">"INSERT OR IGNORE INTO devices (hostname, ip) VALUES (?, ?)"</span>,
+        <span class="tok-n">rows</span>,
+    )</code></pre>
+
+      <p>
+        100,000 inserts in a single transaction completes in
+        well under a second on commodity hardware. The same
+        inserts auto-committed individually take minutes.
+      </p>
+
+      <h2>JSON columns</h2>
+
+      <p>
+        SQLite has built-in JSON functions since 3.9 (every
+        modern Python). Store nested data without an ORM,
+        query it with SQL.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">json</span>
+
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"CREATE TABLE events (id INTEGER PRIMARY KEY, data TEXT)"</span>)
+
+<span class="tok-n">payload</span> = {<span class="tok-s">"type"</span>: <span class="tok-s">"login"</span>, <span class="tok-s">"user"</span>: <span class="tok-s">"pradeep"</span>, <span class="tok-s">"tags"</span>: [<span class="tok-s">"admin"</span>]}
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"INSERT INTO events (data) VALUES (?)"</span>,
+             (<span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-n">payload</span>),))
+
+<span class="tok-c"># Query JSON fields directly with SQL</span>
+<span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"""
+    SELECT id, json_extract(data, '$.user') AS user
+    FROM events
+    WHERE json_extract(data, '$.type') = 'login'
+"""</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">row</span>[<span class="tok-s">"id"</span>], <span class="tok-n">row</span>[<span class="tok-s">"user"</span>])</code></pre>
+
+      <h2>WAL mode for concurrent readers</h2>
+
+      <p>
+        For any database touched by more than one process &mdash;
+        a CLI plus a service, parallel scripts &mdash; switch to
+        Write-Ahead Logging. Readers no longer block writers and
+        vice versa.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"PRAGMA journal_mode=WAL"</span>)
+<span class="tok-n">conn</span>.<span class="tok-f">execute</span>(<span class="tok-s">"PRAGMA synchronous=NORMAL"</span>)   <span class="tok-c"># still safe, much faster</span></code></pre>
+
+      <div class="callout">
+        <p>
+          <strong>When SQLite isn't right.</strong> Multiple writers
+          contending heavily; clients on different machines (no
+          network protocol &mdash; SQLite is a file); strict
+          per-row access control. For everything else &mdash;
+          analytics scratchpads, app caches, embedded data,
+          single-user web apps, even small SaaS tenants &mdash;
+          it's the right tool.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a script that maintains a JSON or pickle "cache file"
+          on disk. Replace it with SQLite. You'll get atomic
+          updates, indexed lookups, and the ability to query the
+          cache with <code>sqlite3 cache.db</code> from your
+          terminal &mdash; all for the same lines of code.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-036-csv.html">
+        <span class="label">← Previous</span>
+        <span class="title">csv module: the gotchas they don't tell you</span>
+      </a>
+      <a class="next" href="day-038-concurrent-futures.html">
+        <span class="label">Next →</span>
+        <span class="title">concurrent.futures: parallelism without the threads tax</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

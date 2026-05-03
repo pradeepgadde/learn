@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 047 · deque: lists with fast left-side ops — Learn with Pradeep</title>
+  <meta name="description" content="collections.deque has O(1) appends and pops on both ends. Plus a maxlen parameter for bounded ring buffers. The right tool for queues and rolling windows.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 047 &middot; Standard library &middot; Beginner</div>
+      <h1>deque: lists with fast left-side ops</h1>
+      <p class="subtitle">
+        O(1) appends and pops on both ends. A
+        <code>maxlen</code> for bounded ring buffers. The right
+        choice for queues, rolling windows, and recent-N
+        caches.
+      </p>
+      <div class="article-meta">
+        <span>16 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>collections.deque</code> is a doubly-linked
+        list with O(1) <code>append</code>, <code>appendleft</code>,
+        <code>pop</code>, and <code>popleft</code>.
+        <code>maxlen</code> creates a bounded ring buffer that
+        drops the oldest element when full. Use for queues
+        (FIFO) and recent-N tracking; use a list for everything
+        else.</p>
+      </div>
+
+      <p>
+        Lists are great until you start operating on the front.
+        <code>list.pop(0)</code> and <code>list.insert(0, x)</code>
+        are both O(n) &mdash; every element shifts. For queues
+        and sliding windows, you want a deque.
+      </p>
+
+      <h2>The basic operations</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">collections</span> <span class="tok-k">import</span> <span class="tok-n">deque</span>
+
+<span class="tok-n">q</span> = <span class="tok-f">deque</span>([<span class="tok-s">"a"</span>, <span class="tok-s">"b"</span>, <span class="tok-s">"c"</span>])
+
+<span class="tok-n">q</span>.<span class="tok-f">append</span>(<span class="tok-s">"d"</span>)         <span class="tok-c"># right side</span>
+<span class="tok-n">q</span>.<span class="tok-f">appendleft</span>(<span class="tok-s">"z"</span>)     <span class="tok-c"># left side</span>
+<span class="tok-c"># deque(['z', 'a', 'b', 'c', 'd'])</span>
+
+<span class="tok-n">q</span>.<span class="tok-f">pop</span>()               <span class="tok-c"># right — 'd'</span>
+<span class="tok-n">q</span>.<span class="tok-f">popleft</span>()           <span class="tok-c"># left — 'z'</span></code></pre>
+
+      <p>
+        Same indexing and iteration as a list. Same
+        <code>len()</code>. The only thing you give up is fast
+        <em>middle</em> access &mdash; <code>q[len(q)//2]</code>
+        is O(n) on a deque, O(1) on a list.
+      </p>
+
+      <h2>The killer feature: <code>maxlen</code></h2>
+
+      <p>
+        Pass a maximum length and the deque becomes a ring
+        buffer &mdash; appending past the limit silently drops
+        the oldest element from the other end.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Keep the last 100 log lines for diagnostics</span>
+<span class="tok-n">recent</span> = <span class="tok-f">deque</span>(<span class="tok-n">maxlen</span>=<span class="tok-n">100</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">log</span>:
+    <span class="tok-n">recent</span>.<span class="tok-f">append</span>(<span class="tok-n">line</span>)
+
+<span class="tok-c"># 'recent' always holds at most 100 lines.
+# When the 101st arrives, the first one drops automatically.</span></code></pre>
+
+      <p>
+        No bookkeeping, no indexing math, no off-by-one
+        bugs. The right shape for "remember the last N of
+        anything."
+      </p>
+
+      <h2>Sliding-window aggregations</h2>
+
+      <p>
+        Combine <code>maxlen</code> with the math you want and
+        you have a moving window. For a moving average:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">window</span>     = <span class="tok-f">deque</span>(<span class="tok-n">maxlen</span>=<span class="tok-n">10</span>)
+<span class="tok-n">moving_avg</span> = []
+
+<span class="tok-k">for</span> <span class="tok-n">val</span> <span class="tok-k">in</span> <span class="tok-n">samples</span>:
+    <span class="tok-n">window</span>.<span class="tok-f">append</span>(<span class="tok-n">val</span>)
+    <span class="tok-n">moving_avg</span>.<span class="tok-f">append</span>(<span class="tok-f">sum</span>(<span class="tok-n">window</span>) / <span class="tok-f">len</span>(<span class="tok-n">window</span>))</code></pre>
+
+      <p>
+        For huge windows where recomputing
+        <code>sum(window)</code> per sample matters, keep a
+        running sum: add the new value, subtract the one
+        being evicted (track it before the
+        <code>append</code>).
+      </p>
+
+      <h2>BFS without the smell</h2>
+
+      <p>
+        Breadth-first search over a graph &mdash; classic deque
+        territory.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">bfs</span>(<span class="tok-n">graph</span>, <span class="tok-n">start</span>):
+    <span class="tok-n">visited</span> = {<span class="tok-n">start</span>}
+    <span class="tok-n">queue</span>   = <span class="tok-f">deque</span>([<span class="tok-n">start</span>])
+    <span class="tok-k">while</span> <span class="tok-n">queue</span>:
+        <span class="tok-n">node</span> = <span class="tok-n">queue</span>.<span class="tok-f">popleft</span>()
+        <span class="tok-k">yield</span> <span class="tok-n">node</span>
+        <span class="tok-k">for</span> <span class="tok-n">neighbor</span> <span class="tok-k">in</span> <span class="tok-n">graph</span>[<span class="tok-n">node</span>]:
+            <span class="tok-k">if</span> <span class="tok-n">neighbor</span> <span class="tok-k">not</span> <span class="tok-k">in</span> <span class="tok-n">visited</span>:
+                <span class="tok-n">visited</span>.<span class="tok-f">add</span>(<span class="tok-n">neighbor</span>)
+                <span class="tok-n">queue</span>.<span class="tok-f">append</span>(<span class="tok-n">neighbor</span>)</code></pre>
+
+      <p>
+        With a list, that <code>queue.pop(0)</code> would shift
+        every other element each iteration &mdash; O(n²) total.
+        Deque keeps it O(n).
+      </p>
+
+      <h2>Rotation, in case you ever need it</h2>
+
+      <p>
+        <code>rotate(n)</code> shifts elements right by
+        <code>n</code> (negative for left). Useful for
+        round-robin scheduling.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">workers</span> = <span class="tok-f">deque</span>([<span class="tok-s">"alice"</span>, <span class="tok-s">"bob"</span>, <span class="tok-s">"carol"</span>, <span class="tok-s">"dan"</span>])
+
+<span class="tok-k">def</span> <span class="tok-f">next_worker</span>():
+    <span class="tok-n">w</span> = <span class="tok-n">workers</span>[<span class="tok-n">0</span>]
+    <span class="tok-n">workers</span>.<span class="tok-f">rotate</span>(-<span class="tok-n">1</span>)         <span class="tok-c"># shift left by one</span>
+    <span class="tok-k">return</span> <span class="tok-n">w</span></code></pre>
+
+      <h2>Thread-safety, briefly</h2>
+
+      <p>
+        <code>append</code>/<code>popleft</code> on a deque
+        are atomic at the bytecode level &mdash; safe for
+        single-producer, single-consumer patterns without a
+        lock. For multi-producer or multi-consumer queues,
+        use <code>queue.Queue</code> (from the
+        <code>queue</code> module) instead, which has proper
+        synchronization.
+      </p>
+
+      <div class="callout">
+        <p>
+          For asyncio queues across coroutines, use
+          <code>asyncio.Queue</code>. Same FIFO API, but
+          <code>put</code> and <code>get</code> are
+          <code>await</code>able, so producers and consumers
+          can suspend on a full or empty queue without
+          blocking the loop.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          If you have any code that does
+          <code>list.pop(0)</code> in a loop &mdash; a
+          worker queue, a parsing front-of-list pattern,
+          anything FIFO &mdash; switch to a deque. Same API,
+          dramatically better scaling.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-046-bisect.html">
+        <span class="label">← Previous</span>
+        <span class="title">bisect: binary search on sorted lists</span>
+      </a>
+      <a class="next" href="day-048-itertools.html">
+        <span class="label">Next →</span>
+        <span class="title">itertools: chain, takewhile, groupby</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

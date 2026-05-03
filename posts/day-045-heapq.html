@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 045 · heapq: priority queues in the stdlib — Learn with Pradeep</title>
+  <meta name="description" content="heapq turns any list into a min-heap. nlargest and nsmallest find top-N or bottom-N in O(n log k). The right tool for top-K problems.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 045 &middot; Standard library &middot; Intermediate</div>
+      <h1>heapq: priority queues in the stdlib</h1>
+      <p class="subtitle">
+        Turn any list into a min-heap. <code>nlargest</code> and
+        <code>nsmallest</code> find top-N in O(n log k) without
+        sorting the whole list.
+      </p>
+      <div class="article-meta">
+        <span>14 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>heapq</code> works on plain lists.
+        <code>heappush</code> adds, <code>heappop</code> takes the
+        smallest. For "top N" problems use
+        <code>nlargest(n, iterable, key=...)</code> &mdash; faster
+        than sorting and slicing when N is small relative to total
+        length.</p>
+      </div>
+
+      <p>
+        A heap is a tree where the smallest item is always at the
+        root. Python's <code>heapq</code> uses a list as the
+        backing store and gives you O(log n) push/pop. It's the
+        right data structure for priority queues, top-K
+        selections, and merging sorted streams.
+      </p>
+
+      <h2>The basic operations</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">heapq</span>
+
+<span class="tok-n">tasks</span> = []
+<span class="tok-n">heapq</span>.<span class="tok-f">heappush</span>(<span class="tok-n">tasks</span>, (<span class="tok-n">3</span>, <span class="tok-s">"send report"</span>))
+<span class="tok-n">heapq</span>.<span class="tok-f">heappush</span>(<span class="tok-n">tasks</span>, (<span class="tok-n">1</span>, <span class="tok-s">"page on-call"</span>))
+<span class="tok-n">heapq</span>.<span class="tok-f">heappush</span>(<span class="tok-n">tasks</span>, (<span class="tok-n">2</span>, <span class="tok-s">"reply email"</span>))
+
+<span class="tok-k">while</span> <span class="tok-n">tasks</span>:
+    <span class="tok-n">priority</span>, <span class="tok-n">task</span> = <span class="tok-n">heapq</span>.<span class="tok-f">heappop</span>(<span class="tok-n">tasks</span>)
+    <span class="tok-f">print</span>(<span class="tok-n">priority</span>, <span class="tok-n">task</span>)</code></pre>
+
+      <div class="output">1 page on-call
+2 reply email
+3 send report</div>
+
+      <p>
+        Tuples compare element-by-element, so
+        <code>(priority, task)</code> sorts first by priority.
+        The list itself is just a list &mdash; you can iterate it,
+        check its length, copy it &mdash; but only push and pop
+        through the heap functions to maintain the invariant.
+      </p>
+
+      <h2>Heapifying an existing list</h2>
+
+      <p>
+        Got an existing list? Don't push items one at a time.
+        <code>heapify</code> rearranges in place in O(n).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">items</span> = [<span class="tok-n">3</span>, <span class="tok-n">1</span>, <span class="tok-n">4</span>, <span class="tok-n">1</span>, <span class="tok-n">5</span>, <span class="tok-n">9</span>, <span class="tok-n">2</span>, <span class="tok-n">6</span>]
+<span class="tok-n">heapq</span>.<span class="tok-f">heapify</span>(<span class="tok-n">items</span>)
+<span class="tok-c"># items is now a valid heap; smallest is items[0]</span></code></pre>
+
+      <h2>The killer functions: nlargest, nsmallest</h2>
+
+      <p>
+        For "what are the 10 slowest devices?" or "top 5 errors
+        by count?" &mdash; sorting the whole list is overkill.
+        <code>heapq.nlargest</code> uses a heap of size N
+        and runs in O(n log N).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Top 5 slowest probes from a million</span>
+<span class="tok-n">slowest</span> = <span class="tok-n">heapq</span>.<span class="tok-f">nlargest</span>(<span class="tok-n">5</span>, <span class="tok-n">probes</span>, <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">p</span>: <span class="tok-n">p</span>.<span class="tok-n">latency</span>)
+
+<span class="tok-c"># Three errors with the highest count</span>
+<span class="tok-n">top3</span> = <span class="tok-n">heapq</span>.<span class="tok-f">nlargest</span>(<span class="tok-n">3</span>, <span class="tok-n">counter</span>.<span class="tok-f">items</span>(), <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">kv</span>: <span class="tok-n">kv</span>[<span class="tok-n">1</span>])</code></pre>
+
+      <p>
+        For very small N relative to the data,
+        <code>nlargest</code> beats <code>sorted(...)[:N]</code>.
+        Around N == 10–20% of the data, plain
+        <code>sorted</code> is competitive. Don't optimize until
+        you've measured.
+      </p>
+
+      <h2>Merging sorted iterables</h2>
+
+      <p>
+        <code>merge</code> takes any number of sorted iterables
+        and yields a single sorted stream. Lazy &mdash; doesn't
+        materialize.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Merging three sorted log files chronologically</span>
+<span class="tok-k">def</span> <span class="tok-f">read_sorted</span>(<span class="tok-n">path</span>):
+    <span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-n">path</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+        <span class="tok-k">yield</span> <span class="tok-k">from</span> <span class="tok-n">f</span>
+
+<span class="tok-k">for</span> <span class="tok-n">line</span> <span class="tok-k">in</span> <span class="tok-n">heapq</span>.<span class="tok-f">merge</span>(
+    <span class="tok-f">read_sorted</span>(<span class="tok-s">"region-us.log"</span>),
+    <span class="tok-f">read_sorted</span>(<span class="tok-s">"region-eu.log"</span>),
+    <span class="tok-f">read_sorted</span>(<span class="tok-s">"region-ap.log"</span>),
+):
+    <span class="tok-f">process</span>(<span class="tok-n">line</span>)</code></pre>
+
+      <p>
+        Constant memory, regardless of file sizes. The classic
+        external-sort building block.
+      </p>
+
+      <h2>The tie-breaker pattern</h2>
+
+      <p>
+        If your priority queue holds objects without a natural
+        order and two priorities tie, the heap will compare the
+        objects themselves &mdash; and crash if they don't
+        support comparison. The fix: a counter as the tiebreaker.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">heapq</span>, <span class="tok-n">itertools</span>
+
+<span class="tok-n">counter</span> = <span class="tok-n">itertools</span>.<span class="tok-f">count</span>()
+<span class="tok-n">queue</span>   = []
+
+<span class="tok-k">def</span> <span class="tok-f">push</span>(<span class="tok-n">priority</span>, <span class="tok-n">job</span>):
+    <span class="tok-n">heapq</span>.<span class="tok-f">heappush</span>(<span class="tok-n">queue</span>, (<span class="tok-n">priority</span>, <span class="tok-f">next</span>(<span class="tok-n">counter</span>), <span class="tok-n">job</span>))
+
+<span class="tok-k">def</span> <span class="tok-f">pop</span>():
+    <span class="tok-n">priority</span>, <span class="tok-n">_</span>, <span class="tok-n">job</span> = <span class="tok-n">heapq</span>.<span class="tok-f">heappop</span>(<span class="tok-n">queue</span>)
+    <span class="tok-k">return</span> <span class="tok-n">job</span></code></pre>
+
+      <p>
+        The counter ensures each entry has a unique sort key,
+        and as a side effect, equal-priority items come out in
+        FIFO order &mdash; which is usually what you want anyway.
+      </p>
+
+      <div class="callout">
+        <p>
+          For a max-heap (largest on top), negate the priorities
+          on push and pop. Python's <code>heapq</code> is
+          deliberately min-only &mdash; the negation trick is
+          idiomatic and adds no overhead.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a script that does <code>sorted(items, key=...)[:N]</code>
+          for a small N over a large list. Replace it with
+          <code>heapq.nlargest(N, items, key=...)</code>. The
+          measured speedup grows with the size of the input.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-044-weakref.html">
+        <span class="label">← Previous</span>
+        <span class="title">weakref: caches that don't leak</span>
+      </a>
+      <a class="next" href="day-046-bisect.html">
+        <span class="label">Next →</span>
+        <span class="title">bisect: binary search on sorted lists</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

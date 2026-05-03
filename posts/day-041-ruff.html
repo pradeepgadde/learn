@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 041 · ruff: the linter that ate the ecosystem — Learn with Pradeep</title>
+  <meta name="description" content="ruff replaces flake8, isort, pyupgrade, autoflake, and most of pylint — running 10–100x faster. Plus a built-in formatter that's a black drop-in.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 041 &middot; Tooling &middot; Beginner</div>
+      <h1>ruff: the linter that ate the ecosystem</h1>
+      <p class="subtitle">
+        Replaces flake8, isort, pyupgrade, autoflake, and most of
+        pylint &mdash; running 10&ndash;100&times; faster.
+        Plus a formatter that's a black drop-in.
+      </p>
+      <div class="article-meta">
+        <span>10 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Any Python</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>ruff check</code> lints your code,
+        <code>ruff check --fix</code> auto-fixes what it can,
+        <code>ruff format</code> formats. Configure with a small
+        <code>[tool.ruff]</code> block in
+        <code>pyproject.toml</code>. Wire it into pre-commit
+        and CI for free safety.</p>
+      </div>
+
+      <p>
+        For ten years the Python tooling story was: install flake8,
+        isort, pyupgrade, black, autoflake, pylint &mdash; configure
+        each, hope they didn't fight each other, watch CI take 90
+        seconds to lint a small repo. ruff (Rust-based, from the
+        same team as <code>uv</code>) replaced all of them with one
+        binary that runs in 0.5 seconds.
+      </p>
+
+      <h2>Install and run</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install ruff
+<span class="tok-c"># Or, with uv (Day 019)</span>
+uv add --dev ruff
+
+<span class="tok-c"># Lint your code</span>
+ruff check .
+
+<span class="tok-c"># Lint and auto-fix what's safe</span>
+ruff check --fix .
+
+<span class="tok-c"># Format (black-compatible)</span>
+ruff format .</code></pre>
+
+      <p>
+        First run on a moderately-sized codebase usually takes a
+        couple of seconds. Subsequent runs are near-instant
+        because ruff caches.
+      </p>
+
+      <h2>Configuration in pyproject.toml</h2>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c"># pyproject.toml</span>
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+<span class="tok-c"># Pick rule sets by short prefix:
+#   E,W = pycodestyle
+#   F   = pyflakes
+#   I   = isort
+#   UP  = pyupgrade
+#   B   = bugbear (real bug catchers)
+#   SIM = flake8-simplify
+#   N   = pep8-naming</span>
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "N"]
+ignore = ["E501"]   <span class="tok-c"># line too long — formatter handles it</span>
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]   <span class="tok-c"># allow assert in tests</span></code></pre>
+
+      <p>
+        The configuration is genuinely small. Compare to
+        maintaining <code>.flake8</code>, <code>pyproject.toml</code>
+        for isort, <code>setup.cfg</code> for pyupgrade, etc.
+      </p>
+
+      <h2>The auto-fix is what changes your workflow</h2>
+
+      <p>
+        <code>ruff check --fix</code> handles unused imports,
+        wrong import order, deprecated syntax (<code>List[int]</code>
+        → <code>list[int]</code>), and dozens of other categories
+        without you doing anything. Run it once on an old codebase
+        and watch hundreds of small fixes apply cleanly.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>ruff check --fix --unsafe-fixes .
+<span class="tok-c"># --unsafe-fixes opts in to fixes that are mostly-safe but
+# could change behavior. Always review the diff afterwards.</span></code></pre>
+
+      <h2>The formatter</h2>
+
+      <p>
+        <code>ruff format</code> is a near-perfect re-implementation
+        of <code>black</code> in Rust. Same opinionated style, same
+        output (mostly). If you're already on black, the migration
+        is "delete black, install ruff." If you're on neither, just
+        start with ruff.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>ruff format .          <span class="tok-c"># reformat in place</span>
+ruff format --check .  <span class="tok-c"># CI mode: exit non-zero if anything would change</span></code></pre>
+
+      <h2>pre-commit integration</h2>
+
+      <p>
+        The right time to lint is before the commit lands. The
+        <a href="https://pre-commit.com/">pre-commit</a>
+        framework runs ruff (and other checks) on staged files
+        automatically.
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-c"># .pre-commit-config.yaml</span>
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format</code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install pre-commit
+pre-commit install
+<span class="tok-c"># Now every git commit runs ruff first</span></code></pre>
+
+      <h2>The rule prefixes worth knowing</h2>
+
+      <ul>
+        <li><strong>F</strong> &mdash; pyflakes: real correctness checks (unused imports, undefined names). Always on.</li>
+        <li><strong>E, W</strong> &mdash; pycodestyle: style. Mostly handled by the formatter, but some sub-rules still matter.</li>
+        <li><strong>I</strong> &mdash; isort: import sorting. Auto-fixable.</li>
+        <li><strong>UP</strong> &mdash; pyupgrade: rewrites old syntax to modern (<code>%</code>-format → f-string, <code>List[int]</code> → <code>list[int]</code>). Auto-fixable.</li>
+        <li><strong>B</strong> &mdash; bugbear: real bug catchers (mutable default args, raising bare exceptions). Worth its weight.</li>
+        <li><strong>SIM</strong> &mdash; simplify: suggests cleaner equivalents (<code>if x: return True; else: return False</code> → <code>return bool(x)</code>).</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          ruff covers about 800 rules at the time of writing &mdash;
+          including the entire pylint convention/refactor/warning
+          rule sets. For projects that historically used pylint
+          (which was always slower and configured differently),
+          ruff is a near-complete replacement now.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          On any project: <code>uv add --dev ruff</code>, drop the
+          config block above into <code>pyproject.toml</code>, run
+          <code>ruff check --fix . &amp;&amp; ruff format .</code>.
+          Review the diff. Commit. You've just paid down weeks of
+          accumulated style debt in two minutes.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-040-exception-groups.html">
+        <span class="label">← Previous</span>
+        <span class="title">Exception groups: many failures, one raise</span>
+      </a>
+      <a class="next" href="day-042-mypy.html">
+        <span class="label">Next →</span>
+        <span class="title">mypy: turn type hints into a real check</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 043 · __slots__: free memory savings — Learn with Pradeep</title>
+  <meta name="description" content="One class attribute can drop per-instance memory by 50%+. The cost is no dynamic attribute assignment. Worth it for any class instantiated millions of times.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 043 &middot; Syntax &middot; Intermediate</div>
+      <h1>__slots__: free memory savings</h1>
+      <p class="subtitle">
+        One class attribute drops per-instance memory by 50%+ on
+        small classes. The cost is no dynamic attribute assignment
+        &mdash; usually a feature, not a bug.
+      </p>
+      <div class="article-meta">
+        <span>12 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Add <code>__slots__ = ("a", "b", "c")</code> to a
+        class to fix its set of attributes. Per-instance memory
+        drops dramatically because Python skips the per-instance
+        <code>__dict__</code>. For dataclasses,
+        <code>@dataclass(slots=True)</code> does it for you.
+        Use only on classes instantiated in volume.</p>
+      </div>
+
+      <p>
+        By default, every Python instance has a <code>__dict__</code>
+        &mdash; a hash table for arbitrary attributes. Flexible,
+        but expensive: ~280 bytes per empty instance just for the
+        dict, before any data. For a class you instantiate
+        millions of times, that adds up to gigabytes.
+      </p>
+
+      <h2>The minimal change</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Before — each instance carries a __dict__</span>
+<span class="tok-k">class</span> <span class="tok-f">Point</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">x</span> = <span class="tok-n">x</span>
+        <span class="tok-n">self</span>.<span class="tok-n">y</span> = <span class="tok-n">y</span>
+
+<span class="tok-c"># After — fixed slots, no per-instance dict</span>
+<span class="tok-k">class</span> <span class="tok-f">Point</span>:
+    <span class="tok-n">__slots__</span> = (<span class="tok-s">"x"</span>, <span class="tok-s">"y"</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">x</span> = <span class="tok-n">x</span>
+        <span class="tok-n">self</span>.<span class="tok-n">y</span> = <span class="tok-n">y</span></code></pre>
+
+      <p>
+        The instance behaves identically &mdash;
+        <code>p.x</code> still works, you can still pass
+        instances around. The difference is invisible until you
+        measure memory.
+      </p>
+
+      <h2>Measuring the win</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">sys</span>
+
+<span class="tok-k">class</span> <span class="tok-f">FatPoint</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">x</span>, <span class="tok-n">self</span>.<span class="tok-n">y</span> = <span class="tok-n">x</span>, <span class="tok-n">y</span>
+
+<span class="tok-k">class</span> <span class="tok-f">SlimPoint</span>:
+    <span class="tok-n">__slots__</span> = (<span class="tok-s">"x"</span>, <span class="tok-s">"y"</span>)
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">x</span>, <span class="tok-n">self</span>.<span class="tok-n">y</span> = <span class="tok-n">x</span>, <span class="tok-n">y</span>
+
+<span class="tok-n">a</span>, <span class="tok-n">b</span> = <span class="tok-f">FatPoint</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>), <span class="tok-f">SlimPoint</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)
+<span class="tok-f">print</span>(<span class="tok-f">sys</span>.<span class="tok-f">getsizeof</span>(<span class="tok-n">a</span>) + <span class="tok-f">sys</span>.<span class="tok-f">getsizeof</span>(<span class="tok-n">a</span>.<span class="tok-n">__dict__</span>))   <span class="tok-c"># ~344 B</span>
+<span class="tok-f">print</span>(<span class="tok-f">sys</span>.<span class="tok-f">getsizeof</span>(<span class="tok-n">b</span>))                                 <span class="tok-c"># ~56 B</span></code></pre>
+
+      <p>
+        Roughly 6&times; smaller for a two-attribute object. For
+        a list of a million instances, that's the difference
+        between 350 MB and 60 MB.
+      </p>
+
+      <h2>The trade-off: no new attributes</h2>
+
+      <p>
+        With slots, you can only assign attributes that are
+        listed. Adding new ones at runtime fails. This is usually
+        what you want &mdash; typos become errors.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">p</span> = <span class="tok-f">SlimPoint</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)
+<span class="tok-n">p</span>.<span class="tok-n">z</span> = <span class="tok-n">3</span>
+<span class="tok-c"># AttributeError: 'SlimPoint' object has no attribute 'z'</span>
+
+<span class="tok-c"># Common typo bug, caught at the assignment line:</span>
+<span class="tok-n">p</span>.<span class="tok-n">xx</span> = <span class="tok-n">99</span>
+<span class="tok-c"># AttributeError: 'SlimPoint' object has no attribute 'xx'</span></code></pre>
+
+      <h2>For dataclasses, just pass <code>slots=True</code></h2>
+
+      <p>
+        Since 3.10, dataclasses (Day 007) take a
+        <code>slots=True</code> parameter that adds
+        <code>__slots__</code> automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>
+
+<span class="tok-o">@</span><span class="tok-f">dataclass</span>(<span class="tok-n">slots</span>=<span class="tok-k">True</span>, <span class="tok-n">frozen</span>=<span class="tok-k">True</span>)
+<span class="tok-k">class</span> <span class="tok-f">Coord</span>:
+    <span class="tok-n">lat</span>: <span class="tok-n">float</span>
+    <span class="tok-n">lon</span>: <span class="tok-n">float</span></code></pre>
+
+      <p>
+        For value objects you instantiate at scale &mdash; coordinates,
+        events, log records, packets &mdash; this is essentially
+        free memory savings.
+      </p>
+
+      <h2>Subclassing rules</h2>
+
+      <p>
+        Two subtleties to watch:
+      </p>
+
+      <ul>
+        <li>If a subclass needs additional attributes, declare them in <em>its</em> <code>__slots__</code> &mdash; not in the parent's.</li>
+        <li>If a subclass omits <code>__slots__</code>, it gets a <code>__dict__</code> back, defeating the purpose. Always declare in subclasses too (use an empty tuple <code>__slots__ = ()</code> if no new attributes).</li>
+      </ul>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">ColoredPoint</span>(<span class="tok-n">SlimPoint</span>):
+    <span class="tok-n">__slots__</span> = (<span class="tok-s">"color"</span>,)
+
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">x</span>, <span class="tok-n">y</span>, <span class="tok-n">color</span>):
+        <span class="tok-f">super</span>().<span class="tok-f">__init__</span>(<span class="tok-n">x</span>, <span class="tok-n">y</span>)
+        <span class="tok-n">self</span>.<span class="tok-n">color</span> = <span class="tok-n">color</span></code></pre>
+
+      <h2>When NOT to use slots</h2>
+
+      <p>
+        Skip <code>__slots__</code> for:
+      </p>
+
+      <ul>
+        <li><strong>Classes you instantiate a few times</strong> &mdash; the savings don't matter.</li>
+        <li><strong>Classes that benefit from dynamic attributes</strong> &mdash; mock objects, plugin registries, debugging helpers.</li>
+        <li><strong>Classes with multiple inheritance from non-slot classes</strong> &mdash; the rules get tricky and you usually lose the savings anyway.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          A second small benefit: attribute access on slotted
+          instances is slightly faster than dict-based access, on
+          the order of 20–30%. Rarely the reason to use slots,
+          but a nice side effect.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a class in your code that you instantiate at scale
+          (a record, a row, a coordinate). Add
+          <code>__slots__</code> matching its
+          <code>__init__</code> assignments &mdash; or, if it's a
+          dataclass, add <code>slots=True</code>. Measure with
+          <code>sys.getsizeof</code>. The number of MB you just
+          saved is real.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-042-mypy.html">
+        <span class="label">← Previous</span>
+        <span class="title">mypy: turn type hints into a real check</span>
+      </a>
+      <a class="next" href="day-044-weakref.html">
+        <span class="label">Next →</span>
+        <span class="title">weakref: caches that don't leak</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

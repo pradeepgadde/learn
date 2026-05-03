@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 035 · cProfile: find the slow line — Learn with Pradeep</title>
+  <meta name="description" content="cProfile is the standard library profiler. Pair it with snakeviz for a visual flame graph. Stop optimizing on hunches.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 035 &middot; Standard library &middot; Intermediate</div>
+      <h1>cProfile: find the slow line</h1>
+      <p class="subtitle">
+        Profile first, optimize second. <code>cProfile</code> is in
+        the standard library; <code>snakeviz</code> turns its output
+        into a flame graph you can actually read.
+      </p>
+      <div class="article-meta">
+        <span>04 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Run <code>python -m cProfile -o out.prof your_script.py</code>
+        to generate a profile. Visualize with
+        <code>snakeviz out.prof</code> for a browser-based flame
+        graph that makes hot paths obvious. For interactive code,
+        use <code>cProfile.Profile()</code> as a context manager.</p>
+      </div>
+
+      <p>
+        Donald Knuth's "premature optimization is the root of all
+        evil" gets quoted everywhere. The full quote ends with
+        "...we should not pass up our opportunities in that critical
+        3%." Profiling tells you where the 3% is. Without it, you
+        optimize on hunches and waste days speeding up code that
+        wasn't the bottleneck.
+      </p>
+
+      <h2>The simplest profile</h2>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Profile a whole script, dump to file</span>
+python -m cProfile -o slow.prof my_script.py
+
+<span class="tok-c"># Quick text summary, top 20 by cumulative time</span>
+python -m cProfile -s cumulative my_script.py | head -25</code></pre>
+
+      <p>
+        The text output is dense but readable. Columns:
+        <code>ncalls</code> (call count), <code>tottime</code>
+        (time in this function alone), <code>cumtime</code>
+        (time in this function plus everything it called),
+        <code>filename:lineno(function)</code>.
+      </p>
+
+      <h2>The visual: snakeviz</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install snakeviz
+snakeviz slow.prof
+<span class="tok-c"># Opens a browser tab with an interactive icicle/sunburst graph</span></code></pre>
+
+      <p>
+        snakeviz turns the profile into a clickable visualization.
+        Wide bars = a lot of cumulative time spent. The hot path
+        jumps out instantly. Click any function to zoom in and see
+        what <em>it</em> spent its time on.
+      </p>
+
+      <h2>Profiling a specific block</h2>
+
+      <p>
+        For long-running scripts where you only care about one
+        section, use <code>cProfile.Profile()</code> as a context
+        manager.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">cProfile</span>, <span class="tok-n">pstats</span>
+
+<span class="tok-k">with</span> <span class="tok-n">cProfile</span>.<span class="tok-f">Profile</span>() <span class="tok-k">as</span> <span class="tok-n">prof</span>:
+    <span class="tok-n">expensive_function</span>()
+
+<span class="tok-c"># Top 15 by cumulative time, written to disk for snakeviz</span>
+<span class="tok-n">stats</span> = <span class="tok-n">pstats</span>.<span class="tok-f">Stats</span>(<span class="tok-n">prof</span>)
+<span class="tok-n">stats</span>.<span class="tok-f">sort_stats</span>(<span class="tok-s">"cumulative"</span>).<span class="tok-f">print_stats</span>(<span class="tok-n">15</span>)
+<span class="tok-n">stats</span>.<span class="tok-f">dump_stats</span>(<span class="tok-s">"hot_block.prof"</span>)</code></pre>
+
+      <h2>Quick wall-clock measurements: <code>perf_counter</code></h2>
+
+      <p>
+        For one-off "is X faster than Y" questions, you don't need
+        a full profiler &mdash; <code>time.perf_counter</code> is the
+        right tool. It's monotonic and high-resolution.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">time</span> <span class="tok-k">import</span> <span class="tok-n">perf_counter</span>
+
+<span class="tok-n">t0</span> = <span class="tok-f">perf_counter</span>()
+<span class="tok-n">result</span> = <span class="tok-f">heavy_compute</span>(<span class="tok-n">data</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"took {<span class="tok-f">perf_counter</span>() - t0:.3f}s"</span>)</code></pre>
+
+      <p>
+        For micro-benchmarks (comparing two implementations of a
+        small function), use <code>timeit</code> &mdash; it runs the
+        snippet many times to average out noise.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>python -m timeit -s "items = list(range(1000))" "sum(items)"
+<span class="tok-c"># 100000 loops, best of 5: 4.21 usec per loop</span></code></pre>
+
+      <h2>For function-level granularity inside a hot path</h2>
+
+      <p>
+        cProfile measures at the function level. If your hot path is
+        a single function with a complex body and you want
+        <em>line-level</em> timings, install
+        <code>line-profiler</code> and decorate the function with
+        <code>@profile</code>.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install line-profiler
+kernprof -l -v my_script.py
+<span class="tok-c"># Per-line hits and per-line wall time for each @profile-decorated function</span></code></pre>
+
+      <h2>Memory, while we're here</h2>
+
+      <p>
+        Different problem, different tool. For peak memory and
+        allocation tracking, use <code>tracemalloc</code> from the
+        standard library, or <code>memray</code> (from Bloomberg)
+        for deep allocation profiles.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">tracemalloc</span>
+
+<span class="tok-n">tracemalloc</span>.<span class="tok-f">start</span>()
+<span class="tok-f">do_thing</span>()
+<span class="tok-n">snapshot</span> = <span class="tok-n">tracemalloc</span>.<span class="tok-f">take_snapshot</span>()
+<span class="tok-k">for</span> <span class="tok-n">stat</span> <span class="tok-k">in</span> <span class="tok-n">snapshot</span>.<span class="tok-f">statistics</span>(<span class="tok-s">"lineno"</span>)[:<span class="tok-n">10</span>]:
+    <span class="tok-f">print</span>(<span class="tok-n">stat</span>)</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <strong>Profiling overhead skews results.</strong>
+          <code>cProfile</code> adds non-trivial overhead for
+          functions that are called millions of times &mdash; a
+          tight inner loop will look slower than it really is. For
+          this case, sampling profilers like <code>py-spy</code>
+          (which can also attach to a running process) give more
+          accurate real-world numbers.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick the slowest script you have. Profile it with
+          <code>python -m cProfile -o p.prof script.py</code>.
+          Open <code>snakeviz p.prof</code>. Find the widest bar
+          that wasn't what you expected. That's where to optimize
+          first.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-034-structlog.html">
+        <span class="label">← Previous</span>
+        <span class="title">structlog for JSON logs you can grep</span>
+      </a>
+      <a class="next" href="day-036-csv.html">
+        <span class="label">Next →</span>
+        <span class="title">csv module: the gotchas they don't tell you</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

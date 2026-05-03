@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 057 · re: regex features past the basics — Learn with Pradeep</title>
+  <meta name="description" content="Named groups, verbose mode for readable patterns, re.compile with re.VERBOSE, lookahead and lookbehind. The features that turn regex from write-only to maintainable.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 057 &middot; Standard library &middot; Intermediate</div>
+      <h1>re: regex features past the basics</h1>
+      <p class="subtitle">
+        Named groups, verbose mode for readable patterns,
+        lookahead and lookbehind. The features that turn
+        regex from write-only to maintainable.
+      </p>
+      <div class="article-meta">
+        <span>26 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>(?P&lt;name&gt;...)</code> for named
+        groups. Use <code>re.VERBOSE</code> to write
+        commented, multi-line patterns.
+        <code>re.compile</code> once at module level for
+        anything you'll match repeatedly. For complex
+        text extraction, parse-don't-regex.</p>
+      </div>
+
+      <p>
+        Regex earns its reputation for being unreadable.
+        Three Python features turn most patterns into
+        something you can come back to a year later
+        without confusion.
+      </p>
+
+      <h2>Named groups</h2>
+
+      <p>
+        Numbered groups (<code>\1</code>,
+        <code>match.group(2)</code>) are fragile &mdash;
+        renumbering on edit is a real risk. Named
+        groups make the intent explicit.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">re</span>
+
+<span class="tok-n">pattern</span> = <span class="tok-n">re</span>.<span class="tok-f">compile</span>(<span class="tok-s">r"(?P&lt;ip&gt;\d+\.\d+\.\d+\.\d+) - - "</span>
+                     <span class="tok-s">r"\[(?P&lt;ts&gt;[^\]]+)\] "</span>
+                     <span class="tok-s">r'"(?P&lt;method&gt;\w+) (?P&lt;path&gt;\S+) HTTP/[\d.]+" '</span>
+                     <span class="tok-s">r'(?P&lt;status&gt;\d+) (?P&lt;size&gt;\d+)'</span>)
+
+<span class="tok-n">m</span> = <span class="tok-n">pattern</span>.<span class="tok-f">match</span>(<span class="tok-n">log_line</span>)
+<span class="tok-k">if</span> <span class="tok-n">m</span>:
+    <span class="tok-n">m</span>[<span class="tok-s">"ip"</span>], <span class="tok-n">m</span>[<span class="tok-s">"path"</span>], <span class="tok-n">m</span>[<span class="tok-s">"status"</span>]
+    <span class="tok-c"># Or m.groupdict() for the whole bundle as a dict</span></code></pre>
+
+      <p>
+        Reading the result line is much closer to
+        reading natural language. Adding a new group
+        in the middle doesn't break later references.
+      </p>
+
+      <h2>Verbose mode for readable patterns</h2>
+
+      <p>
+        With <code>re.VERBOSE</code>, whitespace inside
+        the pattern is ignored and <code>#</code> starts
+        a comment. Suddenly you can format a regex like
+        code.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">phone_re</span> = <span class="tok-n">re</span>.<span class="tok-f">compile</span>(<span class="tok-s">r"""
+    (?P&lt;country&gt;\+\d{1,3})?     # optional +CC country code
+    \s*
+    \(?(?P&lt;area&gt;\d{3})\)?        # area code, optionally parenthesised
+    [-.\s]*                       # any separator
+    (?P&lt;exchange&gt;\d{3})           # exchange
+    [-.\s]*
+    (?P&lt;line&gt;\d{4})              # line
+"""</span>, <span class="tok-n">re</span>.<span class="tok-n">VERBOSE</span>)</code></pre>
+
+      <p>
+        That's the same pattern that, packed into one
+        line, would be unreadable. The only catch: to
+        match a literal space or hash, escape them
+        (<code>\ </code>, <code>\#</code>) or use a
+        character class (<code>[ ]</code>, <code>[#]</code>).
+      </p>
+
+      <h2>Compile once, use many times</h2>
+
+      <p>
+        For patterns used in a loop or hot path, compile
+        them once at module level. Python caches recent
+        patterns internally, but explicit compilation
+        is faster and clearer about intent.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Module level — compiled once at import</span>
+<span class="tok-n">_LOG_RE</span> = <span class="tok-n">re</span>.<span class="tok-f">compile</span>(<span class="tok-s">r"^(?P&lt;level&gt;\w+):\s+(?P&lt;msg&gt;.*)$"</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">parse</span>(<span class="tok-n">line</span>):
+    <span class="tok-n">m</span> = <span class="tok-n">_LOG_RE</span>.<span class="tok-f">match</span>(<span class="tok-n">line</span>)
+    <span class="tok-k">return</span> <span class="tok-n">m</span>.<span class="tok-f">groupdict</span>() <span class="tok-k">if</span> <span class="tok-n">m</span> <span class="tok-k">else</span> <span class="tok-k">None</span></code></pre>
+
+      <h2>Lookahead and lookbehind</h2>
+
+      <p>
+        Match positions that have certain context, without
+        consuming the context.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># 'foo' but only when followed by '.bar' (don't capture .bar)</span>
+<span class="tok-n">re</span>.<span class="tok-f">findall</span>(<span class="tok-s">r"foo(?=\.bar)"</span>, <span class="tok-s">"foo.bar foo.baz"</span>)
+<span class="tok-c"># ['foo']</span>
+
+<span class="tok-c"># 'foo' but NOT when followed by '.bar'</span>
+<span class="tok-n">re</span>.<span class="tok-f">findall</span>(<span class="tok-s">r"foo(?!\.bar)"</span>, <span class="tok-s">"foo.bar foo.baz"</span>)
+<span class="tok-c"># ['foo'] (the second one)</span>
+
+<span class="tok-c"># 'bar' but only when preceded by 'foo.'</span>
+<span class="tok-n">re</span>.<span class="tok-f">findall</span>(<span class="tok-s">r"(?&lt;=foo\.)bar"</span>, <span class="tok-s">"foo.bar baz.bar"</span>)
+<span class="tok-c"># ['bar'] (the first one)</span></code></pre>
+
+      <p>
+        Useful for filtering matches by surrounding
+        context without including the context in the
+        result.
+      </p>
+
+      <h2>Substitution with backrefs and functions</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Backref by group number</span>
+<span class="tok-n">re</span>.<span class="tok-f">sub</span>(<span class="tok-s">r"(\w+)\.(\w+)"</span>, <span class="tok-s">r"\2.\1"</span>, <span class="tok-s">"a.b c.d"</span>)
+<span class="tok-c"># 'b.a d.c'</span>
+
+<span class="tok-c"># Backref by name</span>
+<span class="tok-n">re</span>.<span class="tok-f">sub</span>(<span class="tok-s">r"(?P&lt;first&gt;\w+) (?P&lt;last&gt;\w+)"</span>,
+       <span class="tok-s">r"\g&lt;last&gt;, \g&lt;first&gt;"</span>,
+       <span class="tok-s">"Pradeep Gadde"</span>)
+
+<span class="tok-c"># Or pass a function for full computation</span>
+<span class="tok-n">re</span>.<span class="tok-f">sub</span>(<span class="tok-s">r"\d+"</span>, <span class="tok-k">lambda</span> <span class="tok-n">m</span>: <span class="tok-f">str</span>(<span class="tok-f">int</span>(<span class="tok-n">m</span>[<span class="tok-n">0</span>]) <span class="tok-o">*</span> <span class="tok-n">2</span>), <span class="tok-s">"a 1 b 2 c 3"</span>)
+<span class="tok-c"># 'a 2 b 4 c 6'</span></code></pre>
+
+      <h2>The catastrophic-backtracking trap</h2>
+
+      <p>
+        Patterns with nested quantifiers
+        (<code>(a+)+</code>, <code>(.*)*</code>) can
+        explode on certain inputs &mdash; runtime grows
+        exponentially with input length. A common
+        production crash.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Looks innocent, can take seconds on a 30-char input</span>
+<span class="tok-n">re</span>.<span class="tok-f">match</span>(<span class="tok-s">r"(a+)+b"</span>, <span class="tok-s">"a"</span> <span class="tok-o">*</span> <span class="tok-n">30</span>)
+
+<span class="tok-c"># Better: avoid nesting quantifiers, or use a possessive/atomic
+# group. Python doesn't support possessive groups, so be careful with structure.</span>
+<span class="tok-n">re</span>.<span class="tok-f">match</span>(<span class="tok-s">r"a+b"</span>, <span class="tok-s">"a"</span> <span class="tok-o">*</span> <span class="tok-n">30</span>)   <span class="tok-c"># fast — single quantifier</span></code></pre>
+
+      <h2>When to skip regex</h2>
+
+      <p>
+        Regex is wrong for nested or recursive
+        structures &mdash; HTML, JSON, programming
+        languages, structured logs with embedded
+        objects. For those, use a real parser:
+        <code>html.parser</code>,
+        <code>json.loads</code>, dedicated libraries
+        for the format. Network output specifically:
+        TextFSM (Day 028) is purpose-built.
+      </p>
+
+      <div class="callout">
+        <p>
+          For interactive regex development, paste your
+          pattern into <a href="https://regex101.com/">regex101</a>
+          with the Python flavor selected. The visual
+          breakdown of how each token works has saved
+          countless hours of head-scratching.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a regex with two or more numbered groups
+          in your code. Convert to named groups. Use
+          <code>m.groupdict()</code> to pull the values
+          out by name. The next person to edit the
+          pattern (you in six months) will thank you.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-056-glob.html">
+        <span class="label">← Previous</span>
+        <span class="title">glob vs pathlib.glob: pick your matcher</span>
+      </a>
+      <a class="next" href="day-058-dataclasses-json.html">
+        <span class="label">Next →</span>
+        <span class="title">dataclasses + JSON: the round-trip</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

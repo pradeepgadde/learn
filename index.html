@@ -52,7 +52,7 @@
   <section class="posts-section">
     <div class="section-head">
       <h2>The collection</h2>
-      <span class="count" id="count-label">031 entries</span>
+      <span class="count" id="count-label">059 entries</span>
     </div>
 
     <!--
@@ -65,7 +65,427 @@
     -->
     <div class="posts" id="post-list">
 
-      <a class="post-card featured" href="posts/day-031-rich.html">
+      <a class="post-card featured" href="posts/day-059-pathlib-advanced.html">
+        <span class="day-no">Day 059 &middot; Standard library</span>
+        <h3>pathlib advanced: resolve, relative_to, walk</h3>
+        <p class="excerpt">
+          Beyond the basics — resolve absolute paths, escape symlinks, compute relative paths safely, and use Path.walk for tree iteration.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">filesystem</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-058-dataclasses-json.html">
+        <span class="day-no">Day 058 &middot; Standard library</span>
+        <h3>dataclasses + JSON: the round-trip</h3>
+        <p class="excerpt">
+          Three ways to round-trip dataclasses through JSON. Pick by how strict you need the validation.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">data</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-057-re.html">
+        <span class="day-no">Day 057 &middot; Standard library</span>
+        <h3>re: regex features past the basics</h3>
+        <p class="excerpt">
+          Named groups, verbose mode for readable patterns, lookahead and lookbehind. The features that turn regex from write-only to maintainable.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">text</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-056-glob.html">
+        <span class="day-no">Day 056 &middot; Standard library</span>
+        <h3>glob vs pathlib.glob: pick your matcher</h3>
+        <p class="excerpt">
+          Two glob APIs, three patterns. ** for recursion, the case-sensitivity gotcha, and when to skip glob entirely for os.scandir.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">filesystem</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-055-shutil.html">
+        <span class="day-no">Day 055 &middot; Standard library</span>
+        <h3>shutil: the file-operations toolbox</h3>
+        <p class="excerpt">
+          copy, move, rmtree, archive making, disk usage, terminal size — the swiss-army knife for file-system operations.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">filesystem</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-054-tempfile.html">
+        <span class="day-no">Day 054 &middot; Standard library</span>
+        <h3>tempfile: scratch space, done right</h3>
+        <p class="excerpt">
+          Files and directories that clean themselves up. Stop writing to /tmp/myfile.txt and forgetting to delete it.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">filesystem</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-053-secrets.html">
+        <span class="day-no">Day 053 &middot; Standard library</span>
+        <h3>secrets: not random, secure</h3>
+        <p class="excerpt">
+          random is for dice rolls. secrets is for tokens, passwords, and anything an attacker shouldn't be able to guess.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">security</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-052-hashlib-hmac.html">
+        <span class="day-no">Day 052 &middot; Standard library</span>
+        <h3>hashlib + hmac: hashing and signatures done right</h3>
+        <p class="excerpt">
+          hashlib for content fingerprints. hmac for verified signatures. compare_digest to defeat timing attacks.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">security</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-051-zoneinfo.html">
+        <span class="day-no">Day 051 &middot; Standard library</span>
+        <h3>zoneinfo: timezones in the stdlib (and pendulum)</h3>
+        <p class="excerpt">
+          IANA timezones in the standard library since 3.9. You can finally retire pytz. pendulum still wins for date arithmetic.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">datetime</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-050-typer.html">
+        <span class="day-no">Day 050 &middot; Third-party</span>
+        <h3>typer: argparse without the boilerplate</h3>
+        <p class="excerpt">
+          Type-annotated functions become rich CLIs. Sub-commands, validation, shell completion, colored help — all from the function signature.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">third-party</span>
+            <span class="tag">cli</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-049-functools.html">
+        <span class="day-no">Day 049 &middot; Standard library</span>
+        <h3>functools: partial, reduce, and friends</h3>
+        <p class="excerpt">
+          partial bakes in arguments. reduce folds a sequence. wraps preserves metadata on decorators. Three small tools that pay compound interest.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">patterns</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-048-itertools.html">
+        <span class="day-no">Day 048 &middot; Standard library</span>
+        <h3>itertools: chain, takewhile, groupby</h3>
+        <p class="excerpt">
+          Three itertools functions that earn their keep: chain to flatten, takewhile/dropwhile for streaming filters, groupby for run-length grouping.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">iterators</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-047-deque.html">
+        <span class="day-no">Day 047 &middot; Standard library</span>
+        <h3>deque: lists with fast left-side ops</h3>
+        <p class="excerpt">
+          O(1) appends and pops on both ends. A maxlen for bounded ring buffers. The right choice for queues and rolling windows.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">data-structures</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-046-bisect.html">
+        <span class="day-no">Day 046 &middot; Standard library</span>
+        <h3>bisect: binary search on sorted lists</h3>
+        <p class="excerpt">
+          insort keeps a list sorted as you add. bisect_left finds insertion points in O(log n). The right answer for keep-this-sorted patterns.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">algorithms</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-045-heapq.html">
+        <span class="day-no">Day 045 &middot; Standard library</span>
+        <h3>heapq: priority queues in the stdlib</h3>
+        <p class="excerpt">
+          Turn any list into a min-heap. nlargest and nsmallest find top-N in O(n log k) without sorting the whole list.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">algorithms</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-044-weakref.html">
+        <span class="day-no">Day 044 &middot; Standard library</span>
+        <h3>weakref: caches that don't leak</h3>
+        <p class="excerpt">
+          Reference an object without keeping it alive. WeakValueDictionary is the cache that auto-evicts as soon as the rest is done with the value.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">memory</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-043-slots.html">
+        <span class="day-no">Day 043 &middot; Syntax</span>
+        <h3>__slots__: free memory savings</h3>
+        <p class="excerpt">
+          One class attribute drops per-instance memory by 50%+ on small classes. The cost is no dynamic attribute assignment.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">syntax</span>
+            <span class="tag">memory</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-042-mypy.html">
+        <span class="day-no">Day 042 &middot; Tooling</span>
+        <h3>mypy: turn type hints into a real check</h3>
+        <p class="excerpt">
+          Type hints are documentation until a checker enforces them. mypy is the original. Adopt one module at a time.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">tooling</span>
+            <span class="tag">types</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-041-ruff.html">
+        <span class="day-no">Day 041 &middot; Tooling</span>
+        <h3>ruff: the linter that ate the ecosystem</h3>
+        <p class="excerpt">
+          Replaces flake8, isort, pyupgrade, autoflake, and most of pylint — running 10–100× faster. Plus a built-in formatter.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">tooling</span>
+            <span class="tag">linting</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-040-exception-groups.html">
+        <span class="day-no">Day 040 &middot; Syntax</span>
+        <h3>Exception groups: many failures, one raise</h3>
+        <p class="excerpt">
+          ExceptionGroup and except* let concurrent code raise multiple exceptions at once. The 3.11 feature that makes async error handling work.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">syntax</span>
+            <span class="tag">errors</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-039-asyncio-gather.html">
+        <span class="day-no">Day 039 &middot; Standard library</span>
+        <h3>asyncio.gather and the patterns that scale</h3>
+        <p class="excerpt">
+          gather is the fan-out, TaskGroup is the safer 3.11+ replacement, Semaphore caps concurrency. Three primitives you actually need.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">async</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-038-concurrent-futures.html">
+        <span class="day-no">Day 038 &middot; Standard library</span>
+        <h3>concurrent.futures: parallelism without the threads tax</h3>
+        <p class="excerpt">
+          ThreadPoolExecutor for I/O, ProcessPoolExecutor for CPU. The same map and submit API. The right starting point for parallel work.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">concurrency</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-037-sqlite.html">
+        <span class="day-no">Day 037 &middot; Standard library</span>
+        <h3>sqlite3: the database in your stdlib</h3>
+        <p class="excerpt">
+          SQLite ships with Python. It handles a million rows easily, supports JSON, and replaces a dozen flat-file caches.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">database</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-036-csv.html">
+        <span class="day-no">Day 036 &middot; Standard library</span>
+        <h3>csv module: the gotchas they don't tell you</h3>
+        <p class="excerpt">
+          The csv module gets the basics right but has three traps: newlines, dialects, and DictReader assumptions. Three lines of setup avoid all of them.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">data</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-035-cprofile.html">
+        <span class="day-no">Day 035 &middot; Standard library</span>
+        <h3>cProfile: find the slow line</h3>
+        <p class="excerpt">
+          Profile first, optimize second. cProfile is in the standard library; snakeviz turns its output into a flame graph you can read.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">performance</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-034-structlog.html">
+        <span class="day-no">Day 034 &middot; Third-party</span>
+        <h3>structlog for JSON logs you can grep</h3>
+        <p class="excerpt">
+          Logs as key-value events, not pre-formatted strings. Bind context once, ship JSON to Loki/ELK/Splunk.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">third-party</span>
+            <span class="tag">logging</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-033-tenacity.html">
+        <span class="day-no">Day 033 &middot; Third-party</span>
+        <h3>tenacity: retries done right</h3>
+        <p class="excerpt">
+          Exponential backoff, jitter, retry-on-exception filters, max attempts — all declarative, all in one decorator.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">third-party</span>
+            <span class="tag">patterns</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-032-pydantic.html">
+        <span class="day-no">Day 032 &middot; Third-party</span>
+        <h3>pydantic: config validation that pays off</h3>
+        <p class="excerpt">
+          Turn dicts into validated models with type coercion, defaults, and clear errors. The right tool for every place data enters your program.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">third-party</span>
+            <span class="tag">validation</span>
+          </div>
+          <span class="arrow" aria-hidden="true">↗</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-031-rich.html">
         <span class="day-no">Day 031 &middot; Third-party</span>
         <h3>rich: terminal output that doesn't suck</h3>
         <p class="excerpt">
@@ -81,25 +501,25 @@
       </a>
 
       <a class="post-card" href="posts/day-030-netconf.html">
-        <span class="day-no">Day 030 &middot; Third-party</span>
-        <h3>NETCONF with ncclient: configs as XML</h3>
+        <span class="day-no">Day 030 &middot; Networking</span>
+        <h3>NETCONF with ncclient: real config management</h3>
         <p class="excerpt">
-          Transactional, schema-validated config changes &mdash; no screen-scraping, no half-applied configs. The protocol the CLI should have been.
+          NETCONF is SSH-based, transactional, and structured. ncclient is the Python client. Use it for any device that supports it.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">networking</span>
-            <span class="tag">automation</span>
+            <span class="tag">config</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
       </a>
 
       <a class="post-card" href="posts/day-029-pyats-genie.html">
-        <span class="day-no">Day 029 &middot; Third-party</span>
-        <h3>pyATS &amp; Genie: structured network testing</h3>
+        <span class="day-no">Day 029 &middot; Networking</span>
+        <h3>pyATS + Genie: Cisco's automation gift</h3>
         <p class="excerpt">
-          A testbed YAML, parsers for thousands of <code>show</code> commands, and a real testing framework for the network itself.
+          pyATS connects, Genie parses. Together they turn 'show' command output into typed Python objects you can assert on.
         </p>
         <div class="meta">
           <div class="tags">
@@ -111,10 +531,10 @@
       </a>
 
       <a class="post-card" href="posts/day-028-textfsm.html">
-        <span class="day-no">Day 028 &middot; Third-party</span>
-        <h3>TextFSM: parse CLI output sanely</h3>
+        <span class="day-no">Day 028 &middot; Networking</span>
+        <h3>TextFSM: parse 'show' output without regex</h3>
         <p class="excerpt">
-          Stop writing brittle regex pipelines for <code>show</code> commands. Somebody else has already written most of the templates.
+          TextFSM templates are the network-engineer's parser. Built-in templates exist for hundreds of commands.
         </p>
         <div class="meta">
           <div class="tags">
@@ -126,10 +546,10 @@
       </a>
 
       <a class="post-card" href="posts/day-027-scapy.html">
-        <span class="day-no">Day 027 &middot; Third-party</span>
-        <h3>Scapy: build packets like Lego</h3>
+        <span class="day-no">Day 027 &middot; Networking</span>
+        <h3>Scapy: build packets from Python</h3>
         <p class="excerpt">
-          Stack protocol layers with the <code>/</code> operator, send them, capture replies. The most powerful four-line scripts you'll write all year.
+          Craft, send, sniff, and dissect packets in one library. Useful for testing, learning, and the occasional bit of mischief.
         </p>
         <div class="meta">
           <div class="tags">
@@ -142,14 +562,14 @@
 
       <a class="post-card" href="posts/day-026-jinja2.html">
         <span class="day-no">Day 026 &middot; Third-party</span>
-        <h3>Jinja2 for config templating</h3>
+        <h3>Jinja2 for config rendering</h3>
         <p class="excerpt">
-          Separate the config you want from the data that drives it. One template, any number of devices, fewer copy-paste sins.
+          Templated config files, one-liner integration. The standard tool for generating per-device configs from a data model.
         </p>
         <div class="meta">
           <div class="tags">
+            <span class="tag">third-party</span>
             <span class="tag">templating</span>
-            <span class="tag">automation</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -157,9 +577,9 @@
 
       <a class="post-card" href="posts/day-025-asyncssh.html">
         <span class="day-no">Day 025 &middot; Third-party</span>
-        <h3>asyncssh: poll 100 devices in parallel</h3>
+        <h3>asyncssh: SSH at fleet scale</h3>
         <p class="excerpt">
-          Paramiko, but on <code>asyncio</code>. Hundreds of SSH sessions on one thread, in roughly the time of one.
+          Connect to hundreds of devices concurrently with a single event loop. Where paramiko stops, asyncssh keeps going.
         </p>
         <div class="meta">
           <div class="tags">
@@ -171,10 +591,10 @@
       </a>
 
       <a class="post-card" href="posts/day-024-paramiko-netmiko.html">
-        <span class="day-no">Day 024 &middot; Third-party</span>
-        <h3>SSH to devices: paramiko vs netmiko</h3>
+        <span class="day-no">Day 024 &middot; Networking</span>
+        <h3>paramiko + netmiko: SSH the right way</h3>
         <p class="excerpt">
-          <code>paramiko</code> is the SSH library. <code>netmiko</code> is the network-device wrapper that knows about prompts and enable mode.
+          paramiko is the protocol. netmiko adds device-specific behaviors. Use netmiko first, drop to paramiko only when needed.
         </p>
         <div class="meta">
           <div class="tags">
@@ -187,9 +607,9 @@
 
       <a class="post-card" href="posts/day-023-socket.html">
         <span class="day-no">Day 023 &middot; Standard library</span>
-        <h3>socket: the bare metal of TCP</h3>
+        <h3>socket: when you need the raw protocol</h3>
         <p class="excerpt">
-          The foundation under every HTTP library. A TCP port check is six lines &mdash; and the day a library fails you, knowing sockets is what gets you out.
+          TCP, UDP, hostname resolution — all in the stdlib. Useful for protocol-level tools and one-off probes.
         </p>
         <div class="meta">
           <div class="tags">
@@ -202,9 +622,9 @@
 
       <a class="post-card" href="posts/day-022-ipaddress.html">
         <span class="day-no">Day 022 &middot; Standard library</span>
-        <h3>ipaddress: stop parsing IPs by hand</h3>
+        <h3>ipaddress: subnets without the math</h3>
         <p class="excerpt">
-          Subnet math, membership tests, and IPv4/IPv6 parity &mdash; all in the standard library. You should not be splitting strings on dots in 2026.
+          IPv4 and IPv6 networks as first-class Python objects. Membership tests, supernet/subnet operations, hostmasks — all built in.
         </p>
         <div class="meta">
           <div class="tags">
@@ -217,14 +637,14 @@
 
       <a class="post-card" href="posts/day-021-comprehensions.html">
         <span class="day-no">Day 021 &middot; Syntax</span>
-        <h3>Comprehensions you'll actually read later</h3>
+        <h3>Comprehensions: list, dict, set, gen</h3>
         <p class="excerpt">
-          Python's most-loved feature is also its most-abused. Three rules keep them on the right side of clever.
+          Four flavors, one syntax. The default tool for transforming collections. When to use them and when to prefer a loop.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">syntax</span>
-            <span class="tag">readability</span>
+            <span class="tag">patterns</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -232,14 +652,14 @@
 
       <a class="post-card" href="posts/day-020-generators.html">
         <span class="day-no">Day 020 &middot; Syntax</span>
-        <h3>Generators: lazy by default</h3>
+        <h3>Generators and yield: lazy by default</h3>
         <p class="excerpt">
-          Replace one keyword and your function streams instead of accumulating. The difference between OOM-ing on 10&nbsp;GB and processing it in 50&nbsp;MB.
+          Generators produce values one at a time, holding only one in memory. Essential for streaming, pipelines, and large data.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">syntax</span>
-            <span class="tag">memory</span>
+            <span class="tag">iterators</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -247,9 +667,9 @@
 
       <a class="post-card" href="posts/day-019-uv.html">
         <span class="day-no">Day 019 &middot; Tooling</span>
-        <h3>uv: pip and venv, but fast</h3>
+        <h3>uv: pip and venv replaced</h3>
         <p class="excerpt">
-          One Rust binary that replaces <code>pip</code>, <code>venv</code>, <code>pip-tools</code>, and <code>pyenv</code>. The packaging consolidation has finally happened.
+          uv is the Rust-based Python package manager. 10–100× faster than pip, with built-in lockfiles and project management.
         </p>
         <div class="meta">
           <div class="tags">
@@ -262,14 +682,14 @@
 
       <a class="post-card" href="posts/day-018-pytest.html">
         <span class="day-no">Day 018 &middot; Third-party</span>
-        <h3>pytest, the test you'll actually write</h3>
+        <h3>pytest: tests that don't get in your way</h3>
         <p class="excerpt">
-          Plain functions. Plain <code>assert</code>. Four built-in helpers cover almost everything else.
+          Plain functions become tests. Fixtures replace setUp boilerplate. Parametrize replaces three near-identical test methods.
         </p>
         <div class="meta">
           <div class="tags">
+            <span class="tag">third-party</span>
             <span class="tag">testing</span>
-            <span class="tag">pytest</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -277,14 +697,14 @@
 
       <a class="post-card" href="posts/day-017-requests.html">
         <span class="day-no">Day 017 &middot; Third-party</span>
-        <h3>HTTP with httpx, the requests killer</h3>
+        <h3>httpx: requests, but better</h3>
         <p class="excerpt">
-          Same API as <code>requests</code>, plus the things requests never grew up to support: async, HTTP/2, and a sane timeout default.
+          Drop-in for requests with HTTP/2, async support, and connection pools. The modern default for HTTP work.
         </p>
         <div class="meta">
           <div class="tags">
+            <span class="tag">third-party</span>
             <span class="tag">http</span>
-            <span class="tag">async</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -292,14 +712,14 @@
 
       <a class="post-card" href="posts/day-016-logging.html">
         <span class="day-no">Day 016 &middot; Standard library</span>
-        <h3>Logging that doesn't suck</h3>
+        <h3>logging: the boilerplate-free setup</h3>
         <p class="excerpt">
-          The docs lead with the hard part. The easy version is six lines and worth every minute.
+          Stop writing print(). Five lines of logging.basicConfig give you levels, formatting, and rotation for free.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">observability</span>
+            <span class="tag">logging</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -307,14 +727,14 @@
 
       <a class="post-card" href="posts/day-015-json-yaml.html">
         <span class="day-no">Day 015 &middot; Standard library</span>
-        <h3>JSON and YAML without the footguns</h3>
+        <h3>JSON and YAML: the data exchange basics</h3>
         <p class="excerpt">
-          Three short rules: pretty-print on write, validate on read, never use <code>yaml.load</code>.
+          json is in the stdlib, yaml needs PyYAML. Both have gotchas — encoding, ordering, and the duplicate-key surprise.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">config</span>
+            <span class="tag">data</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -322,9 +742,9 @@
 
       <a class="post-card" href="posts/day-014-argparse.html">
         <span class="day-no">Day 014 &middot; Standard library</span>
-        <h3>A real CLI in 12 lines of argparse</h3>
+        <h3>argparse: stdlib CLIs done right</h3>
         <p class="excerpt">
-          You don't need Click or Typer for a useful CLI. The standard library has been good enough since 2011.
+          Sub-commands, mutually-exclusive flags, and rich help — all from the standard library. Good enough for a lot of tools.
         </p>
         <div class="meta">
           <div class="tags">
@@ -337,29 +757,29 @@
 
       <a class="post-card" href="posts/day-013-subprocess.html">
         <span class="day-no">Day 013 &middot; Standard library</span>
-        <h3>subprocess.run, done right</h3>
+        <h3>subprocess.run: shelling out, safely</h3>
         <p class="excerpt">
-          Four flags turn <code>subprocess.run</code> from a footgun into a tool you'd actually want to use.
+          Pass args as a list, capture output, set timeouts, raise on error. The right way to call external commands in 2026.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">shell</span>
+            <span class="tag">system</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
       </a>
 
       <a class="post-card" href="posts/day-012-type-hints.html">
-        <span class="day-no">Day 012 &middot; Typing</span>
-        <h3>Type hints, the useful 20%</h3>
+        <span class="day-no">Day 012 &middot; Syntax</span>
+        <h3>Type hints: documentation that runs</h3>
         <p class="excerpt">
-          You don't need to type everything. You need to type the public edges &mdash; and use the four or five constructs that catch real bugs.
+          Annotate function signatures with types. Editors get smarter. Bugs get caught earlier. Adopt incrementally.
         </p>
         <div class="meta">
           <div class="tags">
-            <span class="tag">typing</span>
-            <span class="tag">3.10+</span>
+            <span class="tag">syntax</span>
+            <span class="tag">types</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -367,9 +787,9 @@
 
       <a class="post-card" href="posts/day-011-match.html">
         <span class="day-no">Day 011 &middot; Syntax</span>
-        <h3>match isn't switch</h3>
+        <h3>match: structural pattern matching</h3>
         <p class="excerpt">
-          Treat <code>match</code> as value-comparison and you'll be unimpressed. Treat it as <em>shape</em>-comparison and it replaces a chapter of code.
+          Python 3.10's match isn't switch — it destructures. Match dicts, lists, classes, and bind variables in one expression.
         </p>
         <div class="meta">
           <div class="tags">
@@ -382,14 +802,14 @@
 
       <a class="post-card" href="posts/day-010-contextmanager.html">
         <span class="day-no">Day 010 &middot; Standard library</span>
-        <h3>Custom with-blocks in 5 lines</h3>
+        <h3>contextlib.contextmanager: the @decorator that prints</h3>
         <p class="excerpt">
-          Decorate a generator with <code>@contextmanager</code>: setup before <code>yield</code>, cleanup after. That's the whole API.
+          Turn a generator into a context manager with one decorator. Cleaner than __enter__/__exit__ for one-off cases.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">contextlib</span>
+            <span class="tag">patterns</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -397,14 +817,14 @@
 
       <a class="post-card" href="posts/day-009-batched.html">
         <span class="day-no">Day 009 &middot; Standard library</span>
-        <h3>itertools.batched, finally</h3>
+        <h3>itertools.batched: chunks in 3.12</h3>
         <p class="excerpt">
-          The hand-rolled <code>chunked()</code> helper every codebase had for twenty years is now a built-in. Works on generators, not just sequences.
+          Split any iterable into N-size chunks. The 3.12 addition that ended a decade of recipe copy-pasting.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">3.12+</span>
+            <span class="tag">iterators</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -412,9 +832,9 @@
 
       <a class="post-card" href="posts/day-008-cache.html">
         <span class="day-no">Day 008 &middot; Standard library</span>
-        <h3>@cache: memoization in one line</h3>
+        <h3>@cache and @lru_cache: memoize anything</h3>
         <p class="excerpt">
-          One decorator turns a slow pure function into a fast one. The cache lives for the lifetime of the process.
+          Add one decorator to skip recomputation. Especially powerful for recursive functions and expensive lookups.
         </p>
         <div class="meta">
           <div class="tags">
@@ -427,14 +847,14 @@
 
       <a class="post-card" href="posts/day-007-dataclasses.html">
         <span class="day-no">Day 007 &middot; Standard library</span>
-        <h3>dataclasses, with kw_only</h3>
+        <h3>dataclasses: classes without the boilerplate</h3>
         <p class="excerpt">
-          One decorator replaces forty lines of class boilerplate. A handful of options turn it into a real configuration tool.
+          Auto-generated __init__, __repr__, __eq__. Type-annotated fields. The right default for value objects.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">classes</span>
+            <span class="tag">patterns</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -442,44 +862,42 @@
 
       <a class="post-card" href="posts/day-006-walrus.html">
         <span class="day-no">Day 006 &middot; Syntax</span>
-        <h3>The walrus that earns its keep</h3>
+        <h3>The walrus operator (:=)</h3>
         <p class="excerpt">
-          <code>:=</code> is divisive. Used in the right two or three places, it's a code-shrinking, intent-clarifying gem.
+          Assignment expressions let you bind a value while testing it. Best for while-read loops and comprehension conditions.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">syntax</span>
-            <span class="tag">3.8+</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
       </a>
 
       <a class="post-card" href="posts/day-005-enumerate.html">
-        <span class="day-no">Day 005 &middot; Built-ins</span>
-        <h3>enumerate, and the start= you forgot</h3>
+        <span class="day-no">Day 005 &middot; Syntax</span>
+        <h3>enumerate: loops with the index</h3>
         <p class="excerpt">
-          The most-loved built-in has a forgotten parameter that does exactly what you keep doing manually.
+          Stop writing for i in range(len(...)). enumerate gives you (index, value) pairs cleanly. start= for 1-based.
         </p>
         <div class="meta">
           <div class="tags">
-            <span class="tag">built-ins</span>
-            <span class="tag">loops</span>
+            <span class="tag">syntax</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
       </a>
 
       <a class="post-card" href="posts/day-004-dict-get.html">
-        <span class="day-no">Day 004 &middot; Built-ins</span>
-        <h3>dict.get and the missing-key dance</h3>
+        <span class="day-no">Day 004 &middot; Standard library</span>
+        <h3>dict.get and setdefault: defensive lookups</h3>
         <p class="excerpt">
-          Three tools, three different jobs. Knowing which to reach for is what separates clean code from a forest of <code>if key in d</code>.
+          get returns None (or your default) for missing keys. setdefault creates the entry on first access. Two patterns, many uses.
         </p>
         <div class="meta">
           <div class="tags">
-            <span class="tag">built-ins</span>
-            <span class="tag">dicts</span>
+            <span class="tag">stdlib</span>
+            <span class="tag">patterns</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -487,14 +905,14 @@
 
       <a class="post-card" href="posts/day-003-counter.html">
         <span class="day-no">Day 003 &middot; Standard library</span>
-        <h3>Counting anything with Counter</h3>
+        <h3>collections.Counter: bag-of-things in one line</h3>
         <p class="excerpt">
-          A dict that tallies, with a top-N method and arithmetic between counters. The cleanest tool in the standard library.
+          Counter counts. most_common ranks. Subtract finds differences. The standard library's hash-bag.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">collections</span>
+            <span class="tag">data-structures</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
@@ -502,29 +920,28 @@
 
       <a class="post-card" href="posts/day-002-pathlib.html">
         <span class="day-no">Day 002 &middot; Standard library</span>
-        <h3>Stop using os.path. Use pathlib.</h3>
+        <h3>pathlib: paths as objects</h3>
         <p class="excerpt">
-          Paths are objects, not strings. Once that clicks, half your file-handling code disappears.
+          Path / 'subdir' joins. read_text reads. .stem strips suffixes. The OO file path API that should have been default since day one.
         </p>
         <div class="meta">
           <div class="tags">
             <span class="tag">stdlib</span>
-            <span class="tag">files</span>
+            <span class="tag">filesystem</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
       </a>
 
       <a class="post-card" href="posts/day-001-f-strings.html">
-        <span class="day-no">Day 001 &middot; Strings</span>
-        <h3>The hidden grammar of f-strings</h3>
+        <span class="day-no">Day 001 &middot; Syntax</span>
+        <h3>f-strings: format with intent</h3>
         <p class="excerpt">
-          You've used <code>f"{name}"</code> a thousand times. The mini-language inside the braces is where the real power lives.
+          f-strings interpolate, format, and self-document with =. The default string formatting choice since 3.6.
         </p>
         <div class="meta">
           <div class="tags">
-            <span class="tag">strings</span>
-            <span class="tag">formatting</span>
+            <span class="tag">syntax</span>
           </div>
           <span class="arrow" aria-hidden="true">↗</span>
         </div>

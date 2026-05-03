@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 049 · functools: partial, reduce, and friends — Learn with Pradeep</title>
+  <meta name="description" content="partial bakes in arguments. reduce folds a sequence. wraps preserves metadata on decorators. Three small tools that pay back compound interest.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 049 &middot; Standard library &middot; Intermediate</div>
+      <h1>functools: partial, reduce, and friends</h1>
+      <p class="subtitle">
+        <code>partial</code> bakes in arguments. <code>reduce</code>
+        folds a sequence. <code>wraps</code> keeps decorators
+        honest. Three small tools that pay compound interest.
+      </p>
+      <div class="article-meta">
+        <span>18 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>partial(fn, *args, **kw)</code> returns a new
+        callable with some arguments pre-filled.
+        <code>reduce(fn, iterable, init)</code> applies a
+        binary function to fold a sequence into a single
+        value. <code>@wraps(fn)</code> keeps a decorator from
+        eating the name and docstring of the function it
+        wraps.</p>
+      </div>
+
+      <p>
+        We covered <code>functools.cache</code> on Day 008 &mdash;
+        the most-used member of the module. The next three
+        you'll reach for almost as often.
+      </p>
+
+      <h2>partial: bake in some arguments</h2>
+
+      <p>
+        Take a function with several parameters, lock in
+        some of them, and pass the simpler signature
+        elsewhere. Cleaner than a <code>lambda</code>, more
+        introspectable.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">partial</span>
+<span class="tok-k">import</span> <span class="tok-n">httpx</span>
+
+<span class="tok-c"># Build a one-arg fetcher pre-configured with timeout and headers</span>
+<span class="tok-n">fetch</span> = <span class="tok-f">partial</span>(<span class="tok-n">httpx</span>.<span class="tok-f">get</span>,
+                <span class="tok-n">timeout</span>=<span class="tok-n">5</span>,
+                <span class="tok-n">headers</span>={<span class="tok-s">"User-Agent"</span>: <span class="tok-s">"probe/1.0"</span>})
+
+<span class="tok-n">r</span> = <span class="tok-f">fetch</span>(<span class="tok-s">"https://example.com"</span>)</code></pre>
+
+      <p>
+        Particularly nice with <code>map</code>, callbacks,
+        and thread/process pools (Day 038) where you need a
+        callable that takes one argument:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">concurrent</span>.<span class="tok-n">futures</span> <span class="tok-k">import</span> <span class="tok-n">ThreadPoolExecutor</span>
+
+<span class="tok-k">def</span> <span class="tok-f">probe</span>(<span class="tok-n">host</span>, <span class="tok-n">port</span>, <span class="tok-n">timeout</span>=<span class="tok-n">3</span>): <span class="tok-c">...</span>
+
+<span class="tok-c"># Pre-fill port and timeout, fan out across hosts</span>
+<span class="tok-k">with</span> <span class="tok-f">ThreadPoolExecutor</span>() <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-n">results</span> = <span class="tok-n">ex</span>.<span class="tok-f">map</span>(<span class="tok-f">partial</span>(<span class="tok-n">probe</span>, <span class="tok-n">port</span>=<span class="tok-n">443</span>, <span class="tok-n">timeout</span>=<span class="tok-n">5</span>), <span class="tok-n">hosts</span>)</code></pre>
+
+      <h2>reduce: fold a sequence to a single value</h2>
+
+      <p>
+        Apply a two-argument function across a sequence,
+        accumulating. The "compose many things into one"
+        operation. Often replaceable by <code>sum</code>,
+        <code>min</code>, <code>max</code>, or
+        <code>any</code>/<code>all</code> &mdash; reach for
+        <code>reduce</code> only when none of those fit.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">reduce</span>
+<span class="tok-k">import</span> <span class="tok-n">operator</span>
+
+<span class="tok-c"># Multiply all numbers (no built-in for this until math.prod in 3.8)</span>
+<span class="tok-f">reduce</span>(<span class="tok-n">operator</span>.<span class="tok-n">mul</span>, [<span class="tok-n">2</span>, <span class="tok-n">3</span>, <span class="tok-n">4</span>])           <span class="tok-c"># 24</span>
+
+<span class="tok-c"># Merge a list of dicts (later wins)</span>
+<span class="tok-n">configs</span> = [{<span class="tok-s">"a"</span>: <span class="tok-n">1</span>}, {<span class="tok-s">"b"</span>: <span class="tok-n">2</span>}, {<span class="tok-s">"a"</span>: <span class="tok-n">99</span>}]
+<span class="tok-n">merged</span>  = <span class="tok-f">reduce</span>(<span class="tok-k">lambda</span> <span class="tok-n">acc</span>, <span class="tok-n">d</span>: {<span class="tok-o">**</span><span class="tok-n">acc</span>, <span class="tok-o">**</span><span class="tok-n">d</span>}, <span class="tok-n">configs</span>, {})
+
+<span class="tok-c"># Bitmask combine</span>
+<span class="tok-n">flags</span> = <span class="tok-f">reduce</span>(<span class="tok-n">operator</span>.<span class="tok-n">or_</span>, [<span class="tok-n">0b001</span>, <span class="tok-n">0b010</span>, <span class="tok-n">0b100</span>])    <span class="tok-c"># 0b111</span></code></pre>
+
+      <p>
+        The third argument is the initial value &mdash; pass it
+        explicitly to handle empty sequences without
+        crashing.
+      </p>
+
+      <h2>wraps: keep decorators honest</h2>
+
+      <p>
+        Without <code>@wraps</code>, every decorated function
+        loses its name and docstring &mdash; bad for debugging,
+        bad for help(), bad for any tool that introspects.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">wraps</span>
+<span class="tok-k">import</span> <span class="tok-n">time</span>
+
+<span class="tok-k">def</span> <span class="tok-f">timed</span>(<span class="tok-n">fn</span>):
+    <span class="tok-o">@</span><span class="tok-f">wraps</span>(<span class="tok-n">fn</span>)
+    <span class="tok-k">def</span> <span class="tok-f">inner</span>(<span class="tok-o">*</span><span class="tok-n">a</span>, <span class="tok-o">**</span><span class="tok-n">kw</span>):
+        <span class="tok-n">t0</span> = <span class="tok-n">time</span>.<span class="tok-f">perf_counter</span>()
+        <span class="tok-k">try</span>:
+            <span class="tok-k">return</span> <span class="tok-f">fn</span>(<span class="tok-o">*</span><span class="tok-n">a</span>, <span class="tok-o">**</span><span class="tok-n">kw</span>)
+        <span class="tok-k">finally</span>:
+            <span class="tok-f">print</span>(<span class="tok-s">f"{fn.__name__}: {(time.perf_counter() - t0) * 1000:.1f}ms"</span>)
+    <span class="tok-k">return</span> <span class="tok-n">inner</span>
+
+<span class="tok-o">@</span><span class="tok-n">timed</span>
+<span class="tok-k">def</span> <span class="tok-f">slow_thing</span>():
+    <span class="tok-s">"""Useful diagnostics tool."""</span>
+    <span class="tok-c">...</span>
+
+<span class="tok-n">slow_thing</span>.<span class="tok-n">__name__</span>      <span class="tok-c"># 'slow_thing' (with @wraps); 'inner' (without)</span>
+<span class="tok-n">slow_thing</span>.<span class="tok-n">__doc__</span>       <span class="tok-c"># 'Useful diagnostics tool.'</span></code></pre>
+
+      <p>
+        One line in the decorator definition, every decorated
+        function keeps its identity. There is no good reason
+        not to use it.
+      </p>
+
+      <h2>singledispatch: poor man's multimethods</h2>
+
+      <p>
+        For functions that should behave differently depending
+        on the type of the first argument &mdash; without writing
+        a class hierarchy.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">functools</span> <span class="tok-k">import</span> <span class="tok-n">singledispatch</span>
+
+<span class="tok-o">@</span><span class="tok-n">singledispatch</span>
+<span class="tok-k">def</span> <span class="tok-f">to_json</span>(<span class="tok-n">obj</span>):
+    <span class="tok-k">raise</span> <span class="tok-f">TypeError</span>(<span class="tok-n">obj</span>)
+
+<span class="tok-o">@</span><span class="tok-n">to_json</span>.<span class="tok-n">register</span>
+<span class="tok-k">def</span> <span class="tok-f">_</span>(<span class="tok-n">obj</span>: <span class="tok-n">datetime</span>): <span class="tok-k">return</span> <span class="tok-n">obj</span>.<span class="tok-f">isoformat</span>()
+
+<span class="tok-o">@</span><span class="tok-n">to_json</span>.<span class="tok-n">register</span>
+<span class="tok-k">def</span> <span class="tok-f">_</span>(<span class="tok-n">obj</span>: <span class="tok-n">Path</span>):     <span class="tok-k">return</span> <span class="tok-f">str</span>(<span class="tok-n">obj</span>)
+
+<span class="tok-o">@</span><span class="tok-n">to_json</span>.<span class="tok-n">register</span>
+<span class="tok-k">def</span> <span class="tok-f">_</span>(<span class="tok-n">obj</span>: <span class="tok-n">set</span>):      <span class="tok-k">return</span> <span class="tok-f">sorted</span>(<span class="tok-n">obj</span>)</code></pre>
+
+      <p>
+        Type-based dispatch in pure Python, no runtime
+        <code>isinstance</code> checks. Pairs nicely with the
+        JSON <code>default=</code> hook from Day 015.
+      </p>
+
+      <div class="callout">
+        <p>
+          A few honourable mentions: <code>functools.cmp_to_key</code>
+          for adapting old-style comparison functions to the
+          modern <code>key=</code> API; <code>cached_property</code>
+          for lazy attributes; <code>total_ordering</code> to
+          fill in comparison operators given just one or two.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a <code>lambda</code> in your codebase that
+          just pre-fills arguments to another function.
+          Replace with <code>partial</code>. Stack-traces and
+          repr output get nicer; behavior is identical.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-048-itertools.html">
+        <span class="label">← Previous</span>
+        <span class="title">itertools: chain, takewhile, groupby</span>
+      </a>
+      <a class="next" href="day-050-typer.html">
+        <span class="label">Next →</span>
+        <span class="title">typer: argparse without the boilerplate</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

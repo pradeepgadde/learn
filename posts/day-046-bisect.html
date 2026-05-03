@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 046 · bisect: binary search on sorted lists — Learn with Pradeep</title>
+  <meta name="description" content="bisect.insort keeps a list sorted as you add. bisect_left finds insertion points in O(log n). The right answer for keep-this-sorted patterns.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 046 &middot; Standard library &middot; Intermediate</div>
+      <h1>bisect: binary search on sorted lists</h1>
+      <p class="subtitle">
+        <code>insort</code> keeps a list sorted as you add.
+        <code>bisect_left</code> finds where something belongs in
+        O(log n). The textbook way to look up by range.
+      </p>
+      <div class="article-meta">
+        <span>15 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>bisect.insort(lst, x)</code> inserts
+        <code>x</code> into a sorted list, keeping it sorted.
+        <code>bisect_left(lst, x)</code> tells you the index
+        where it would go. Combined, they're the right
+        primitive for sorted-list maintenance, range queries,
+        and bucket lookups.</p>
+      </div>
+
+      <p>
+        Sorting a list is O(n log n). Maintaining a sorted list
+        as items arrive doesn't have to be &mdash;
+        <code>bisect.insort</code> finds the right position in
+        O(log n) and inserts. The list stays sorted at all
+        times.
+      </p>
+
+      <h2>Insertion that keeps order</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">bisect</span>
+
+<span class="tok-n">scores</span> = []
+<span class="tok-k">for</span> <span class="tok-n">s</span> <span class="tok-k">in</span> [<span class="tok-n">42</span>, <span class="tok-n">17</span>, <span class="tok-n">88</span>, <span class="tok-n">23</span>, <span class="tok-n">91</span>, <span class="tok-n">5</span>]:
+    <span class="tok-n">bisect</span>.<span class="tok-f">insort</span>(<span class="tok-n">scores</span>, <span class="tok-n">s</span>)
+
+<span class="tok-f">print</span>(<span class="tok-n">scores</span>)
+<span class="tok-c"># [5, 17, 23, 42, 88, 91]</span></code></pre>
+
+      <p>
+        Compare to <code>scores.append(s); scores.sort()</code>
+        on every insert &mdash; that's O(n log n) per insertion,
+        so O(n² log n) for n inserts. <code>insort</code> is
+        O(n) per insertion (the list shift dominates the
+        binary search), so O(n²) overall. Better, especially
+        when the list grows.
+      </p>
+
+      <h2>Range queries with bisect_left and bisect_right</h2>
+
+      <p>
+        Given a sorted list of timestamps, find all events
+        between two times. Two binary searches replace a full
+        scan.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">timestamps</span> = [<span class="tok-n">1700</span>, <span class="tok-n">1720</span>, <span class="tok-n">1730</span>, <span class="tok-n">1745</span>, <span class="tok-n">1800</span>, <span class="tok-n">1815</span>, <span class="tok-n">1900</span>]
+
+<span class="tok-n">lo</span> = <span class="tok-n">bisect</span>.<span class="tok-f">bisect_left</span>(<span class="tok-n">timestamps</span>,  <span class="tok-n">1730</span>)
+<span class="tok-n">hi</span> = <span class="tok-n">bisect</span>.<span class="tok-f">bisect_right</span>(<span class="tok-n">timestamps</span>, <span class="tok-n">1815</span>)
+
+<span class="tok-n">in_range</span> = <span class="tok-n">timestamps</span>[<span class="tok-n">lo</span>:<span class="tok-n">hi</span>]
+<span class="tok-c"># [1730, 1745, 1800, 1815]</span></code></pre>
+
+      <p>
+        The difference between the two: <code>bisect_left</code>
+        returns the leftmost position where <code>x</code>
+        could go (so for <code>1730</code>, it returns the
+        index <em>of</em> 1730). <code>bisect_right</code>
+        returns the rightmost (so for <code>1815</code>, it
+        returns the index <em>after</em> 1815). Together
+        they bracket the inclusive range cleanly.
+      </p>
+
+      <h2>The bucket-lookup pattern</h2>
+
+      <p>
+        Convert numeric grades to letter grades, latencies to
+        SLO buckets, packet sizes to histogram bins &mdash;
+        all the same shape: which interval does this value
+        fall into?
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">cutoffs</span> = [<span class="tok-n">60</span>, <span class="tok-n">70</span>, <span class="tok-n">80</span>, <span class="tok-n">90</span>]
+<span class="tok-n">grades</span>  = [<span class="tok-s">"F"</span>, <span class="tok-s">"D"</span>, <span class="tok-s">"C"</span>, <span class="tok-s">"B"</span>, <span class="tok-s">"A"</span>]
+
+<span class="tok-k">def</span> <span class="tok-f">grade</span>(<span class="tok-n">score</span>):
+    <span class="tok-k">return</span> <span class="tok-n">grades</span>[<span class="tok-n">bisect</span>.<span class="tok-f">bisect_right</span>(<span class="tok-n">cutoffs</span>, <span class="tok-n">score</span>)]
+
+<span class="tok-f">grade</span>(<span class="tok-n">85</span>)   <span class="tok-c"># 'B'</span>
+<span class="tok-f">grade</span>(<span class="tok-n">90</span>)   <span class="tok-c"># 'A'</span>
+<span class="tok-f">grade</span>(<span class="tok-n">59</span>)   <span class="tok-c"># 'F'</span></code></pre>
+
+      <p>
+        Three lines, no <code>if/elif/else</code> chain. Add a
+        new bucket by editing the cutoffs list.
+      </p>
+
+      <h2>Searching with a key (3.10+)</h2>
+
+      <p>
+        On Python 3.10, <code>bisect</code> learned a
+        <code>key=</code> parameter, matching the rest of the
+        sorting API. Sorted by some attribute? Search by it
+        too.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># sessions sorted by .start_time</span>
+<span class="tok-n">i</span> = <span class="tok-n">bisect</span>.<span class="tok-f">bisect_left</span>(
+    <span class="tok-n">sessions</span>,
+    <span class="tok-n">target_time</span>,
+    <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">s</span>: <span class="tok-n">s</span>.<span class="tok-n">start_time</span>,
+)</code></pre>
+
+      <h2>Membership in a sorted set: bisect vs set</h2>
+
+      <p>
+        For "is x in the collection?", a <code>set</code> is
+        O(1) and clearer. Use <code>bisect</code> when you
+        also need order &mdash; range queries, bucket
+        lookups, "what's the largest item ≤ x?".
+      </p>
+
+      <div class="callout">
+        <p>
+          For a more polished sorted-collection API, the
+          third-party <a href="https://grantjenks.com/docs/sortedcontainers/">sortedcontainers</a>
+          package gives you <code>SortedList</code>,
+          <code>SortedDict</code>, and <code>SortedSet</code>
+          with O(log n) inserts <em>and</em> deletes (no list
+          shift). Pure Python, faster than what you'd write
+          on top of <code>bisect</code> for big collections.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a place in your code where you do
+          <code>list.append(x); list.sort()</code> in a loop.
+          Replace with <code>bisect.insort(list, x)</code>.
+          Faster, clearer, and the list is always in a valid
+          sorted state &mdash; useful if anyone else reads it
+          mid-update.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-045-heapq.html">
+        <span class="label">← Previous</span>
+        <span class="title">heapq: priority queues in the stdlib</span>
+      </a>
+      <a class="next" href="day-047-deque.html">
+        <span class="label">Next →</span>
+        <span class="title">deque: lists with fast left-side ops</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

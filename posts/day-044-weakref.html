@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 044 · weakref: caches that don't leak — Learn with Pradeep</title>
+  <meta name="description" content="weakref lets you reference an object without keeping it alive. WeakValueDictionary is the cache that auto-evicts as soon as nothing else holds the value.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 044 &middot; Standard library &middot; Advanced</div>
+      <h1>weakref: caches that don't leak</h1>
+      <p class="subtitle">
+        Reference an object without keeping it alive.
+        <code>WeakValueDictionary</code> is the cache that
+        auto-evicts as soon as the rest of the program is done
+        with the value.
+      </p>
+      <div class="article-meta">
+        <span>13 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>A <code>weakref</code> doesn't count toward the garbage
+        collector's reference count, so the referenced object
+        can still be freed. <code>WeakValueDictionary</code> is
+        a dict whose entries vanish when nothing else holds the
+        value. The right cache when you want "remember this if
+        we still need it, otherwise forget it."</p>
+      </div>
+
+      <p>
+        <code>functools.cache</code> (Day 008) keeps every value
+        forever &mdash; great until the cache eats your memory.
+        Weak references give you a different shape: cache hits
+        are fast, but as soon as the rest of the program drops
+        its reference to a value, the cache lets it go too.
+      </p>
+
+      <h2>The basic primitive</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">weakref</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Connection</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">host</span> = <span class="tok-n">host</span>
+
+<span class="tok-n">conn</span> = <span class="tok-f">Connection</span>(<span class="tok-s">"sw-01"</span>)
+<span class="tok-n">ref</span>  = <span class="tok-n">weakref</span>.<span class="tok-f">ref</span>(<span class="tok-n">conn</span>)
+
+<span class="tok-n">ref</span>()       <span class="tok-c"># &lt;Connection 'sw-01'&gt; — call to dereference</span>
+<span class="tok-k">del</span> <span class="tok-n">conn</span>
+<span class="tok-n">ref</span>()       <span class="tok-c"># None — referent was freed</span></code></pre>
+
+      <p>
+        Two things to internalize: weakrefs are <em>callable</em>
+        (call them to get the object), and they return
+        <code>None</code> once the referent is gone. Always
+        check before using.
+      </p>
+
+      <h2>WeakValueDictionary: the auto-evicting cache</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">weakref</span>
+
+<span class="tok-n">cache</span> = <span class="tok-n">weakref</span>.<span class="tok-f">WeakValueDictionary</span>()
+
+<span class="tok-k">def</span> <span class="tok-f">get_device</span>(<span class="tok-n">name</span>):
+    <span class="tok-k">if</span> <span class="tok-n">name</span> <span class="tok-k">in</span> <span class="tok-n">cache</span>:
+        <span class="tok-k">return</span> <span class="tok-n">cache</span>[<span class="tok-n">name</span>]
+    <span class="tok-n">d</span> = <span class="tok-f">load_device_from_disk</span>(<span class="tok-n">name</span>)
+    <span class="tok-n">cache</span>[<span class="tok-n">name</span>] = <span class="tok-n">d</span>
+    <span class="tok-k">return</span> <span class="tok-n">d</span>
+
+<span class="tok-c"># If nothing else holds 'sw-01', the cache entry is silently dropped.
+# If something does hold it, subsequent get_device calls return the same object.</span></code></pre>
+
+      <p>
+        This is the deduplication pattern: same name, same
+        instance &mdash; for as long as anyone is using it. As
+        soon as the rest of the program is done, memory comes
+        back. Compare to <code>@cache</code>, which would hold
+        every device ever loaded for the entire process lifetime.
+      </p>
+
+      <h2>WeakSet for "membership without ownership"</h2>
+
+      <p>
+        Useful for observer/subscriber patterns &mdash; the set
+        knows who's listening, but doesn't keep them alive on
+        its own.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">EventBus</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">_subscribers</span> = <span class="tok-n">weakref</span>.<span class="tok-f">WeakSet</span>()
+
+    <span class="tok-k">def</span> <span class="tok-f">subscribe</span>(<span class="tok-n">self</span>, <span class="tok-n">handler</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">_subscribers</span>.<span class="tok-f">add</span>(<span class="tok-n">handler</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">emit</span>(<span class="tok-n">self</span>, <span class="tok-n">event</span>):
+        <span class="tok-k">for</span> <span class="tok-n">h</span> <span class="tok-k">in</span> <span class="tok-n">self</span>.<span class="tok-n">_subscribers</span>:
+            <span class="tok-n">h</span>(<span class="tok-n">event</span>)
+<span class="tok-c"># Subscribers that go out of scope are removed automatically — no
+# memory leak from forgetting to unsubscribe.</span></code></pre>
+
+      <h2>Cleanup callbacks: <code>weakref.finalize</code></h2>
+
+      <p>
+        Run a function when an object is about to be collected.
+        Useful for closing external resources you can't tie to a
+        normal context manager.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">SessionPool</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">handle</span> = <span class="tok-f">open_native_pool</span>()
+        <span class="tok-n">weakref</span>.<span class="tok-f">finalize</span>(<span class="tok-n">self</span>, <span class="tok-n">close_native_pool</span>, <span class="tok-n">self</span>.<span class="tok-n">handle</span>)
+<span class="tok-c"># When the SessionPool instance is collected, close_native_pool(handle)
+# runs automatically — even if the program forgot to close it.</span></code></pre>
+
+      <p>
+        Note the second argument: don't reference
+        <code>self</code> from the callback (that creates a
+        cycle). Pass the resource handle directly.
+      </p>
+
+      <h2>What can be weakly referenced</h2>
+
+      <p>
+        Most user-defined classes, yes. Built-in types like
+        <code>int</code>, <code>str</code>, <code>list</code>,
+        <code>tuple</code>, <code>dict</code>, no &mdash; you'll
+        get <code>TypeError: cannot create weak reference</code>.
+        If you need weakrefs to a built-in, wrap it in a class.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          Weakrefs feel magical at first &mdash; "I want a
+          reference that doesn't count" &mdash; but they're
+          rarely the right answer. The two situations where
+          they shine: deduplication caches where you want to
+          share instances without keeping them alive, and
+          observer patterns where forgetting to unsubscribe is
+          a known leak source. Outside those, prefer explicit
+          ownership.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          If you have a class that you instantiate by some
+          natural key (filename, hostname, ID) and want
+          identity to be preserved, swap your dict for a
+          <code>WeakValueDictionary</code>. Watch your
+          process RSS stop growing without bound.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-043-slots.html">
+        <span class="label">← Previous</span>
+        <span class="title">__slots__: free memory savings</span>
+      </a>
+      <a class="next" href="day-045-heapq.html">
+        <span class="label">Next →</span>
+        <span class="title">heapq: priority queues in the stdlib</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 055 · shutil: the file-operations toolbox — Learn with Pradeep</title>
+  <meta name="description" content="copy, move, rmtree, archive making, disk usage, terminal size — shutil is the swiss-army knife for file-system operations beyond what pathlib covers.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 055 &middot; Standard library &middot; Beginner</div>
+      <h1>shutil: the file-operations toolbox</h1>
+      <p class="subtitle">
+        copy, move, <code>rmtree</code>, archive making,
+        disk usage, terminal size &mdash; the swiss-army
+        knife for file-system operations.
+      </p>
+      <div class="article-meta">
+        <span>24 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>shutil.copy</code> copies a single file,
+        <code>copytree</code> recurses,
+        <code>rmtree</code> deletes a tree,
+        <code>move</code> renames or copies-then-deletes
+        as needed. Plus archive helpers
+        (<code>make_archive</code>) and a few system
+        introspection tools (<code>which</code>,
+        <code>disk_usage</code>,
+        <code>get_terminal_size</code>).</p>
+      </div>
+
+      <p>
+        <code>pathlib</code> (Day 002) handles single-file
+        operations beautifully but stops short of
+        recursive tree work. That's where
+        <code>shutil</code> comes in &mdash; the
+        operations everyone needs but nobody wants to
+        write by hand.
+      </p>
+
+      <h2>Copy and move</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">shutil</span>
+
+<span class="tok-c"># Copy one file (preserves metadata: timestamps, permissions)</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">copy2</span>(<span class="tok-s">"src.cfg"</span>, <span class="tok-s">"backup/src.cfg"</span>)
+
+<span class="tok-c"># Recursively copy a tree</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">copytree</span>(<span class="tok-s">"templates/"</span>, <span class="tok-s">"build/templates/"</span>)
+
+<span class="tok-c"># Move/rename — works across filesystems (copies if rename can't)</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">move</span>(<span class="tok-s">"old/"</span>, <span class="tok-s">"archive/2026/"</span>)</code></pre>
+
+      <p>
+        <code>copy</code>, <code>copy2</code>,
+        <code>copyfile</code>, <code>copytree</code> &mdash;
+        the differences:
+      </p>
+
+      <ul>
+        <li><strong><code>copyfile</code></strong> &mdash; copies bytes only, no metadata.</li>
+        <li><strong><code>copy</code></strong> &mdash; copies bytes plus permissions.</li>
+        <li><strong><code>copy2</code></strong> &mdash; copies everything <code>copy</code> does plus timestamps. Closest to <code>cp -p</code>. Use this by default.</li>
+        <li><strong><code>copytree</code></strong> &mdash; recursive directory copy. Uses <code>copy2</code> per file by default.</li>
+      </ul>
+
+      <h2>rmtree: the recursive delete</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Delete a tree, ignoring "doesn't exist" errors</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">rmtree</span>(<span class="tok-s">"build/"</span>, <span class="tok-n">ignore_errors</span>=<span class="tok-k">True</span>)</code></pre>
+
+      <p>
+        The dangerous one. There is no undo. Type the path
+        twice in your head before you type it once in your
+        editor.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># For removing read-only files on Windows you may need an onerror handler:</span>
+<span class="tok-k">def</span> <span class="tok-f">on_remove_error</span>(<span class="tok-n">func</span>, <span class="tok-n">path</span>, <span class="tok-n">exc</span>):
+    <span class="tok-n">os</span>.<span class="tok-f">chmod</span>(<span class="tok-n">path</span>, <span class="tok-n">stat</span>.<span class="tok-n">S_IWRITE</span>)
+    <span class="tok-f">func</span>(<span class="tok-n">path</span>)
+
+<span class="tok-n">shutil</span>.<span class="tok-f">rmtree</span>(<span class="tok-s">"protected/"</span>, <span class="tok-n">onerror</span>=<span class="tok-n">on_remove_error</span>)</code></pre>
+
+      <h2>Archives: make and unpack</h2>
+
+      <p>
+        Need a tarball or zip? Don't shell out, don't import
+        <code>tarfile</code> for the common cases.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Create build/release.tar.gz from the build/ directory</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">make_archive</span>(<span class="tok-s">"release"</span>, <span class="tok-s">"gztar"</span>, <span class="tok-n">root_dir</span>=<span class="tok-s">"build"</span>)
+<span class="tok-c"># Output: release.tar.gz in cwd</span>
+
+<span class="tok-c"># Other formats: 'zip', 'tar', 'bztar', 'xztar'</span>
+
+<span class="tok-c"># Unpack any supported format — auto-detects from extension</span>
+<span class="tok-n">shutil</span>.<span class="tok-f">unpack_archive</span>(<span class="tok-s">"release.tar.gz"</span>, <span class="tok-s">"extracted/"</span>)</code></pre>
+
+      <h2>Finding executables: <code>which</code></h2>
+
+      <p>
+        Like the shell command. Useful when your script
+        needs to verify a tool is available before
+        invoking <code>subprocess.run</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">if</span> <span class="tok-n">shutil</span>.<span class="tok-f">which</span>(<span class="tok-s">"git"</span>) <span class="tok-k">is</span> <span class="tok-k">None</span>:
+    <span class="tok-n">sys</span>.<span class="tok-f">exit</span>(<span class="tok-s">"git is required but not installed"</span>)
+
+<span class="tok-c"># Returns the full path: '/usr/bin/git' or None</span></code></pre>
+
+      <h2>Disk usage and terminal size</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Disk space at any path — total, used, free in bytes</span>
+<span class="tok-n">total</span>, <span class="tok-n">used</span>, <span class="tok-n">free</span> = <span class="tok-n">shutil</span>.<span class="tok-f">disk_usage</span>(<span class="tok-s">"/"</span>)
+<span class="tok-f">print</span>(<span class="tok-s">f"{free / 2**30:.1f} GB free"</span>)
+
+<span class="tok-c"># Terminal width and height — for fitting CLI output</span>
+<span class="tok-n">cols</span>, <span class="tok-n">rows</span> = <span class="tok-n">shutil</span>.<span class="tok-f">get_terminal_size</span>()</code></pre>
+
+      <p>
+        Both honor environment variables (<code>COLUMNS</code>,
+        <code>LINES</code>) and degrade gracefully when
+        running without a TTY (CI, pipes).
+      </p>
+
+      <h2>Streaming copy with progress</h2>
+
+      <p>
+        For very large files where you want a progress
+        indicator, use <code>copyfileobj</code> with
+        chunked reads.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">copy_with_progress</span>(<span class="tok-n">src</span>, <span class="tok-n">dst</span>, <span class="tok-n">callback</span>):
+    <span class="tok-n">total</span> = <span class="tok-n">os</span>.<span class="tok-f">stat</span>(<span class="tok-n">src</span>).<span class="tok-n">st_size</span>
+    <span class="tok-n">copied</span> = <span class="tok-n">0</span>
+    <span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-n">src</span>, <span class="tok-s">"rb"</span>) <span class="tok-k">as</span> <span class="tok-n">s</span>, <span class="tok-f">open</span>(<span class="tok-n">dst</span>, <span class="tok-s">"wb"</span>) <span class="tok-k">as</span> <span class="tok-n">d</span>:
+        <span class="tok-k">while</span> <span class="tok-n">chunk</span> := <span class="tok-n">s</span>.<span class="tok-f">read</span>(<span class="tok-n">1024</span> <span class="tok-o">*</span> <span class="tok-n">1024</span>):
+            <span class="tok-n">d</span>.<span class="tok-f">write</span>(<span class="tok-n">chunk</span>)
+            <span class="tok-n">copied</span> += <span class="tok-f">len</span>(<span class="tok-n">chunk</span>)
+            <span class="tok-f">callback</span>(<span class="tok-n">copied</span>, <span class="tok-n">total</span>)</code></pre>
+
+      <p>
+        Pair with <code>rich.progress</code> from Day 031
+        for a slick progress bar over big copies.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>Permissions caveat:</strong> on macOS,
+          <code>shutil.copytree</code> doesn't preserve
+          extended attributes by default. For
+          system-restore use cases (where ACLs and
+          xattrs matter), use <code>cp -a</code> via
+          subprocess, or the <code>copy_function</code>
+          parameter to plug in your own.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Replace any <code>os.system("cp -r ...")</code>
+          or <code>subprocess.run(["cp", "-r", ...])</code>
+          calls in your scripts with
+          <code>shutil.copytree</code>. Cross-platform
+          for free, no shell quoting bugs, no PATH
+          surprises.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-054-tempfile.html">
+        <span class="label">← Previous</span>
+        <span class="title">tempfile: scratch space, done right</span>
+      </a>
+      <a class="next" href="day-056-glob.html">
+        <span class="label">Next →</span>
+        <span class="title">glob vs pathlib.glob: pick your matcher</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

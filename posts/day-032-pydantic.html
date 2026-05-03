@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 032 · pydantic: config validation that pays off — Learn with Pradeep</title>
+  <meta name="description" content="pydantic turns dicts into validated models. Type coercion, default values, and clear error messages — the right tool for any boundary where data enters your program.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 032 &middot; Third-party &middot; Intermediate</div>
+      <h1>pydantic: config validation that pays off</h1>
+      <p class="subtitle">
+        Turn dicts into validated models with type coercion, defaults,
+        and clear errors. The right tool for every place data enters
+        your program.
+      </p>
+      <div class="article-meta">
+        <span>01 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Subclass <code>BaseModel</code>, declare fields with type
+        annotations, and pydantic validates on construction. Use
+        <code>BaseSettings</code> for config that pulls from env vars.
+        Use <code>Field(...)</code> for constraints. Validation
+        errors come pre-formatted and pinpoint exactly which field
+        is wrong.</p>
+      </div>
+
+      <p>
+        Dataclasses (Day 007) hold data; pydantic <em>validates</em>
+        it. Anywhere data enters your program from outside &mdash;
+        config files, API responses, env vars, request bodies &mdash;
+        pydantic catches malformed input at the boundary instead of
+        letting it propagate as a confusing crash three layers in.
+      </p>
+
+      <h2>The minimal model</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>
+
+<span class="tok-k">class</span> <span class="tok-f">DeviceConfig</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">port</span>:     <span class="tok-n">int</span> = <span class="tok-n">22</span>
+    <span class="tok-n">vlans</span>:    <span class="tok-n">list</span>[<span class="tok-n">int</span>] = []
+
+<span class="tok-n">cfg</span> = <span class="tok-f">DeviceConfig</span>(<span class="tok-n">hostname</span>=<span class="tok-s">"sw-01"</span>, <span class="tok-n">port</span>=<span class="tok-s">"2222"</span>, <span class="tok-n">vlans</span>=[<span class="tok-s">"10"</span>, <span class="tok-s">"20"</span>])
+<span class="tok-f">print</span>(<span class="tok-n">cfg</span>.<span class="tok-n">port</span>)    <span class="tok-c"># 2222 (int — coerced from str)</span>
+<span class="tok-f">print</span>(<span class="tok-n">cfg</span>.<span class="tok-n">vlans</span>)   <span class="tok-c"># [10, 20] (each str coerced to int)</span></code></pre>
+
+      <p>
+        The <code>"2222"</code> string became an <code>int</code>
+        automatically. So did each VLAN. Pydantic v2 is strict by
+        default about types but accepts safe coercions. Pass
+        <code>strict=True</code> per-field if you want to disable
+        even safe coercions.
+      </p>
+
+      <h2>Validation errors that point at the problem</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">ValidationError</span>
+
+<span class="tok-k">try</span>:
+    <span class="tok-f">DeviceConfig</span>(<span class="tok-n">hostname</span>=<span class="tok-s">"sw-01"</span>, <span class="tok-n">port</span>=<span class="tok-s">"http"</span>, <span class="tok-n">vlans</span>=<span class="tok-s">"all"</span>)
+<span class="tok-k">except</span> <span class="tok-n">ValidationError</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+    <span class="tok-f">print</span>(<span class="tok-n">e</span>)</code></pre>
+
+      <div class="output">2 validation errors for DeviceConfig
+port
+  Input should be a valid integer, unable to parse string as an integer
+  [type=int_parsing, input_value='http']
+vlans
+  Input should be a valid list [type=list_type, input_value='all']</div>
+
+      <p>
+        Both problems caught in one pass, both pointing at the exact
+        field and value. Compare to the typical "<code>TypeError: int()
+        argument must be...</code>" with no field name.
+      </p>
+
+      <h2>Constraints with <code>Field</code></h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">Field</span>, <span class="tok-n">IPvAnyAddress</span>
+
+<span class="tok-k">class</span> <span class="tok-f">RetryConfig</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">max_attempts</span>: <span class="tok-n">int</span>   = <span class="tok-f">Field</span>(<span class="tok-n">default</span>=<span class="tok-n">3</span>, <span class="tok-n">ge</span>=<span class="tok-n">1</span>, <span class="tok-n">le</span>=<span class="tok-n">10</span>)
+    <span class="tok-n">backoff</span>:      <span class="tok-n">float</span> = <span class="tok-f">Field</span>(<span class="tok-n">default</span>=<span class="tok-n">0.5</span>, <span class="tok-n">gt</span>=<span class="tok-n">0</span>)
+    <span class="tok-n">target</span>:       <span class="tok-n">IPvAnyAddress</span></code></pre>
+
+      <p>
+        <code>ge</code>/<code>le</code>/<code>gt</code>/<code>lt</code>
+        for numeric ranges, <code>min_length</code>/<code>max_length</code>
+        for collections, <code>pattern</code> for regex on strings.
+        Built-in types like <code>IPvAnyAddress</code>,
+        <code>EmailStr</code>, <code>HttpUrl</code>,
+        <code>SecretStr</code> validate semantically.
+      </p>
+
+      <h2>Settings from env vars</h2>
+
+      <p>
+        For config that comes from environment variables &mdash; the
+        12-factor app pattern &mdash; pydantic-settings (a separate
+        package since v2) reads them automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic_settings</span> <span class="tok-k">import</span> <span class="tok-n">BaseSettings</span>, <span class="tok-n">SettingsConfigDict</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Settings</span>(<span class="tok-n">BaseSettings</span>):
+    <span class="tok-n">model_config</span> = <span class="tok-f">SettingsConfigDict</span>(<span class="tok-n">env_prefix</span>=<span class="tok-s">"APP_"</span>, <span class="tok-n">env_file</span>=<span class="tok-s">".env"</span>)
+
+    <span class="tok-n">db_url</span>:      <span class="tok-n">str</span>
+    <span class="tok-n">debug</span>:       <span class="tok-n">bool</span> = <span class="tok-k">False</span>
+    <span class="tok-n">workers</span>:     <span class="tok-n">int</span>  = <span class="tok-n">4</span>
+
+<span class="tok-c"># Reads APP_DB_URL, APP_DEBUG, APP_WORKERS from env or .env</span>
+<span class="tok-n">settings</span> = <span class="tok-f">Settings</span>()</code></pre>
+
+      <p>
+        Booleans accept <code>"true"</code>, <code>"1"</code>,
+        <code>"yes"</code>, <code>"on"</code> (case-insensitive) for
+        true. Lists accept JSON-encoded strings or comma-separated
+        values depending on configuration. The fallback chain is
+        explicit and predictable.
+      </p>
+
+      <h2>Loading from JSON or dicts</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">json</span>
+
+<span class="tok-c"># From dict</span>
+<span class="tok-n">cfg</span> = <span class="tok-n">DeviceConfig</span>.<span class="tok-f">model_validate</span>({<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"port"</span>: <span class="tok-n">22</span>})
+
+<span class="tok-c"># Directly from a JSON string</span>
+<span class="tok-n">cfg</span> = <span class="tok-n">DeviceConfig</span>.<span class="tok-f">model_validate_json</span>(<span class="tok-s">'{"hostname":"sw-01"}'</span>)
+
+<span class="tok-c"># Round-trip back to JSON or dict</span>
+<span class="tok-n">cfg</span>.<span class="tok-f">model_dump_json</span>(<span class="tok-n">indent</span>=<span class="tok-n">2</span>)
+<span class="tok-n">cfg</span>.<span class="tok-f">model_dump</span>()    <span class="tok-c"># dict</span></code></pre>
+
+      <div class="callout">
+        <p>
+          Pydantic v2 (released 2023) is dramatically faster than v1
+          &mdash; the core is now in Rust. Method names changed too
+          (<code>parse_obj</code> → <code>model_validate</code>,
+          <code>dict()</code> → <code>model_dump()</code>). If you're
+          starting fresh, use v2. If you're on v1, don't migrate
+          unless you need the speed.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a JSON or YAML config file your scripts read today.
+          Define a <code>BaseModel</code> for it. Replace the manual
+          <code>config["foo"]</code> lookups with attribute access on
+          the model. The first time pydantic catches a typo in a
+          coworker's config edit before deploy, you'll send me a
+          thank-you note.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-031-rich.html">
+        <span class="label">← Previous</span>
+        <span class="title">rich: terminal output that doesn't suck</span>
+      </a>
+      <a class="next" href="day-033-tenacity.html">
+        <span class="label">Next →</span>
+        <span class="title">tenacity: retries done right</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

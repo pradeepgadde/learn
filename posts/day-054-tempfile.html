@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 054 · tempfile: scratch space, done right — Learn with Pradeep</title>
+  <meta name="description" content="tempfile gives you scratch files and directories that clean themselves up. NamedTemporaryFile and TemporaryDirectory are the patterns to know.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 054 &middot; Standard library &middot; Beginner</div>
+      <h1>tempfile: scratch space, done right</h1>
+      <p class="subtitle">
+        Files and directories that clean themselves up. Stop
+        writing to <code>/tmp/myfile.txt</code> and forgetting
+        to delete it.
+      </p>
+      <div class="article-meta">
+        <span>23 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>tempfile.TemporaryDirectory()</code> as
+        a context manager for a scratch directory that
+        deletes on exit. Use
+        <code>tempfile.NamedTemporaryFile()</code> for a
+        single scratch file with a real path. Both are
+        race-free, both clean up even on exceptions.</p>
+      </div>
+
+      <p>
+        Hand-rolled scratch files leak. The script crashes,
+        nobody deletes <code>/tmp/output_42.json</code>, and
+        a year later the disk is full of forgotten artifacts.
+        The <code>tempfile</code> module solves this with
+        context managers that always clean up.
+      </p>
+
+      <h2>Scratch directories</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">tempfile</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-k">with</span> <span class="tok-n">tempfile</span>.<span class="tok-f">TemporaryDirectory</span>() <span class="tok-k">as</span> <span class="tok-n">tmp</span>:
+    <span class="tok-n">workspace</span> = <span class="tok-f">Path</span>(<span class="tok-n">tmp</span>)
+    (<span class="tok-n">workspace</span> / <span class="tok-s">"input.json"</span>).<span class="tok-f">write_text</span>(<span class="tok-n">payload</span>)
+    <span class="tok-f">subprocess</span>.<span class="tok-f">run</span>([<span class="tok-s">"some-tool"</span>, <span class="tok-n">workspace</span> / <span class="tok-s">"input.json"</span>])
+    <span class="tok-c"># do whatever — files go in `workspace`</span>
+<span class="tok-c"># Directory and everything in it is gone here, even if we crashed.</span></code></pre>
+
+      <p>
+        That's the whole pattern. The directory exists for
+        the duration of the <code>with</code> block; it's
+        recursively deleted on exit, even on exception.
+      </p>
+
+      <h2>Single scratch files</h2>
+
+      <p>
+        For one file you'll hand off to another tool, use
+        <code>NamedTemporaryFile</code>. The
+        <code>name</code> attribute is the real path on
+        disk.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-n">tempfile</span>.<span class="tok-f">NamedTemporaryFile</span>(<span class="tok-n">mode</span>=<span class="tok-s">"w"</span>, <span class="tok-n">suffix</span>=<span class="tok-s">".json"</span>, <span class="tok-n">delete</span>=<span class="tok-k">True</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">json</span>.<span class="tok-f">dump</span>(<span class="tok-n">payload</span>, <span class="tok-n">f</span>)
+    <span class="tok-n">f</span>.<span class="tok-f">flush</span>()                    <span class="tok-c"># important — let other tools see the bytes</span>
+    <span class="tok-n">subprocess</span>.<span class="tok-f">run</span>([<span class="tok-s">"jq"</span>, <span class="tok-s">"."</span>, <span class="tok-n">f</span>.<span class="tok-n">name</span>])
+<span class="tok-c"># File is deleted here.</span></code></pre>
+
+      <p>
+        Two gotchas worth flagging:
+      </p>
+
+      <ul>
+        <li><strong>On Windows</strong>, the file can't be opened by another process while <code>NamedTemporaryFile</code> still has it open. Pass <code>delete=False</code>, close it explicitly, then have the other tool read it. (As of Python 3.12, <code>delete_on_close=False</code> handles this cleanly.)</li>
+        <li><strong>Always <code>flush()</code></strong> before another process reads the file &mdash; the bytes might still be sitting in Python's buffer.</li>
+      </ul>
+
+      <h2>Just a path, no auto-open</h2>
+
+      <p>
+        Sometimes you want a unique temp filename without
+        actually creating it &mdash; for instance, to pass
+        as an output argument to another tool that
+        creates the file itself.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Generate a unique path; create + clean up yourself</span>
+<span class="tok-n">tmp_path</span> = <span class="tok-f">Path</span>(<span class="tok-n">tempfile</span>.<span class="tok-f">mkdtemp</span>()) / <span class="tok-s">"output.bin"</span>
+<span class="tok-k">try</span>:
+    <span class="tok-f">subprocess</span>.<span class="tok-f">run</span>([<span class="tok-s">"some-tool"</span>, <span class="tok-s">"--out"</span>, <span class="tok-n">tmp_path</span>])
+    <span class="tok-c"># now read tmp_path</span>
+<span class="tok-k">finally</span>:
+    <span class="tok-n">shutil</span>.<span class="tok-f">rmtree</span>(<span class="tok-n">tmp_path</span>.<span class="tok-n">parent</span>)</code></pre>
+
+      <p>
+        Wrapping with <code>try/finally</code> is the
+        manual version of what
+        <code>TemporaryDirectory</code> gives you for free
+        &mdash; prefer the context manager when it works.
+      </p>
+
+      <h2>Atomic writes: the related pattern</h2>
+
+      <p>
+        For "replace this file atomically" &mdash; write to
+        a temp file in the same directory, then rename
+        on top. This is the only way to avoid partial
+        files if the program crashes mid-write.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">os</span>, <span class="tok-n">tempfile</span>
+<span class="tok-k">from</span> <span class="tok-n">pathlib</span> <span class="tok-k">import</span> <span class="tok-n">Path</span>
+
+<span class="tok-k">def</span> <span class="tok-f">atomic_write</span>(<span class="tok-n">target</span>: <span class="tok-n">Path</span>, <span class="tok-n">data</span>: <span class="tok-n">str</span>):
+    <span class="tok-c"># Same dir as target so rename is atomic (cross-FS rename can fail)</span>
+    <span class="tok-n">fd</span>, <span class="tok-n">tmp</span> = <span class="tok-n">tempfile</span>.<span class="tok-f">mkstemp</span>(<span class="tok-n">dir</span>=<span class="tok-n">target</span>.<span class="tok-n">parent</span>)
+    <span class="tok-k">try</span>:
+        <span class="tok-k">with</span> <span class="tok-n">os</span>.<span class="tok-f">fdopen</span>(<span class="tok-n">fd</span>, <span class="tok-s">"w"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+            <span class="tok-n">f</span>.<span class="tok-f">write</span>(<span class="tok-n">data</span>)
+        <span class="tok-n">os</span>.<span class="tok-f">replace</span>(<span class="tok-n">tmp</span>, <span class="tok-n">target</span>)            <span class="tok-c"># atomic on POSIX and Windows</span>
+    <span class="tok-k">except</span> <span class="tok-n">Exception</span>:
+        <span class="tok-n">os</span>.<span class="tok-f">unlink</span>(<span class="tok-n">tmp</span>)
+        <span class="tok-k">raise</span></code></pre>
+
+      <p>
+        Readers either see the old content or the new content
+        &mdash; never half a file. Crucial for config files
+        and any data file that another process might be
+        watching.
+      </p>
+
+      <div class="callout">
+        <p>
+          By default, temp files go in <code>/tmp</code> on
+          Linux, <code>%TEMP%</code> on Windows. Override
+          the location for big scratch data with
+          <code>dir="/data/scratch"</code> on any of
+          these calls &mdash; sometimes <code>/tmp</code>
+          is small or in-memory (tmpfs).
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a script that does
+          <code>open("/tmp/something", "w")</code> directly.
+          Convert to
+          <code>NamedTemporaryFile</code> or
+          <code>TemporaryDirectory</code>. The cleanup
+          becomes guaranteed; the filename becomes unique;
+          you stop conflicting with parallel runs.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-053-secrets.html">
+        <span class="label">← Previous</span>
+        <span class="title">secrets: not random, secure</span>
+      </a>
+      <a class="next" href="day-055-shutil.html">
+        <span class="label">Next →</span>
+        <span class="title">shutil: the file-operations toolbox</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

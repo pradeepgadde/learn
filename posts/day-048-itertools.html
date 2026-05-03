@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 048 · itertools: chain, takewhile, groupby — Learn with Pradeep</title>
+  <meta name="description" content="Three itertools functions that earn their keep: chain to flatten, takewhile/dropwhile for streaming filters, groupby for run-length grouping.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 048 &middot; Standard library &middot; Intermediate</div>
+      <h1>itertools: chain, takewhile, groupby</h1>
+      <p class="subtitle">
+        Three itertools functions that earn their keep:
+        <code>chain</code> to flatten, <code>takewhile</code> for
+        streaming filters, <code>groupby</code> for
+        consecutive-run grouping.
+      </p>
+      <div class="article-meta">
+        <span>17 Feb 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>chain(*iterables)</code> stitches sequences
+        together lazily. <code>takewhile(pred, it)</code> stops
+        at the first false. <code>groupby(it, key)</code>
+        groups consecutive items with the same key &mdash;
+        sort first if you want SQL-style grouping.</p>
+      </div>
+
+      <p>
+        <code>itertools</code> has 20+ functions; most are
+        niche. Three of them come up over and over and replace
+        loops with one-liners that read better.
+      </p>
+
+      <h2>chain: flatten without copying</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">chain</span>
+
+<span class="tok-n">errors</span>   = [<span class="tok-s">"timeout"</span>, <span class="tok-s">"refused"</span>]
+<span class="tok-n">warnings</span> = [<span class="tok-s">"slow"</span>]
+<span class="tok-n">notes</span>    = [<span class="tok-s">"first run"</span>, <span class="tok-s">"new device"</span>]
+
+<span class="tok-k">for</span> <span class="tok-n">item</span> <span class="tok-k">in</span> <span class="tok-f">chain</span>(<span class="tok-n">errors</span>, <span class="tok-n">warnings</span>, <span class="tok-n">notes</span>):
+    <span class="tok-f">process</span>(<span class="tok-n">item</span>)</code></pre>
+
+      <p>
+        Lazy. No new list created, just iteration that flows
+        from one input to the next. For nested-list
+        flattening (one level deep), use
+        <code>chain.from_iterable</code>:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">batches</span> = [[<span class="tok-n">1</span>, <span class="tok-n">2</span>], [<span class="tok-n">3</span>], [<span class="tok-n">4</span>, <span class="tok-n">5</span>, <span class="tok-n">6</span>]]
+<span class="tok-f">list</span>(<span class="tok-n">chain</span>.<span class="tok-f">from_iterable</span>(<span class="tok-n">batches</span>))
+<span class="tok-c"># [1, 2, 3, 4, 5, 6]</span></code></pre>
+
+      <h2>takewhile / dropwhile: streaming prefixes</h2>
+
+      <p>
+        Stop iterating at the first item that fails a
+        predicate &mdash; useful for sorted streams where
+        once the condition fails, it stays failed.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">takewhile</span>, <span class="tok-n">dropwhile</span>
+
+<span class="tok-c"># sorted (newest first) log lines, take all the recent ones</span>
+<span class="tok-n">recent</span> = <span class="tok-f">takewhile</span>(<span class="tok-k">lambda</span> <span class="tok-n">l</span>: <span class="tok-n">l</span>.<span class="tok-n">timestamp</span> &gt; <span class="tok-n">cutoff</span>, <span class="tok-n">log_iter</span>)
+
+<span class="tok-c"># skip blank lines at the start of a file</span>
+<span class="tok-n">non_blank_start</span> = <span class="tok-f">dropwhile</span>(<span class="tok-k">lambda</span> <span class="tok-n">l</span>: <span class="tok-k">not</span> <span class="tok-n">l</span>.<span class="tok-f">strip</span>(), <span class="tok-n">f</span>)</code></pre>
+
+      <p>
+        Compare to <code>filter</code> which checks every
+        item. <code>takewhile</code> stops as soon as the
+        predicate is false &mdash; never reads more than it
+        needs. For a 10 GB log file, that's the difference
+        between done-in-a-second and minutes.
+      </p>
+
+      <h2>groupby: consecutive runs only</h2>
+
+      <p>
+        The biggest <code>groupby</code> trap: it groups
+        <em>consecutive</em> equal items, not all equal items.
+        Sort first if you want SQL <code>GROUP BY</code>
+        semantics.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">groupby</span>
+
+<span class="tok-n">events</span> = [
+    {<span class="tok-s">"host"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"level"</span>: <span class="tok-s">"info"</span>},
+    {<span class="tok-s">"host"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"level"</span>: <span class="tok-s">"info"</span>},
+    {<span class="tok-s">"host"</span>: <span class="tok-s">"sw-02"</span>, <span class="tok-s">"level"</span>: <span class="tok-s">"warn"</span>},
+    {<span class="tok-s">"host"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"level"</span>: <span class="tok-s">"info"</span>},   <span class="tok-c"># reappears!</span>
+]
+
+<span class="tok-c"># groupby alone gets it WRONG — splits 'sw-01' into two groups</span>
+<span class="tok-k">for</span> <span class="tok-n">host</span>, <span class="tok-n">items</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">events</span>, <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">e</span>: <span class="tok-n">e</span>[<span class="tok-s">"host"</span>]):
+    <span class="tok-f">print</span>(<span class="tok-n">host</span>, <span class="tok-f">list</span>(<span class="tok-n">items</span>))
+
+<span class="tok-c"># Sort first for SQL-style grouping</span>
+<span class="tok-n">events</span>.<span class="tok-f">sort</span>(<span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">e</span>: <span class="tok-n">e</span>[<span class="tok-s">"host"</span>])
+<span class="tok-k">for</span> <span class="tok-n">host</span>, <span class="tok-n">items</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">events</span>, <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">e</span>: <span class="tok-n">e</span>[<span class="tok-s">"host"</span>]):
+    <span class="tok-f">print</span>(<span class="tok-n">host</span>, <span class="tok-f">list</span>(<span class="tok-n">items</span>))</code></pre>
+
+      <p>
+        Where consecutive-grouping shines: log files where
+        repeated lines collapse, run-length encoding,
+        detecting change points in time series &mdash; any
+        case where you want to compress runs of equal
+        values.
+      </p>
+
+      <h2>Run-length encoding in two lines</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">data</span> = <span class="tok-s">"AAAABBBCCDAA"</span>
+<span class="tok-n">rle</span>  = [(<span class="tok-n">char</span>, <span class="tok-f">sum</span>(<span class="tok-n">1</span> <span class="tok-k">for</span> <span class="tok-n">_</span> <span class="tok-k">in</span> <span class="tok-n">grp</span>)) <span class="tok-k">for</span> <span class="tok-n">char</span>, <span class="tok-n">grp</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">data</span>)]
+<span class="tok-c"># [('A', 4), ('B', 3), ('C', 2), ('D', 1), ('A', 2)]</span></code></pre>
+
+      <p>
+        The trailing <code>('A', 2)</code> is the point: same
+        character, but a separate run because B/C/D came in
+        between.
+      </p>
+
+      <h2>The groupby gotcha: groups are iterators</h2>
+
+      <p>
+        Each <code>items</code> from <code>groupby</code> is a
+        <em>fresh iterator</em> that's only valid until the
+        outer loop advances. Materialize it (with
+        <code>list()</code>) if you need to iterate twice
+        or store it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># BAD: by the time we do anything with grp later, it's exhausted</span>
+<span class="tok-n">collected</span> = {<span class="tok-n">k</span>: <span class="tok-n">grp</span> <span class="tok-k">for</span> <span class="tok-n">k</span>, <span class="tok-n">grp</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">data</span>, <span class="tok-n">key</span>=<span class="tok-n">f</span>)}
+<span class="tok-f">list</span>(<span class="tok-n">collected</span>[<span class="tok-s">"x"</span>])  <span class="tok-c"># [] — already consumed!</span>
+
+<span class="tok-c"># GOOD: materialize each group as you go</span>
+<span class="tok-n">collected</span> = {<span class="tok-n">k</span>: <span class="tok-f">list</span>(<span class="tok-n">grp</span>) <span class="tok-k">for</span> <span class="tok-n">k</span>, <span class="tok-n">grp</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">data</span>, <span class="tok-n">key</span>=<span class="tok-n">f</span>)}</code></pre>
+
+      <div class="callout">
+        <p>
+          The other itertools functions worth knowing for
+          completeness: <code>islice</code> for slicing
+          generators, <code>tee</code> for forking an
+          iterator, <code>product</code> /
+          <code>combinations</code> /
+          <code>permutations</code> for combinatorics. The
+          docs page is short and worth bookmarking.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a place where you concatenate lists with
+          <code>a + b + c</code> just to iterate them. Replace
+          with <code>chain(a, b, c)</code> &mdash; same
+          iteration, no temporary list. Small win, scales
+          well as the lists grow.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-047-deque.html">
+        <span class="label">← Previous</span>
+        <span class="title">deque: lists with fast left-side ops</span>
+      </a>
+      <a class="next" href="day-049-functools.html">
+        <span class="label">Next →</span>
+        <span class="title">functools: partial, reduce, and friends</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
