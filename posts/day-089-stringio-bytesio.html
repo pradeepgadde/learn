@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 089 · io.StringIO and BytesIO: in-memory files — Learn with Pradeep</title>
+  <meta name="description" content="Pass in-memory text or bytes wherever a file object is expected. Unit-test code that writes files, stream data without disk I/O, wrap network buffers cleanly.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 089 &middot; Standard library &middot; Beginner</div>
+      <h1>io.StringIO and BytesIO: in-memory files</h1>
+      <p class="subtitle">
+        Pass in-memory text or bytes wherever a file
+        object is expected. Unit-test file-writing code,
+        stream without disk I/O, wrap network buffers.
+      </p>
+      <div class="article-meta">
+        <span>30 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.0+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>io.StringIO()</code> is an in-memory
+        text file; <code>io.BytesIO()</code> is an
+        in-memory binary file. Both have the full file
+        API (<code>read</code>, <code>write</code>,
+        <code>seek</code>, <code>getvalue</code>). Use
+        them to test code that takes a file object,
+        to avoid temp files in tests, or to build
+        buffers that get POSTed over HTTP.</p>
+      </div>
+
+      <p>
+        Any function that does <code>f.write(data)</code>
+        or <code>f.read()</code> works with a real file
+        <em>or</em> with a StringIO/BytesIO &mdash;
+        they implement the same interface. Knowing this
+        buys you a lot of flexibility with zero change
+        to the underlying code.
+      </p>
+
+      <h2>StringIO: in-memory text</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">io</span>, <span class="tok-n">csv</span>
+
+<span class="tok-c"># Build a CSV string without touching disk</span>
+<span class="tok-n">buf</span> = <span class="tok-n">io</span>.<span class="tok-f">StringIO</span>()
+<span class="tok-n">writer</span> = <span class="tok-n">csv</span>.<span class="tok-f">writer</span>(<span class="tok-n">buf</span>)
+<span class="tok-n">writer</span>.<span class="tok-f">writerow</span>([<span class="tok-s">"hostname"</span>, <span class="tok-s">"role"</span>, <span class="tok-s">"ip"</span>])
+<span class="tok-n">writer</span>.<span class="tok-f">writerow</span>([<span class="tok-s">"sw-01"</span>, <span class="tok-s">"access"</span>, <span class="tok-s">"10.0.0.1"</span>])
+
+<span class="tok-n">csv_string</span> = <span class="tok-n">buf</span>.<span class="tok-f">getvalue</span>()
+<span class="tok-f">print</span>(<span class="tok-f">repr</span>(<span class="tok-n">csv_string</span>))
+<span class="tok-c"># 'hostname,role,ip\r\nsw-01,access,10.0.0.1\r\n'</span></code></pre>
+
+      <p>
+        <code>csv.writer</code> expects a file object;
+        <code>StringIO</code> satisfies that without a
+        file on disk. <code>getvalue()</code> returns
+        everything that was written.
+      </p>
+
+      <p>
+        Read mode &mdash; feed a string into something
+        that expects a file:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">raw</span> = <span class="tok-s">"hostname,role\nsw-01,access\nsw-02,core\n"</span>
+<span class="tok-k">for</span> <span class="tok-n">row</span> <span class="tok-k">in</span> <span class="tok-n">csv</span>.<span class="tok-f">reader</span>(<span class="tok-n">io</span>.<span class="tok-f">StringIO</span>(<span class="tok-n">raw</span>)):
+    <span class="tok-f">print</span>(<span class="tok-n">row</span>)</code></pre>
+
+      <h2>BytesIO: in-memory binary</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">io</span>, <span class="tok-n">zipfile</span>
+
+<span class="tok-c"># Build a ZIP in memory, return as bytes — no temp file needed</span>
+<span class="tok-k">def</span> <span class="tok-f">make_zip</span>(<span class="tok-n">files</span>: <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">str</span>]) -&gt; <span class="tok-n">bytes</span>:
+    <span class="tok-n">buf</span> = <span class="tok-n">io</span>.<span class="tok-f">BytesIO</span>()
+    <span class="tok-k">with</span> <span class="tok-n">zipfile</span>.<span class="tok-f">ZipFile</span>(<span class="tok-n">buf</span>, <span class="tok-s">"w"</span>) <span class="tok-k">as</span> <span class="tok-n">z</span>:
+        <span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">content</span> <span class="tok-k">in</span> <span class="tok-n">files</span>.<span class="tok-f">items</span>():
+            <span class="tok-n">z</span>.<span class="tok-f">writestr</span>(<span class="tok-n">name</span>, <span class="tok-n">content</span>)
+    <span class="tok-k">return</span> <span class="tok-n">buf</span>.<span class="tok-f">getvalue</span>()
+
+<span class="tok-n">zip_bytes</span> = <span class="tok-f">make_zip</span>({
+    <span class="tok-s">"configs/sw-01.cfg"</span>: <span class="tok-s">"interface gi0\n shutdown\n"</span>,
+    <span class="tok-s">"configs/sw-02.cfg"</span>: <span class="tok-s">"interface gi0\n no shutdown\n"</span>,
+})</code></pre>
+
+      <p>
+        <code>buf.getvalue()</code> gives all the bytes.
+        Serve it directly as an HTTP response body or
+        write it to S3 &mdash; no temp file, no cleanup.
+      </p>
+
+      <h2>Testing file-writing functions</h2>
+
+      <p>
+        The most common use: test code that writes to a
+        file without creating a file.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">write_report</span>(<span class="tok-n">devices</span>: <span class="tok-n">list</span>, <span class="tok-n">f</span>) -&gt; <span class="tok-n">None</span>:
+    <span class="tok-k">for</span> <span class="tok-n">d</span> <span class="tok-k">in</span> <span class="tok-n">devices</span>:
+        <span class="tok-n">f</span>.<span class="tok-f">write</span>(<span class="tok-s">f"{d.hostname},{d.role}\n"</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">test_write_report</span>():
+    <span class="tok-n">buf</span> = <span class="tok-n">io</span>.<span class="tok-f">StringIO</span>()
+    <span class="tok-f">write_report</span>([
+        <span class="tok-f">Device</span>(<span class="tok-s">"sw-01"</span>, <span class="tok-s">"access"</span>),
+        <span class="tok-f">Device</span>(<span class="tok-s">"sw-02"</span>, <span class="tok-s">"core"</span>),
+    ], <span class="tok-n">buf</span>)
+    <span class="tok-k">assert</span> <span class="tok-n">buf</span>.<span class="tok-f">getvalue</span>() == <span class="tok-s">"sw-01,access\nsw-02,core\n"</span></code></pre>
+
+      <p>
+        No <code>tmp_path</code>, no file cleanup, no
+        disk I/O. The test is faster, cleaner, and
+        exercises the exact same code path.
+      </p>
+
+      <h2>seek and tell</h2>
+
+      <p>
+        After writing, the position is at the end.
+        Call <code>seek(0)</code> to rewind before
+        reading:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">buf</span> = <span class="tok-n">io</span>.<span class="tok-f">StringIO</span>()
+<span class="tok-n">buf</span>.<span class="tok-f">write</span>(<span class="tok-s">"hello\n"</span>)
+<span class="tok-n">buf</span>.<span class="tok-f">seek</span>(<span class="tok-n">0</span>)
+<span class="tok-f">print</span>(<span class="tok-n">buf</span>.<span class="tok-f">read</span>())          <span class="tok-c"># "hello\n"</span>
+
+<span class="tok-n">buf</span>.<span class="tok-f">seek</span>(<span class="tok-n">0</span>, <span class="tok-n">2</span>)             <span class="tok-c"># seek to end (whence=2)</span>
+<span class="tok-f">print</span>(<span class="tok-n">buf</span>.<span class="tok-f">tell</span>())           <span class="tok-c"># 6 — current position in bytes/chars</span></code></pre>
+
+      <h2>Wrapping network data</h2>
+
+      <p>
+        Code from libraries like <code>paramiko</code>
+        sometimes writes to file objects. BytesIO
+        captures the output without touching disk.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">buf</span> = <span class="tok-n">io</span>.<span class="tok-f">BytesIO</span>()
+<span class="tok-n">sftp</span>.<span class="tok-f">getfo</span>(<span class="tok-s">"/etc/hostname"</span>, <span class="tok-n">buf</span>)    <span class="tok-c"># paramiko writes into buf</span>
+<span class="tok-n">content</span> = <span class="tok-n">buf</span>.<span class="tok-f">getvalue</span>().<span class="tok-f">decode</span>()
+<span class="tok-f">print</span>(<span class="tok-n">content</span>.<span class="tok-f">strip</span>())                <span class="tok-c"># "sw-01"</span></code></pre>
+
+      <h2>Sending in-memory bytes over HTTP</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Upload a generated ZIP directly — no temp file</span>
+<span class="tok-n">zip_data</span> = <span class="tok-f">make_zip</span>(<span class="tok-n">configs</span>)
+<span class="tok-n">resp</span>    = <span class="tok-n">httpx</span>.<span class="tok-f">post</span>(
+    <span class="tok-s">"https://store.example.com/upload"</span>,
+    <span class="tok-n">content</span>=<span class="tok-n">io</span>.<span class="tok-f">BytesIO</span>(<span class="tok-n">zip_data</span>),
+    <span class="tok-n">headers</span>={<span class="tok-s">"Content-Type"</span>: <span class="tok-s">"application/zip"</span>},
+)</code></pre>
+
+      <h2>TextIOWrapper: bridge between bytes and text</h2>
+
+      <p>
+        For APIs that write bytes but you want to read
+        text (or vice versa):
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">raw_buf</span>  = <span class="tok-n">io</span>.<span class="tok-f">BytesIO</span>()
+<span class="tok-n">text_buf</span> = <span class="tok-n">io</span>.<span class="tok-f">TextIOWrapper</span>(<span class="tok-n">raw_buf</span>, <span class="tok-n">encoding</span>=<span class="tok-s">"utf-8"</span>)
+<span class="tok-n">text_buf</span>.<span class="tok-f">write</span>(<span class="tok-s">"hostname sw-01\n"</span>)
+<span class="tok-n">text_buf</span>.<span class="tok-f">flush</span>()
+<span class="tok-f">print</span>(<span class="tok-n">raw_buf</span>.<span class="tok-f">getvalue</span>())</code></pre>
+
+      <div class="callout">
+        <p>
+          The pattern of accepting a file-like object
+          rather than a path string is called the
+          "file-object protocol" and is worth
+          designing into your own APIs. Users can pass
+          a real file, a StringIO for tests, or a
+          compressed stream &mdash; and your code
+          doesn't change.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find one test in your suite that creates a
+          temp file, writes to it, reads it back, and
+          then cleans up. Replace the file with a
+          <code>StringIO</code> or
+          <code>BytesIO</code>. The test body shrinks;
+          the three-step write/read/cleanup collapses;
+          the underlying function still works
+          identically.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-088-contextvars.html">
+        <span class="label">← Previous</span>
+        <span class="title">contextvars: async-safe globals</span>
+      </a>
+      <a class="next" href="day-090-ipython.html">
+        <span class="label">Next →</span>
+        <span class="title">IPython and the REPL toolkit: March finale</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

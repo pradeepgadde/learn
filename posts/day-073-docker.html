@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 073 · Docker for Python apps: the right base image — Learn with Pradeep</title>
+  <meta name="description" content="python:slim vs python:alpine vs distroless. The five Dockerfile lines that decide whether your image is 80MB or 800MB. Plus the gotchas around PID 1 and signals.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 073 &middot; Tooling &middot; Intermediate</div>
+      <h1>Docker for Python apps: the right base image</h1>
+      <p class="subtitle">
+        <code>python:slim</code> vs
+        <code>python:alpine</code> vs distroless. The five
+        Dockerfile lines that decide whether your image is
+        80MB or 800MB. Plus PID 1 and signals.
+      </p>
+      <div class="article-meta">
+        <span>14 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>python:3.12-slim</code> as your base
+        unless you have a strong reason. Avoid
+        <code>alpine</code> &mdash; musl breaks too many
+        packages. Pin a specific tag, run as a non-root
+        user, set <code>PYTHONDONTWRITEBYTECODE=1</code>
+        and <code>PYTHONUNBUFFERED=1</code>. Tomorrow's
+        post covers multi-stage builds for production.</p>
+      </div>
+
+      <p>
+        Bad Python Dockerfiles are everywhere on the
+        internet. They're fat, slow to build, run as
+        root, and break SIGTERM. Five small choices
+        avoid all of that.
+      </p>
+
+      <h2>Pick the right base</h2>
+
+      <ul>
+        <li><strong><code>python:3.12</code></strong> &mdash; the full Debian image. ~1GB. Way too much for most apps.</li>
+        <li><strong><code>python:3.12-slim</code></strong> &mdash; Debian without the kitchen sink. ~120MB base. <em>Use this.</em></li>
+        <li><strong><code>python:3.12-alpine</code></strong> &mdash; tiny (~50MB) but uses musl libc. Many wheels (numpy, cryptography, lxml, psycopg) don't have alpine prebuilds, so pip falls back to compiling from source &mdash; slow builds and a fragile result. Skip unless you've measured a real reason.</li>
+        <li><strong>Distroless</strong> &mdash; no shell, no package manager, just Python and your code. Smallest attack surface. Great for production once you've got the build pinned down.</li>
+      </ul>
+
+      <h2>The minimum-viable Dockerfile</h2>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-c"># Pin both the Python version AND the base OS for reproducibility</span>
+<span class="tok-k">FROM</span> python:3.12.7-slim-bookworm
+
+<span class="tok-c"># Don't write .pyc files; flush stdout/stderr immediately</span>
+<span class="tok-k">ENV</span> PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+<span class="tok-c"># Create non-root user</span>
+<span class="tok-k">RUN</span> useradd --create-home --shell /bin/bash app
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">USER</span> app
+
+<span class="tok-c"># Layer-cache deps separately from source</span>
+<span class="tok-k">COPY</span> --chown=app:app requirements.txt .
+<span class="tok-k">RUN</span> pip install --user -r requirements.txt
+<span class="tok-k">ENV</span> PATH=/home/app/.local/bin:$PATH
+
+<span class="tok-k">COPY</span> --chown=app:app . .
+
+<span class="tok-k">EXPOSE</span> 8000
+<span class="tok-k">CMD</span> [<span class="tok-s">"uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>, <span class="tok-s">"--port"</span>, <span class="tok-s">"8000"</span>]</code></pre>
+
+      <p>
+        Six things this gets right that the typical
+        copy-pasted Dockerfile gets wrong: pinned base,
+        env vars set, non-root user, deps cached
+        separately from source, exec-form
+        <code>CMD</code> (so signals work), and explicit
+        port.
+      </p>
+
+      <h2>Dependencies in their own layer</h2>
+
+      <p>
+        The <code>COPY requirements.txt</code> +
+        <code>pip install</code> + <code>COPY .</code>
+        ordering means changing your source code
+        doesn't bust the dependency-install layer.
+        Builds go from minutes to seconds on the
+        common path.
+      </p>
+
+      <h2>The PID 1 problem (and the signal fix)</h2>
+
+      <p>
+        When you write <code>CMD uvicorn app:app
+        ...</code> in shell form, Docker wraps it in
+        <code>/bin/sh -c</code>, which becomes PID 1.
+        Shell doesn't forward signals. Your container
+        ignores SIGTERM and gets SIGKILL'd 30 seconds
+        later (Day 072).
+      </p>
+
+      <p>
+        The fix: <strong>exec form</strong> &mdash;
+        JSON array, not a string.
+      </p>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-c"># BAD — sh swallows signals</span>
+<span class="tok-k">CMD</span> uvicorn app:app --host 0.0.0.0
+
+<span class="tok-c"># GOOD — uvicorn becomes PID 1, gets SIGTERM directly</span>
+<span class="tok-k">CMD</span> [<span class="tok-s">"uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>]</code></pre>
+
+      <p>
+        For complex command lines that need shell
+        features (env-var expansion, pipes), wrap with
+        <code>tini</code> or <code>dumb-init</code>:
+      </p>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-k">RUN</span> apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
+<span class="tok-k">ENTRYPOINT</span> [<span class="tok-s">"/usr/bin/tini"</span>, <span class="tok-s">"--"</span>]
+<span class="tok-k">CMD</span> [<span class="tok-s">"sh"</span>, <span class="tok-s">"-c"</span>, <span class="tok-s">"exec uvicorn app:app --workers ${WORKERS:-1}"</span>]</code></pre>
+
+      <p>
+        <code>tini</code> as PID 1 forwards signals
+        properly and reaps zombie children. Many
+        production setups standardize on this.
+      </p>
+
+      <h2>uv-based images</h2>
+
+      <p>
+        For uv (Day 019), the official Astral image
+        gets you all the speed without the manual
+        setup:
+      </p>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-k">FROM</span> ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">COPY</span> pyproject.toml uv.lock ./
+<span class="tok-k">RUN</span> uv sync --frozen --no-install-project
+
+<span class="tok-k">COPY</span> . .
+<span class="tok-k">RUN</span> uv sync --frozen
+
+<span class="tok-k">CMD</span> [<span class="tok-s">"uv"</span>, <span class="tok-s">"run"</span>, <span class="tok-s">"uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>]</code></pre>
+
+      <h2>The .dockerignore is mandatory</h2>
+
+      <p>
+        <code>COPY . .</code> happily copies your
+        <code>.git</code> directory, virtualenvs, build
+        artifacts, and node_modules into the image. Add
+        a <code>.dockerignore</code>:
+      </p>
+
+<pre class="code"><span class="code-label">text</span><code>.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+node_modules
+*.log
+.env
+.env.*
+.DS_Store</code></pre>
+
+      <p>
+        Without this, your image gets big, builds get
+        slow (because the build context transfer is
+        fat), and secrets in <code>.env</code> end up
+        baked into the image.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>Never bake secrets into images.</strong>
+          Use Docker secrets, K8s secrets, or env vars
+          set at runtime. <code>ENV
+          DATABASE_PASSWORD=...</code> in a Dockerfile is
+          permanently visible in <code>docker history</code>
+          and image layers, even if you "remove" it
+          later.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Build the minimum-viable Dockerfile above for
+          a small project. Run <code>docker images</code>
+          and note the size. Then send a SIGTERM to a
+          running container with <code>docker stop</code>
+          and watch the logs &mdash; with the exec-form
+          CMD, your shutdown handler runs. With shell
+          form, it doesn't.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-072-graceful-shutdown.html">
+        <span class="label">← Previous</span>
+        <span class="title">Graceful shutdown: SIGTERM the right way</span>
+      </a>
+      <a class="next" href="day-074-multistage-docker.html">
+        <span class="label">Next →</span>
+        <span class="title">Multi-stage Dockerfiles: the build/runtime split</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

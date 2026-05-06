@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 061 · uvicorn and ASGI: serving Python in production — Learn with Pradeep</title>
+  <meta name="description" content="uvicorn is the standard ASGI server. Workers, reload, proxies, and the gunicorn pairing for production. Plus what ASGI actually is.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 061 &middot; Tooling &middot; Intermediate</div>
+      <h1>uvicorn and ASGI: serving Python in production</h1>
+      <p class="subtitle">
+        uvicorn is the standard ASGI server. Workers,
+        reload, proxies, and the gunicorn pairing &mdash;
+        plus what ASGI actually is.
+      </p>
+      <div class="article-meta">
+        <span>02 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>uvicorn is the standard ASGI server for FastAPI
+        and Starlette. <code>--reload</code> in dev,
+        <code>--workers N</code> in prod. For multi-worker
+        management with graceful shutdown and zero-downtime
+        reloads, run uvicorn workers under gunicorn
+        (<code>gunicorn -k uvicorn.workers.UvicornWorker
+        app:app</code>).</p>
+      </div>
+
+      <p>
+        ASGI is the async successor to WSGI. Where WSGI was
+        synchronous and request/response only, ASGI handles
+        async, websockets, and long-lived connections.
+        uvicorn is the reference server &mdash; small, fast,
+        and the default way to run anything ASGI-native.
+      </p>
+
+      <h2>The dev command</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uvicorn app:app --reload --host 0.0.0.0 --port 8000</code></pre>
+
+      <ul>
+        <li><strong><code>app:app</code></strong> &mdash; module path and the variable holding the ASGI app instance.</li>
+        <li><strong><code>--reload</code></strong> &mdash; restarts on file changes. Dev-only.</li>
+        <li><strong><code>--host 0.0.0.0</code></strong> &mdash; bind to all interfaces (default is just localhost).</li>
+        <li><strong><code>--port</code></strong> &mdash; default 8000.</li>
+      </ul>
+
+      <h2>The prod command</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uvicorn app:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --workers 4 \
+    --proxy-headers \
+    --forwarded-allow-ips '*'</code></pre>
+
+      <p>
+        <code>--workers</code> spawns N processes. A
+        reasonable default is 2&times; the CPU core count
+        for I/O-bound apps, equal to core count for
+        CPU-bound. <code>--proxy-headers</code> tells
+        uvicorn to trust <code>X-Forwarded-For</code> and
+        <code>X-Forwarded-Proto</code> from your load
+        balancer.
+      </p>
+
+      <h2>Gunicorn for production process management</h2>
+
+      <p>
+        For graceful worker restarts, better signal
+        handling, and the option to swap workers without
+        dropping connections, run uvicorn workers under
+        gunicorn. The pattern most teams settle on.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add gunicorn uvicorn
+
+gunicorn app:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 0.0.0.0:8000 \
+    --timeout 60 \
+    --keep-alive 5 \
+    --access-logfile -</code></pre>
+
+      <p>
+        Gunicorn handles process supervision; uvicorn
+        workers handle the actual ASGI traffic. Best of
+        both.
+      </p>
+
+      <h2>Behind a reverse proxy</h2>
+
+      <p>
+        Don't expose uvicorn directly to the internet in
+        most cases. Put nginx, Caddy, or Traefik in front
+        for TLS termination, request buffering, and
+        connection limits. uvicorn behind nginx behind a
+        load balancer is the standard topology.
+      </p>
+
+<pre class="code"><span class="code-label">nginx</span><code>upstream app {
+    server 127.0.0.1:8000;
+}
+
+server {
+    listen 443 ssl http2;
+    location / {
+        proxy_pass         http://app;
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+}</code></pre>
+
+      <h2>What ASGI looks like underneath</h2>
+
+      <p>
+        An ASGI app is a callable accepting three arguments
+        per connection: <code>scope</code> (connection
+        info), <code>receive</code> (await for incoming
+        messages), <code>send</code> (await to push
+        outgoing). FastAPI wraps all this; you almost
+        never write it by hand. But knowing the shape helps
+        when middleware or low-level code surprises you.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># The simplest possible ASGI app — for context only</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">app</span>(<span class="tok-n">scope</span>, <span class="tok-n">receive</span>, <span class="tok-n">send</span>):
+    <span class="tok-k">assert</span> <span class="tok-n">scope</span>[<span class="tok-s">"type"</span>] == <span class="tok-s">"http"</span>
+    <span class="tok-k">await</span> <span class="tok-f">send</span>({<span class="tok-s">"type"</span>: <span class="tok-s">"http.response.start"</span>, <span class="tok-s">"status"</span>: <span class="tok-n">200</span>,
+                 <span class="tok-s">"headers"</span>: [(<span class="tok-n">b</span><span class="tok-s">"content-type"</span>, <span class="tok-n">b</span><span class="tok-s">"text/plain"</span>)]})
+    <span class="tok-k">await</span> <span class="tok-f">send</span>({<span class="tok-s">"type"</span>: <span class="tok-s">"http.response.body"</span>, <span class="tok-s">"body"</span>: <span class="tok-n">b</span><span class="tok-s">"hi"</span>})</code></pre>
+
+      <h2>Lifespan: startup and shutdown hooks</h2>
+
+      <p>
+        ASGI also defines a "lifespan" protocol &mdash; one
+        message at startup, one at shutdown. FastAPI exposes
+        this via the <code>lifespan</code> context manager.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextlib</span> <span class="tok-k">import</span> <span class="tok-n">asynccontextmanager</span>
+<span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastAPI</span>
+
+<span class="tok-o">@</span><span class="tok-n">asynccontextmanager</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">lifespan</span>(<span class="tok-n">app</span>):
+    <span class="tok-c"># Startup</span>
+    <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">db</span> = <span class="tok-k">await</span> <span class="tok-f">connect_db</span>()
+    <span class="tok-k">yield</span>
+    <span class="tok-c"># Shutdown</span>
+    <span class="tok-k">await</span> <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">db</span>.<span class="tok-f">close</span>()
+
+<span class="tok-n">app</span> = <span class="tok-f">FastAPI</span>(<span class="tok-n">lifespan</span>=<span class="tok-n">lifespan</span>)</code></pre>
+
+      <p>
+        This is where DB pools, message-queue clients, and
+        background workers should be wired up &mdash; not
+        at module import time.
+      </p>
+
+      <div class="callout">
+        <p>
+          For <em>extremely</em> performance-sensitive
+          workloads, <code>granian</code> (Rust-based ASGI
+          server) is faster than uvicorn for some patterns.
+          For 99% of services, uvicorn is fast enough that
+          the bottleneck is your code, not the server.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a FastAPI app and run it under
+          <code>gunicorn -k uvicorn.workers.UvicornWorker
+          --workers 4</code>. Send 100 concurrent requests
+          (use <code>hey</code> or <code>wrk</code>). Watch
+          the throughput. Try with and without
+          <code>--workers</code>. The difference is real.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-060-fastapi.html">
+        <span class="label">← Previous</span>
+        <span class="title">FastAPI: an API in twelve lines</span>
+      </a>
+      <a class="next" href="day-062-pydantic-deep.html">
+        <span class="label">Next →</span>
+        <span class="title">Pydantic v2 deep cuts: validators, serializers, computed fields</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

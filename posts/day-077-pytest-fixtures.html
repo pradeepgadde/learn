@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 077 · pytest fixtures: scope, factories, and yield — Learn with Pradeep</title>
+  <meta name="description" content="Move past simple return fixtures. Use yield for setup/teardown, factories for parametric setup, scope for performance, and conftest for sharing across files.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 077 &middot; Third-party &middot; Intermediate</div>
+      <h1>pytest fixtures: scope, factories, and yield</h1>
+      <p class="subtitle">
+        Move past simple return fixtures. <code>yield</code>
+        for setup/teardown, factories for parametric
+        setup, scope for performance, conftest for
+        sharing.
+      </p>
+      <div class="article-meta">
+        <span>18 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>yield</code> in fixtures to do
+        cleanup after the test (<code>finally</code> not
+        needed &mdash; pytest handles it). Use
+        <code>scope="session"</code> or
+        <code>"module"</code> to share expensive setup.
+        Use factory fixtures (a fixture that returns a
+        function) when each test needs a slightly
+        different setup. Put shared fixtures in
+        <code>conftest.py</code> at the right level of
+        your tree.</p>
+      </div>
+
+      <p>
+        Day 018 covered the basics. The five patterns
+        below are what take a test suite from "fine"
+        to "I'm not afraid to write more tests".
+      </p>
+
+      <h2>yield for setup/teardown</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">pytest</span>
+<span class="tok-k">from</span> <span class="tok-n">myapp</span> <span class="tok-k">import</span> <span class="tok-n">create_app</span>
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">tmp_db</span>(<span class="tok-n">tmp_path</span>):
+    <span class="tok-n">db_path</span> = <span class="tok-n">tmp_path</span> / <span class="tok-s">"test.db"</span>
+    <span class="tok-n">conn</span>    = <span class="tok-f">connect</span>(<span class="tok-n">db_path</span>)
+    <span class="tok-f">migrate</span>(<span class="tok-n">conn</span>)
+    <span class="tok-k">yield</span> <span class="tok-n">conn</span>                  <span class="tok-c"># test runs here</span>
+    <span class="tok-n">conn</span>.<span class="tok-f">close</span>()                  <span class="tok-c"># cleanup, even on test failure</span></code></pre>
+
+      <p>
+        Pytest catches exceptions in the test, runs the
+        teardown, then re-raises. Cleaner than
+        <code>setUp</code>/<code>tearDown</code>; equivalent
+        in safety to <code>try/finally</code>.
+      </p>
+
+      <h2>Scope: don't pay setup cost per test</h2>
+
+      <p>
+        Spinning up a database, loading a model file,
+        starting a Docker container &mdash; you don't
+        want to do that 200 times for 200 tests. Set
+        the scope.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-f">fixture</span>(<span class="tok-n">scope</span>=<span class="tok-s">"session"</span>)
+<span class="tok-k">def</span> <span class="tok-f">db_engine</span>():
+    <span class="tok-c"># created once for the whole test session</span>
+    <span class="tok-n">engine</span> = <span class="tok-f">create_engine</span>(<span class="tok-s">"postgresql://..."</span>)
+    <span class="tok-n">Base</span>.<span class="tok-n">metadata</span>.<span class="tok-f">create_all</span>(<span class="tok-n">engine</span>)
+    <span class="tok-k">yield</span> <span class="tok-n">engine</span>
+    <span class="tok-n">engine</span>.<span class="tok-f">dispose</span>()
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">fixture</span>      <span class="tok-c"># default: function scope — one per test</span>
+<span class="tok-k">def</span> <span class="tok-f">db_session</span>(<span class="tok-n">db_engine</span>):
+    <span class="tok-c"># Wrap each test in a transaction we roll back</span>
+    <span class="tok-n">conn</span> = <span class="tok-n">db_engine</span>.<span class="tok-f">connect</span>()
+    <span class="tok-n">trans</span> = <span class="tok-n">conn</span>.<span class="tok-f">begin</span>()
+    <span class="tok-n">session</span> = <span class="tok-f">Session</span>(<span class="tok-n">bind</span>=<span class="tok-n">conn</span>)
+    <span class="tok-k">yield</span> <span class="tok-n">session</span>
+    <span class="tok-n">session</span>.<span class="tok-f">close</span>()
+    <span class="tok-n">trans</span>.<span class="tok-f">rollback</span>()
+    <span class="tok-n">conn</span>.<span class="tok-f">close</span>()</code></pre>
+
+      <p>
+        Engine spun up once; each test gets a fresh
+        session inside a transaction that gets rolled
+        back at the end. Tests are isolated <em>and</em>
+        fast.
+      </p>
+
+      <p>
+        Scope options: <code>function</code> (default),
+        <code>class</code>, <code>module</code>,
+        <code>package</code>, <code>session</code>.
+        Higher scope = less isolation but faster.
+      </p>
+
+      <h2>Factory fixtures: parametric setup</h2>
+
+      <p>
+        Sometimes the test needs to create the thing
+        with different inputs. A regular fixture would
+        force you to define one fixture per
+        configuration. Factory fixtures fix this.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">make_device</span>(<span class="tok-n">db_session</span>):
+    <span class="tok-n">created</span> = []
+    <span class="tok-k">def</span> <span class="tok-f">_factory</span>(<span class="tok-o">**</span><span class="tok-n">overrides</span>):
+        <span class="tok-n">defaults</span> = {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-test"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>}
+        <span class="tok-n">d</span>        = <span class="tok-f">Device</span>(<span class="tok-o">**</span>{<span class="tok-o">**</span><span class="tok-n">defaults</span>, <span class="tok-o">**</span><span class="tok-n">overrides</span>})
+        <span class="tok-n">db_session</span>.<span class="tok-f">add</span>(<span class="tok-n">d</span>)
+        <span class="tok-n">db_session</span>.<span class="tok-f">flush</span>()
+        <span class="tok-n">created</span>.<span class="tok-f">append</span>(<span class="tok-n">d</span>)
+        <span class="tok-k">return</span> <span class="tok-n">d</span>
+    <span class="tok-k">yield</span> <span class="tok-n">_factory</span>
+    <span class="tok-c"># cleanup uses the closed-over `created` list
+
+# In a test:</span>
+<span class="tok-k">def</span> <span class="tok-f">test_role_filter</span>(<span class="tok-n">make_device</span>, <span class="tok-n">db_session</span>):
+    <span class="tok-f">make_device</span>(<span class="tok-n">role</span>=<span class="tok-s">"access"</span>)
+    <span class="tok-f">make_device</span>(<span class="tok-n">role</span>=<span class="tok-s">"core"</span>)
+    <span class="tok-k">assert</span> <span class="tok-f">count_by_role</span>(<span class="tok-n">db_session</span>, <span class="tok-s">"access"</span>) == <span class="tok-n">1</span></code></pre>
+
+      <p>
+        Each test gets full control over what to create
+        without writing its own boilerplate.
+      </p>
+
+      <h2>conftest.py: shared fixtures, scoped to subtree</h2>
+
+      <p>
+        Fixtures in <code>tests/conftest.py</code> are
+        available to every test below it, no import
+        needed. Fixtures in <code>tests/api/conftest.py</code>
+        are available only to tests under
+        <code>tests/api/</code>. The hierarchical
+        layout naturally scopes shared setup.
+      </p>
+
+<pre class="code"><span class="code-label">text</span><code>tests/
+├── conftest.py              # db_engine, settings — shared everywhere
+├── unit/
+│   ├── conftest.py          # mock_clock, fake_clients — unit-only
+│   └── test_*.py
+└── integration/
+    ├── conftest.py          # real_clients, docker_compose — integration-only
+    └── test_*.py</code></pre>
+
+      <h2>autouse: when you don't want to opt in</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-f">fixture</span>(<span class="tok-n">autouse</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">silence_logs</span>(<span class="tok-n">caplog</span>):
+    <span class="tok-n">caplog</span>.<span class="tok-f">set_level</span>(<span class="tok-n">logging</span>.<span class="tok-n">CRITICAL</span>)</code></pre>
+
+      <p>
+        <code>autouse=True</code> applies the fixture
+        to every test in scope without listing it as a
+        parameter. Use sparingly &mdash; it makes test
+        setup invisible at the test level.
+      </p>
+
+      <h2>Built-in fixtures worth knowing</h2>
+
+      <ul>
+        <li><strong><code>tmp_path</code></strong> &mdash; fresh <code>Path</code> for the test, auto-cleaned up.</li>
+        <li><strong><code>monkeypatch</code></strong> &mdash; safe attribute/env-var mocking, undone after the test.</li>
+        <li><strong><code>caplog</code></strong> &mdash; capture log records, assert what was logged.</li>
+        <li><strong><code>capsys</code></strong> / <strong><code>capfd</code></strong> &mdash; capture stdout/stderr at Python or FD level.</li>
+        <li><strong><code>request</code></strong> &mdash; fixture metadata; lets you inspect the test that's using you.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          For environment-variable mocking specifically:
+          <code>monkeypatch.setenv("KEY", "value")</code>.
+          The env is reset after the test, so test
+          ordering doesn't leak. Beats
+          <code>os.environ["KEY"] = "..."</code> +
+          forgetting to un-set.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a test file with repeated setup at the
+          top of every test. Hoist it into a fixture in
+          <code>conftest.py</code>. Add a factory
+          variant for the cases that need slight
+          differences. The test bodies should drop down
+          to just the assertion + minimum setup &mdash;
+          the part that's actually unique.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-076-pre-commit.html">
+        <span class="label">← Previous</span>
+        <span class="title">Pre-commit beyond ruff: the hooks worth wiring up</span>
+      </a>
+      <a class="next" href="day-078-pytest-parametrize.html">
+        <span class="label">Next →</span>
+        <span class="title">pytest parametrize: tables of test cases</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 070 · Sentry: errors with context — Learn with Pradeep</title>
+  <meta name="description" content="Sentry captures unhandled exceptions with full traceback, request context, and breadcrumbs. Five lines of init replace your custom error-reporting code.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 070 &middot; Tooling &middot; Beginner</div>
+      <h1>Sentry: errors with context</h1>
+      <p class="subtitle">
+        Unhandled exceptions with full tracebacks, request
+        context, and breadcrumbs. Five lines of init
+        replace your custom error reporting.
+      </p>
+      <div class="article-meta">
+        <span>11 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Call <code>sentry_sdk.init(dsn="...",
+        traces_sample_rate=0.1)</code> at startup.
+        Unhandled exceptions are captured automatically.
+        Add custom context with
+        <code>sentry_sdk.set_tag</code>,
+        <code>set_user</code>, <code>set_context</code>.
+        Capture handled errors deliberately with
+        <code>capture_exception</code>.</p>
+      </div>
+
+      <p>
+        Logging that an error happened is necessary but
+        not sufficient. Sentry de-duplicates errors,
+        groups by stack trace, surfaces the new ones,
+        attaches request data, and links to git commits.
+        It's the difference between "we got 4000
+        ERROR-level log lines" and "this one bug fired
+        4000 times in the last hour, here are the
+        affected users."
+      </p>
+
+      <h2>The minimal init</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">sentry_sdk</span>
+
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">init</span>(
+    <span class="tok-n">dsn</span>=<span class="tok-n">os</span>.<span class="tok-n">environ</span>[<span class="tok-s">"SENTRY_DSN"</span>],
+    <span class="tok-n">environment</span>=<span class="tok-n">os</span>.<span class="tok-n">environ</span>.<span class="tok-f">get</span>(<span class="tok-s">"ENV"</span>, <span class="tok-s">"dev"</span>),
+    <span class="tok-n">release</span>=<span class="tok-n">os</span>.<span class="tok-n">environ</span>.<span class="tok-f">get</span>(<span class="tok-s">"GIT_SHA"</span>),
+    <span class="tok-n">traces_sample_rate</span>=<span class="tok-n">0.1</span>,           <span class="tok-c"># 10% of transactions traced</span>
+    <span class="tok-n">profiles_sample_rate</span>=<span class="tok-n">0.1</span>,         <span class="tok-c"># 10% of those also profiled</span>
+)</code></pre>
+
+      <p>
+        Three things matter here.
+        <code>environment</code> separates dev from
+        staging from prod in the Sentry UI;
+        <code>release</code> ties errors to the commit
+        that introduced them; sampling rates keep
+        traffic manageable on busy services.
+      </p>
+
+      <h2>Framework integrations</h2>
+
+      <p>
+        Sentry auto-detects most popular frameworks.
+        For FastAPI, Flask, Django, and Celery, no
+        extra setup is needed beyond <code>init</code>.
+        For others, pass an integration explicitly.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">sentry_sdk</span>.<span class="tok-n">integrations</span>.<span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastApiIntegration</span>
+<span class="tok-k">from</span> <span class="tok-n">sentry_sdk</span>.<span class="tok-n">integrations</span>.<span class="tok-n">sqlalchemy</span> <span class="tok-k">import</span> <span class="tok-n">SqlalchemyIntegration</span>
+
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">init</span>(
+    <span class="tok-n">dsn</span>=<span class="tok-c">...</span>,
+    <span class="tok-n">integrations</span>=[
+        <span class="tok-f">FastApiIntegration</span>(),
+        <span class="tok-f">SqlalchemyIntegration</span>(),
+    ],
+)</code></pre>
+
+      <p>
+        With the FastAPI integration, request
+        method/path/headers are auto-attached to every
+        captured error. With SQLAlchemy, the slow query
+        that triggered the error appears in the trace.
+      </p>
+
+      <h2>Adding context manually</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Per-request user context</span>
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">set_user</span>({<span class="tok-s">"id"</span>: <span class="tok-n">user</span>.<span class="tok-n">id</span>, <span class="tok-s">"email"</span>: <span class="tok-n">user</span>.<span class="tok-n">email</span>})
+
+<span class="tok-c"># Tag for filtering — kept low-cardinality</span>
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">set_tag</span>(<span class="tok-s">"deploy_region"</span>, <span class="tok-s">"us-east-1"</span>)
+
+<span class="tok-c"># Arbitrary structured context — not searchable but visible per error</span>
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">set_context</span>(<span class="tok-s">"device"</span>, {
+    <span class="tok-s">"hostname"</span>: <span class="tok-n">device</span>.<span class="tok-n">hostname</span>,
+    <span class="tok-s">"role"</span>:     <span class="tok-n">device</span>.<span class="tok-n">role</span>,
+    <span class="tok-s">"vendor"</span>:   <span class="tok-n">device</span>.<span class="tok-n">vendor</span>,
+})</code></pre>
+
+      <h2>Capturing handled errors</h2>
+
+      <p>
+        Some errors are caught and you want to recover
+        from them &mdash; but you still want Sentry to
+        know. Capture explicitly.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-f">push_config</span>(<span class="tok-n">device</span>)
+<span class="tok-k">except</span> <span class="tok-n">DeviceTimeout</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">warning</span>(<span class="tok-s">"timeout, will retry"</span>, <span class="tok-n">device</span>=<span class="tok-n">device</span>.<span class="tok-n">hostname</span>)
+    <span class="tok-n">sentry_sdk</span>.<span class="tok-f">capture_exception</span>(<span class="tok-n">e</span>)
+    <span class="tok-n">retry_later</span>(<span class="tok-n">device</span>)</code></pre>
+
+      <p>
+        For non-exception events (like
+        "configuration drift detected"):
+        <code>sentry_sdk.capture_message("...",
+        level="warning")</code>.
+      </p>
+
+      <h2>before_send: redact sensitive data</h2>
+
+      <p>
+        Before any event leaves the process, you can
+        modify or drop it. Use this to scrub secrets
+        from headers, mask PII, or filter noisy
+        third-party errors.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">before_send</span>(<span class="tok-n">event</span>, <span class="tok-n">hint</span>):
+    <span class="tok-c"># Drop boring asyncio.CancelledError</span>
+    <span class="tok-k">if</span> <span class="tok-n">exc_info</span> := <span class="tok-n">hint</span>.<span class="tok-f">get</span>(<span class="tok-s">"exc_info"</span>):
+        <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">exc_info</span>[<span class="tok-n">1</span>], <span class="tok-n">asyncio</span>.<span class="tok-n">CancelledError</span>):
+            <span class="tok-k">return</span> <span class="tok-k">None</span>
+    <span class="tok-c"># Redact Authorization headers</span>
+    <span class="tok-n">request</span> = <span class="tok-n">event</span>.<span class="tok-f">get</span>(<span class="tok-s">"request"</span>, {})
+    <span class="tok-n">request</span>.<span class="tok-f">get</span>(<span class="tok-s">"headers"</span>, {}).<span class="tok-f">pop</span>(<span class="tok-s">"Authorization"</span>, <span class="tok-k">None</span>)
+    <span class="tok-k">return</span> <span class="tok-n">event</span>
+
+<span class="tok-n">sentry_sdk</span>.<span class="tok-f">init</span>(<span class="tok-n">dsn</span>=<span class="tok-c">...</span>, <span class="tok-n">before_send</span>=<span class="tok-n">before_send</span>)</code></pre>
+
+      <h2>Self-hosted vs SaaS</h2>
+
+      <p>
+        Sentry has both. The SaaS is faster to start
+        and well-priced for small teams; the self-hosted
+        version (Docker Compose stack) keeps everything
+        on your network. The Python SDK works
+        identically against either.
+      </p>
+
+      <div class="callout">
+        <p>
+          For OSS alternatives, look at
+          <a href="https://glitchtip.com/">GlitchTip</a>
+          (Sentry-API-compatible, lighter weight) or
+          OpenTelemetry's "errors as span events"
+          model (Day 068). For most teams, paying
+          Sentry is worth not maintaining yet another
+          backend.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add Sentry to a service. Trigger an
+          intentional <code>1/0</code> in some
+          unimportant endpoint. Watch the error appear
+          in the dashboard with the full request,
+          headers, breadcrumbs, and a link to the
+          exact source line. The first time you see
+          this you stop tolerating bare
+          <code>except Exception: pass</code> blocks.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-069-prometheus.html">
+        <span class="label">← Previous</span>
+        <span class="title">prometheus_client: metrics for the python process</span>
+      </a>
+      <a class="next" href="day-071-health-checks.html">
+        <span class="label">Next →</span>
+        <span class="title">Health checks: liveness, readiness, and startup</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

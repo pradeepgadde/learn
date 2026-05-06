@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 071 · Health checks: liveness, readiness, and startup — Learn with Pradeep</title>
+  <meta name="description" content="Three different health checks, three different jobs. Liveness for restart-me. Readiness for stop-routing-traffic. Startup for don't-give-up-yet.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 071 &middot; Patterns &middot; Intermediate</div>
+      <h1>Health checks: liveness, readiness, and startup</h1>
+      <p class="subtitle">
+        Three different probes, three different jobs.
+        Liveness for restart-me. Readiness for
+        stop-routing-traffic. Startup for don't-give-up-yet.
+      </p>
+      <div class="article-meta">
+        <span>12 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Three endpoints with different jobs:
+        <code>/healthz</code> (liveness — am I dead?
+        keep it dumb), <code>/readyz</code> (readiness
+        — should traffic come to me? check downstream
+        deps), <code>/startupz</code> (startup —
+        am I still booting? slow-start grace period).
+        Mixing them is a common cause of cascading
+        outages.</p>
+      </div>
+
+      <p>
+        The single <code>/health</code> endpoint that
+        everyone writes works until the day a downstream
+        Postgres flickers and your orchestrator restarts
+        every replica simultaneously. Then you need
+        three checks with three semantics.
+      </p>
+
+      <h2>Liveness: am I dead?</h2>
+
+      <p>
+        Liveness answers one question: should you kill
+        and restart this process? It must <em>not</em>
+        check downstream services. If the database is
+        down, you don't want every replica restarting
+        &mdash; you want them to wait for the database
+        to come back. Restarting fixes nothing here.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/healthz"</span>)
+<span class="tok-k">def</span> <span class="tok-f">healthz</span>():
+    <span class="tok-c"># Just prove the process is responding. That's it.</span>
+    <span class="tok-k">return</span> {<span class="tok-s">"status"</span>: <span class="tok-s">"ok"</span>}</code></pre>
+
+      <p>
+        That's the right amount of complexity. The only
+        time this should fail is if the event loop is
+        wedged or memory is so blown that even returning
+        a JSON literal fails &mdash; both legitimate
+        restart triggers.
+      </p>
+
+      <h2>Readiness: should traffic come to me?</h2>
+
+      <p>
+        Readiness answers: should the load balancer
+        send requests to me right now? Here you
+        <em>do</em> check downstream &mdash; if the DB
+        is unreachable, this replica can't serve
+        useful work, so the LB should stop sending it
+        traffic. The process stays up; the routing
+        backs off.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/readyz"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">readyz</span>():
+    <span class="tok-n">checks</span> = {}
+
+    <span class="tok-k">try</span>:
+        <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">db</span>.<span class="tok-f">connect</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+            <span class="tok-k">await</span> <span class="tok-n">c</span>.<span class="tok-f">execute</span>(<span class="tok-s">"SELECT 1"</span>)
+        <span class="tok-n">checks</span>[<span class="tok-s">"db"</span>] = <span class="tok-s">"ok"</span>
+    <span class="tok-k">except</span> <span class="tok-n">Exception</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+        <span class="tok-n">checks</span>[<span class="tok-s">"db"</span>] = <span class="tok-s">f"failed: {e}"</span>
+
+    <span class="tok-k">try</span>:
+        <span class="tok-k">await</span> <span class="tok-n">redis</span>.<span class="tok-f">ping</span>()
+        <span class="tok-n">checks</span>[<span class="tok-s">"redis"</span>] = <span class="tok-s">"ok"</span>
+    <span class="tok-k">except</span> <span class="tok-n">Exception</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+        <span class="tok-n">checks</span>[<span class="tok-s">"redis"</span>] = <span class="tok-s">f"failed: {e}"</span>
+
+    <span class="tok-k">if</span> <span class="tok-f">all</span>(<span class="tok-n">v</span> == <span class="tok-s">"ok"</span> <span class="tok-k">for</span> <span class="tok-n">v</span> <span class="tok-k">in</span> <span class="tok-n">checks</span>.<span class="tok-f">values</span>()):
+        <span class="tok-k">return</span> <span class="tok-n">checks</span>
+    <span class="tok-k">raise</span> <span class="tok-n">HTTPException</span>(<span class="tok-n">status_code</span>=<span class="tok-n">503</span>, <span class="tok-n">detail</span>=<span class="tok-n">checks</span>)</code></pre>
+
+      <p>
+        Two things to do here that aren't obvious:
+        timeout each downstream check (don't let
+        readyz hang for 30 seconds), and check only
+        deps you actually need to serve the next
+        request &mdash; not every dep your app could
+        ever talk to.
+      </p>
+
+      <h2>Startup: don't give up yet</h2>
+
+      <p>
+        Startup probes give a process more time to boot
+        before liveness/readiness even begin. Useful for
+        apps with slow startup &mdash; warming caches,
+        loading models, running migrations. Without
+        this, K8s may kill a slow-booting pod before it
+        finishes starting.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">_app_started</span> = <span class="tok-k">False</span>
+
+<span class="tok-o">@</span><span class="tok-n">asynccontextmanager</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">lifespan</span>(<span class="tok-n">app</span>):
+    <span class="tok-k">global</span> <span class="tok-n">_app_started</span>
+    <span class="tok-k">await</span> <span class="tok-f">warm_caches</span>()
+    <span class="tok-k">await</span> <span class="tok-f">connect_pools</span>()
+    <span class="tok-n">_app_started</span> = <span class="tok-k">True</span>
+    <span class="tok-k">yield</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/startupz"</span>)
+<span class="tok-k">def</span> <span class="tok-f">startupz</span>():
+    <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">_app_started</span>:
+        <span class="tok-k">raise</span> <span class="tok-n">HTTPException</span>(<span class="tok-n">status_code</span>=<span class="tok-n">503</span>, <span class="tok-n">detail</span>=<span class="tok-s">"warming up"</span>)
+    <span class="tok-k">return</span> {<span class="tok-s">"status"</span>: <span class="tok-s">"ready"</span>}</code></pre>
+
+      <h2>Wiring it up in Kubernetes</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code>livenessProbe:
+  httpGet: { path: /healthz, port: 8000 }
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet: { path: /readyz, port: 8000 }
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 1   # one fail = stop traffic immediately
+
+startupProbe:
+  httpGet: { path: /startupz, port: 8000 }
+  periodSeconds: 5
+  failureThreshold: 60  # ~5 minutes to start</code></pre>
+
+      <p>
+        Note <code>readinessProbe.failureThreshold:
+        1</code> &mdash; you want immediate traffic backoff
+        when readiness fails. <code>livenessProbe</code>
+        is more conservative because the consequence of
+        false-positive is a restart.
+      </p>
+
+      <h2>The cascading-failure trap</h2>
+
+      <p>
+        If liveness checks the database, and the
+        database flickers for 30 seconds, every
+        replica fails liveness, every replica is
+        restarted, and you've turned a database blip
+        into a full outage with cold caches and
+        thundering reconnect storms. Keep liveness
+        independent of downstream &mdash; this is
+        non-negotiable in production.
+      </p>
+
+      <div class="callout">
+        <p>
+          For deeper diagnostics, expose a separate
+          <code>/debug</code> endpoint behind auth that
+          dumps connection pool stats, queue depths,
+          recent error counts. Probes stay simple;
+          humans get rich info on demand.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Audit your service's health endpoint. If it
+          checks the database, split it into
+          <code>/healthz</code> (no checks) and
+          <code>/readyz</code> (checks). Update your
+          K8s manifest. The next time the database
+          twitches, your pods stay up and recover
+          gracefully instead of restart-stampeding.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-070-sentry.html">
+        <span class="label">← Previous</span>
+        <span class="title">Sentry: errors with context</span>
+      </a>
+      <a class="next" href="day-072-graceful-shutdown.html">
+        <span class="label">Next →</span>
+        <span class="title">Graceful shutdown: SIGTERM the right way</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

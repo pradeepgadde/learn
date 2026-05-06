@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 086 · Dunders worth knowing: __call__, __getattr__, __init_subclass__ — Learn with Pradeep</title>
+  <meta name="description" content="Beyond __init__ and __repr__. Three dunders that quietly enable a lot of magic in libraries you use: callable instances, attribute proxies, and subclass-time hooks.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 086 &middot; Syntax &middot; Advanced</div>
+      <h1>Dunders worth knowing: __call__, __getattr__, __init_subclass__</h1>
+      <p class="subtitle">
+        Beyond <code>__init__</code> and
+        <code>__repr__</code>. Three dunders that quietly
+        power a lot of magic in libraries you already
+        use.
+      </p>
+      <div class="article-meta">
+        <span>27 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.6+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>__call__</code> makes instances callable
+        like functions &mdash; great for stateful
+        callables. <code>__getattr__</code> intercepts
+        missing-attribute access &mdash; how API client
+        SDKs feel like first-class objects.
+        <code>__init_subclass__</code> runs when a class
+        is subclassed &mdash; how plugin registries
+        auto-register without decorators.</p>
+      </div>
+
+      <p>
+        Python's data model lets you define what
+        operators, attribute access, and even
+        construction mean for your objects. Most code
+        only ever defines <code>__init__</code>,
+        <code>__repr__</code>, maybe
+        <code>__eq__</code>. The three below are the
+        next tier &mdash; explain a lot of "how does
+        that library do that?"
+      </p>
+
+      <h2>__call__ &mdash; instances that act like functions</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">RateLimiter</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">rps</span>: <span class="tok-n">float</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">interval</span> = <span class="tok-n">1</span> / <span class="tok-n">rps</span>
+        <span class="tok-n">self</span>.<span class="tok-n">_last</span>    = <span class="tok-n">0.0</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">__call__</span>(<span class="tok-n">self</span>):
+        <span class="tok-n">now</span>  = <span class="tok-n">time</span>.<span class="tok-f">monotonic</span>()
+        <span class="tok-n">wait</span> = <span class="tok-n">self</span>.<span class="tok-n">_last</span> + <span class="tok-n">self</span>.<span class="tok-n">interval</span> - <span class="tok-n">now</span>
+        <span class="tok-k">if</span> <span class="tok-n">wait</span> &gt; <span class="tok-n">0</span>:
+            <span class="tok-n">time</span>.<span class="tok-f">sleep</span>(<span class="tok-n">wait</span>)
+        <span class="tok-n">self</span>.<span class="tok-n">_last</span> = <span class="tok-n">time</span>.<span class="tok-f">monotonic</span>()
+
+<span class="tok-n">limit</span> = <span class="tok-f">RateLimiter</span>(<span class="tok-n">rps</span>=<span class="tok-n">10</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">device</span> <span class="tok-k">in</span> <span class="tok-n">devices</span>:
+    <span class="tok-f">limit</span>()                          <span class="tok-c"># called like a function</span>
+    <span class="tok-f">poll</span>(<span class="tok-n">device</span>)</code></pre>
+
+      <p>
+        Why not just a function with a closure? Because
+        the instance carries state you can inspect,
+        reset, or pickle. Pytorch's
+        <code>nn.Module</code>, scikit-learn's
+        estimators, FastAPI's
+        <code>Depends(callable)</code> &mdash; all built
+        on <code>__call__</code>.
+      </p>
+
+      <p>
+        Bonus: any callable works as a decorator.
+        Class-based decorators are just classes with
+        <code>__call__</code>:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">retry</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">attempts</span>=<span class="tok-n">3</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">attempts</span> = <span class="tok-n">attempts</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">__call__</span>(<span class="tok-n">self</span>, <span class="tok-n">fn</span>):
+        <span class="tok-k">def</span> <span class="tok-f">wrapper</span>(<span class="tok-o">*</span><span class="tok-n">a</span>, <span class="tok-o">**</span><span class="tok-n">kw</span>):
+            <span class="tok-k">for</span> <span class="tok-n">_</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">self</span>.<span class="tok-n">attempts</span>):
+                <span class="tok-k">try</span>: <span class="tok-k">return</span> <span class="tok-f">fn</span>(<span class="tok-o">*</span><span class="tok-n">a</span>, <span class="tok-o">**</span><span class="tok-n">kw</span>)
+                <span class="tok-k">except</span> <span class="tok-n">Exception</span>: <span class="tok-k">pass</span>
+            <span class="tok-k">raise</span>
+        <span class="tok-k">return</span> <span class="tok-n">wrapper</span>
+
+<span class="tok-o">@</span><span class="tok-f">retry</span>(<span class="tok-n">attempts</span>=<span class="tok-n">5</span>)
+<span class="tok-k">def</span> <span class="tok-f">poll</span>(): <span class="tok-c">...</span></code></pre>
+
+      <h2>__getattr__ &mdash; the fallback for missing attributes</h2>
+
+      <p>
+        Triggered <em>only</em> when normal attribute
+        lookup fails. Lets you forward, lazy-load, or
+        synthesize attributes on demand.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">DeviceProxy</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>, <span class="tok-n">connection</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">_conn</span> = <span class="tok-n">connection</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">__getattr__</span>(<span class="tok-n">self</span>, <span class="tok-n">name</span>):
+        <span class="tok-c"># Called only if `name` isn't a real attribute</span>
+        <span class="tok-k">if</span> <span class="tok-n">name</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"show_"</span>):
+            <span class="tok-n">cmd</span> = <span class="tok-n">name</span>.<span class="tok-f">replace</span>(<span class="tok-s">"_"</span>, <span class="tok-s">" "</span>)
+            <span class="tok-k">return</span> <span class="tok-k">lambda</span>: <span class="tok-n">self</span>.<span class="tok-n">_conn</span>.<span class="tok-f">send</span>(<span class="tok-n">cmd</span>)
+        <span class="tok-k">raise</span> <span class="tok-f">AttributeError</span>(<span class="tok-n">name</span>)
+
+<span class="tok-n">d</span> = <span class="tok-f">DeviceProxy</span>(<span class="tok-n">conn</span>)
+<span class="tok-n">d</span>.<span class="tok-f">show_version</span>()                <span class="tok-c"># sends "show version"</span>
+<span class="tok-n">d</span>.<span class="tok-f">show_interfaces_brief</span>()       <span class="tok-c"># sends "show interfaces brief"</span></code></pre>
+
+      <p>
+        That's how SDKs feel "magic". Two rules to be
+        a good citizen:
+      </p>
+
+      <ul>
+        <li><strong>Raise <code>AttributeError</code></strong> for unknown names &mdash; don't return <code>None</code>. <code>hasattr()</code> relies on the exception.</li>
+        <li><strong>Don't shadow real attributes accidentally.</strong> <code>__getattr__</code> only runs when the normal path fails, but a typo (<code>self.con</code> instead of <code>self._conn</code>) silently falls into the dynamic path.</li>
+      </ul>
+
+      <p>
+        For <em>every</em> attribute access (including
+        existing ones), use <code>__getattribute__</code>
+        instead. Almost always the wrong tool &mdash;
+        easy to break recursion, easy to break
+        introspection.
+      </p>
+
+      <h2>__init_subclass__ &mdash; hook into subclass creation</h2>
+
+      <p>
+        Runs once when someone subclasses you. Great
+        for plugin registries, validation, or
+        auto-wiring.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">Driver</span>:
+    <span class="tok-n">_registry</span>: <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">type</span>] = {}
+
+    <span class="tok-k">def</span> <span class="tok-f">__init_subclass__</span>(<span class="tok-n">cls</span>, <span class="tok-n">vendor</span>: <span class="tok-n">str</span>, <span class="tok-o">**</span><span class="tok-n">kw</span>):
+        <span class="tok-k">super</span>().<span class="tok-f">__init_subclass__</span>(<span class="tok-o">**</span><span class="tok-n">kw</span>)
+        <span class="tok-n">Driver</span>.<span class="tok-n">_registry</span>[<span class="tok-n">vendor</span>] = <span class="tok-n">cls</span>
+
+<span class="tok-k">class</span> <span class="tok-f">CiscoDriver</span>(<span class="tok-n">Driver</span>, <span class="tok-n">vendor</span>=<span class="tok-s">"cisco"</span>): <span class="tok-c">...</span>
+<span class="tok-k">class</span> <span class="tok-f">AristaDriver</span>(<span class="tok-n">Driver</span>, <span class="tok-n">vendor</span>=<span class="tok-s">"arista"</span>): <span class="tok-c">...</span>
+
+<span class="tok-n">Driver</span>.<span class="tok-n">_registry</span>
+<span class="tok-c"># {'cisco': &lt;class CiscoDriver&gt;, 'arista': &lt;class AristaDriver&gt;}</span></code></pre>
+
+      <p>
+        Each subclass passes vendor= as a keyword,
+        which becomes a parameter to
+        <code>__init_subclass__</code>. The base class
+        keeps a registry. No decorator, no metaclass,
+        no manual registration.
+      </p>
+
+      <p>
+        SQLAlchemy, pydantic, attrs &mdash; all use
+        this hook to wire up subclass behavior at
+        definition time.
+      </p>
+
+      <h2>The other dunders worth a mention</h2>
+
+      <ul>
+        <li><strong><code>__enter__</code> / <code>__exit__</code></strong> &mdash; context managers (Day 010 covered the function-based form; the class form is the real one).</li>
+        <li><strong><code>__iter__</code> / <code>__next__</code></strong> &mdash; make your object work in a <code>for</code> loop. For most cases <code>__iter__</code> returning a generator is enough.</li>
+        <li><strong><code>__hash__</code> / <code>__eq__</code></strong> &mdash; make instances usable as dict keys or set members. Override both together; the rules are subtle.</li>
+        <li><strong><code>__post_init__</code></strong> &mdash; not a Python dunder strictly, but a dataclass extension hook (Day 007) that runs after auto-generated <code>__init__</code>.</li>
+        <li><strong><code>__set_name__</code></strong> &mdash; runs when a descriptor is assigned in a class body, with the name it was bound to. Powers field-name introspection in dataclass-style libraries.</li>
+      </ul>
+
+      <div class="callout warn">
+        <p>
+          Restraint. Dunders are powerful, which means
+          they make your code hard for the next person
+          to read. The library author defining
+          <code>__getattr__</code> in pydantic is
+          earning the magic; the application
+          programmer using it should rarely need to.
+          Reach for these when you're building
+          framework-y code, not for everyday objects.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a small bit of code where you've
+          built a registry of subclasses with a
+          decorator (<code>@register</code>). Try
+          replacing it with
+          <code>__init_subclass__</code>. The
+          decorator vanishes; subclassing is the
+          registration. It's a satisfying refactor.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-085-type-stubs.html">
+        <span class="label">← Previous</span>
+        <span class="title">Type stubs and py.typed: ship type info with your package</span>
+      </a>
+      <a class="next" href="day-087-abc-protocol.html">
+        <span class="label">Next →</span>
+        <span class="title">ABCs and Protocols: two flavors of "this is a Foo"</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

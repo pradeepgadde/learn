@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 063 · SQLAlchemy 2.0: the modern Python ORM — Learn with Pradeep</title>
+  <meta name="description" content="SQLAlchemy 2.0 brought a unified API and proper type hints. Declarative models, Session, and the select() statement that replaces query.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 063 &middot; Third-party &middot; Intermediate</div>
+      <h1>SQLAlchemy 2.0: the modern Python ORM</h1>
+      <p class="subtitle">
+        Unified API, proper type hints, and the
+        <code>select()</code> statement that replaces the
+        old <code>query</code>. The default ORM choice for
+        Python in 2026.
+      </p>
+      <div class="article-meta">
+        <span>04 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Declare models with
+        <code>Mapped[X]</code> annotations on a class
+        inheriting from <code>DeclarativeBase</code>. Open
+        a <code>Session</code> per request or operation.
+        Build queries with
+        <code>select(Model).where(...)</code> and execute
+        with <code>session.execute()</code>. Commit
+        transactions inside
+        <code>with session.begin():</code>.</p>
+      </div>
+
+      <p>
+        SQLAlchemy 2.0 (released 2023) was a major
+        cleanup. The legacy <code>Query</code> API still
+        exists, but new code should use the unified
+        <code>select()</code> API and the typed
+        <code>Mapped</code> annotation style. Editor
+        support and mypy integration finally feel right.
+      </p>
+
+      <h2>Setup</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span> <span class="tok-k">import</span> <span class="tok-n">create_engine</span>, <span class="tok-n">String</span>, <span class="tok-n">select</span>
+<span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span>.<span class="tok-n">orm</span> <span class="tok-k">import</span> <span class="tok-n">DeclarativeBase</span>, <span class="tok-n">Mapped</span>, <span class="tok-n">mapped_column</span>, <span class="tok-n">Session</span>
+
+<span class="tok-n">engine</span> = <span class="tok-f">create_engine</span>(<span class="tok-s">"sqlite:///app.db"</span>, <span class="tok-n">echo</span>=<span class="tok-k">False</span>)
+
+<span class="tok-k">class</span> <span class="tok-f">Base</span>(<span class="tok-n">DeclarativeBase</span>):
+    <span class="tok-k">pass</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Device</span>(<span class="tok-n">Base</span>):
+    <span class="tok-n">__tablename__</span> = <span class="tok-s">"devices"</span>
+
+    <span class="tok-n">id</span>:       <span class="tok-n">Mapped</span>[<span class="tok-n">int</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-n">primary_key</span>=<span class="tok-k">True</span>)
+    <span class="tok-n">hostname</span>: <span class="tok-n">Mapped</span>[<span class="tok-n">str</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-f">String</span>(<span class="tok-n">64</span>), <span class="tok-n">unique</span>=<span class="tok-k">True</span>)
+    <span class="tok-n">role</span>:     <span class="tok-n">Mapped</span>[<span class="tok-n">str</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-f">String</span>(<span class="tok-n">32</span>))
+
+<span class="tok-n">Base</span>.<span class="tok-n">metadata</span>.<span class="tok-f">create_all</span>(<span class="tok-n">engine</span>)</code></pre>
+
+      <p>
+        <code>Mapped[str]</code> tells the editor and
+        mypy that <code>device.hostname</code> is a
+        string. <code>mapped_column</code> attaches DB
+        constraints. The two annotations split &mdash;
+        Python types vs storage configuration &mdash; is
+        cleaner than the old single-call style.
+      </p>
+
+      <h2>Insert and query</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-f">Session</span>(<span class="tok-n">engine</span>) <span class="tok-k">as</span> <span class="tok-n">session</span>:
+    <span class="tok-k">with</span> <span class="tok-n">session</span>.<span class="tok-f">begin</span>():               <span class="tok-c"># transaction</span>
+        <span class="tok-n">session</span>.<span class="tok-f">add_all</span>([
+            <span class="tok-f">Device</span>(<span class="tok-n">hostname</span>=<span class="tok-s">"sw-01"</span>, <span class="tok-n">role</span>=<span class="tok-s">"access"</span>),
+            <span class="tok-f">Device</span>(<span class="tok-n">hostname</span>=<span class="tok-s">"sw-02"</span>, <span class="tok-n">role</span>=<span class="tok-s">"core"</span>),
+        ])
+
+    <span class="tok-c"># Read</span>
+    <span class="tok-n">stmt</span>     = <span class="tok-f">select</span>(<span class="tok-n">Device</span>).<span class="tok-f">where</span>(<span class="tok-n">Device</span>.<span class="tok-n">role</span> == <span class="tok-s">"access"</span>)
+    <span class="tok-n">access</span>   = <span class="tok-n">session</span>.<span class="tok-f">scalars</span>(<span class="tok-n">stmt</span>).<span class="tok-f">all</span>()
+
+    <span class="tok-c"># By primary key</span>
+    <span class="tok-n">d</span>        = <span class="tok-n">session</span>.<span class="tok-f">get</span>(<span class="tok-n">Device</span>, <span class="tok-n">1</span>)</code></pre>
+
+      <p>
+        <code>session.scalars()</code> returns the model
+        instances; <code>session.execute()</code> returns
+        rows of columns. Pick by what you actually want.
+      </p>
+
+      <h2>Update and delete</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">with</span> <span class="tok-f">Session</span>(<span class="tok-n">engine</span>) <span class="tok-k">as</span> <span class="tok-n">session</span>, <span class="tok-n">session</span>.<span class="tok-f">begin</span>():
+    <span class="tok-c"># Mutation through the ORM (loads first, then writes on commit)</span>
+    <span class="tok-n">d</span> = <span class="tok-n">session</span>.<span class="tok-f">get</span>(<span class="tok-n">Device</span>, <span class="tok-n">1</span>)
+    <span class="tok-n">d</span>.<span class="tok-n">role</span> = <span class="tok-s">"distribution"</span>
+
+    <span class="tok-c"># Bulk update without loading rows</span>
+    <span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span> <span class="tok-k">import</span> <span class="tok-n">update</span>
+    <span class="tok-n">session</span>.<span class="tok-f">execute</span>(
+        <span class="tok-f">update</span>(<span class="tok-n">Device</span>).<span class="tok-f">where</span>(<span class="tok-n">Device</span>.<span class="tok-n">role</span> == <span class="tok-s">"old"</span>).<span class="tok-f">values</span>(<span class="tok-n">role</span>=<span class="tok-s">"new"</span>)
+    )</code></pre>
+
+      <h2>Relationships</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span> <span class="tok-k">import</span> <span class="tok-n">ForeignKey</span>
+<span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span>.<span class="tok-n">orm</span> <span class="tok-k">import</span> <span class="tok-n">relationship</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Site</span>(<span class="tok-n">Base</span>):
+    <span class="tok-n">__tablename__</span> = <span class="tok-s">"sites"</span>
+    <span class="tok-n">id</span>:      <span class="tok-n">Mapped</span>[<span class="tok-n">int</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-n">primary_key</span>=<span class="tok-k">True</span>)
+    <span class="tok-n">name</span>:    <span class="tok-n">Mapped</span>[<span class="tok-n">str</span>]
+    <span class="tok-n">devices</span>: <span class="tok-n">Mapped</span>[<span class="tok-n">list</span>[<span class="tok-s">"Device"</span>]] = <span class="tok-f">relationship</span>(<span class="tok-n">back_populates</span>=<span class="tok-s">"site"</span>)
+
+<span class="tok-k">class</span> <span class="tok-f">Device</span>(<span class="tok-n">Base</span>):
+    <span class="tok-n">__tablename__</span> = <span class="tok-s">"devices"</span>
+    <span class="tok-n">id</span>:       <span class="tok-n">Mapped</span>[<span class="tok-n">int</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-n">primary_key</span>=<span class="tok-k">True</span>)
+    <span class="tok-n">hostname</span>: <span class="tok-n">Mapped</span>[<span class="tok-n">str</span>]
+    <span class="tok-n">site_id</span>:  <span class="tok-n">Mapped</span>[<span class="tok-n">int</span>] = <span class="tok-f">mapped_column</span>(<span class="tok-f">ForeignKey</span>(<span class="tok-s">"sites.id"</span>))
+    <span class="tok-n">site</span>:     <span class="tok-n">Mapped</span>[<span class="tok-s">"Site"</span>]    = <span class="tok-f">relationship</span>(<span class="tok-n">back_populates</span>=<span class="tok-s">"devices"</span>)</code></pre>
+
+      <p>
+        <code>back_populates</code> wires the two sides
+        together. <code>site.devices</code> and
+        <code>device.site</code> stay in sync
+        automatically when you assign either side.
+      </p>
+
+      <h2>Eager loading: avoid N+1</h2>
+
+      <p>
+        Accessing <code>device.site</code> in a loop
+        triggers a separate query per device &mdash; the
+        classic N+1. <code>selectinload</code> fixes it.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span>.<span class="tok-n">orm</span> <span class="tok-k">import</span> <span class="tok-n">selectinload</span>
+
+<span class="tok-n">stmt</span> = <span class="tok-f">select</span>(<span class="tok-n">Device</span>).<span class="tok-f">options</span>(<span class="tok-f">selectinload</span>(<span class="tok-n">Device</span>.<span class="tok-n">site</span>))
+<span class="tok-k">for</span> <span class="tok-n">d</span> <span class="tok-k">in</span> <span class="tok-n">session</span>.<span class="tok-f">scalars</span>(<span class="tok-n">stmt</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">d</span>.<span class="tok-n">hostname</span>, <span class="tok-n">d</span>.<span class="tok-n">site</span>.<span class="tok-n">name</span>)   <span class="tok-c"># no extra queries</span></code></pre>
+
+      <h2>Async, in one swap</h2>
+
+      <p>
+        Replace <code>create_engine</code> with
+        <code>create_async_engine</code> and
+        <code>Session</code> with
+        <code>AsyncSession</code>. The query API stays
+        almost identical.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span>.<span class="tok-n">ext</span>.<span class="tok-n">asyncio</span> <span class="tok-k">import</span> <span class="tok-n">create_async_engine</span>, <span class="tok-n">AsyncSession</span>
+
+<span class="tok-n">engine</span> = <span class="tok-f">create_async_engine</span>(<span class="tok-s">"sqlite+aiosqlite:///app.db"</span>)
+
+<span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-f">AsyncSession</span>(<span class="tok-n">engine</span>) <span class="tok-k">as</span> <span class="tok-n">session</span>:
+    <span class="tok-n">result</span> = <span class="tok-k">await</span> <span class="tok-n">session</span>.<span class="tok-f">scalars</span>(<span class="tok-f">select</span>(<span class="tok-n">Device</span>))
+    <span class="tok-n">devices</span> = <span class="tok-n">result</span>.<span class="tok-f">all</span>()</code></pre>
+
+      <div class="callout">
+        <p>
+          Pairs naturally with FastAPI: open an
+          <code>AsyncSession</code> in a
+          <code>Depends</code> dependency that yields
+          to the path function and commits on exit. The
+          standard "session per request" pattern.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a script that does manual SQL with
+          <code>sqlite3</code> or
+          <code>psycopg</code>. Re-write the read path
+          using SQLAlchemy 2.0 with
+          <code>Mapped</code> annotations. The first
+          query is more code; the tenth one is far
+          less.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-062-pydantic-deep.html">
+        <span class="label">← Previous</span>
+        <span class="title">Pydantic v2 deep cuts: validators, serializers, computed fields</span>
+      </a>
+      <a class="next" href="day-064-alembic.html">
+        <span class="label">Next →</span>
+        <span class="title">Alembic: schema migrations that work</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 066 · WebSockets with FastAPI — Learn with Pradeep</title>
+  <meta name="description" content="WebSockets give you a long-lived two-way connection. FastAPI handles the protocol; you write the loop. The patterns for chat, telemetry streaming, and live updates.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 066 &middot; Third-party &middot; Intermediate</div>
+      <h1>WebSockets with FastAPI</h1>
+      <p class="subtitle">
+        Long-lived two-way connections. FastAPI handles the
+        protocol; you write the loop. The patterns for chat,
+        telemetry streaming, and live updates.
+      </p>
+      <div class="article-meta">
+        <span>07 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate with
+        <code>@app.websocket("/ws")</code>, accept the
+        connection, then loop with <code>receive_text</code>
+        / <code>receive_json</code> /
+        <code>send_text</code> /
+        <code>send_json</code>. Catch
+        <code>WebSocketDisconnect</code> for clean
+        teardown. For broadcast, keep a registry of
+        connected sockets.</p>
+      </div>
+
+      <p>
+        WebSockets keep a TCP connection open after the
+        HTTP upgrade. Both sides can send messages
+        whenever &mdash; no polling, low latency, ideal
+        for live data. FastAPI runs them on the same
+        event loop as your HTTP routes.
+      </p>
+
+      <h2>The echo example</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastAPI</span>, <span class="tok-n">WebSocket</span>, <span class="tok-n">WebSocketDisconnect</span>
+
+<span class="tok-n">app</span> = <span class="tok-f">FastAPI</span>()
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">websocket</span>(<span class="tok-s">"/ws/echo"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">echo</span>(<span class="tok-n">ws</span>: <span class="tok-n">WebSocket</span>):
+    <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">accept</span>()
+    <span class="tok-k">try</span>:
+        <span class="tok-k">while</span> <span class="tok-k">True</span>:
+            <span class="tok-n">data</span> = <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">receive_text</span>()
+            <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">send_text</span>(<span class="tok-s">f"echo: {data}"</span>)
+    <span class="tok-k">except</span> <span class="tok-n">WebSocketDisconnect</span>:
+        <span class="tok-k">pass</span></code></pre>
+
+      <p>
+        Three things to internalize: <em>always</em>
+        <code>await ws.accept()</code> first; loop until
+        disconnect; the disconnect arrives as an exception,
+        not a return value.
+      </p>
+
+      <h2>JSON messages</h2>
+
+      <p>
+        For structured messages,
+        <code>receive_json</code> /
+        <code>send_json</code> handle the marshalling.
+        Combine with pydantic for validation.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Cmd</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">action</span>: <span class="tok-n">str</span>
+    <span class="tok-n">target</span>: <span class="tok-n">str</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">websocket</span>(<span class="tok-s">"/ws/control"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">control</span>(<span class="tok-n">ws</span>: <span class="tok-n">WebSocket</span>):
+    <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">accept</span>()
+    <span class="tok-k">try</span>:
+        <span class="tok-k">while</span> <span class="tok-k">True</span>:
+            <span class="tok-n">cmd</span>    = <span class="tok-n">Cmd</span>.<span class="tok-f">model_validate</span>(<span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">receive_json</span>())
+            <span class="tok-n">result</span> = <span class="tok-k">await</span> <span class="tok-f">execute</span>(<span class="tok-n">cmd</span>)
+            <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">send_json</span>({<span class="tok-s">"ok"</span>: <span class="tok-k">True</span>, <span class="tok-s">"result"</span>: <span class="tok-n">result</span>})
+    <span class="tok-k">except</span> <span class="tok-n">WebSocketDisconnect</span>:
+        <span class="tok-k">pass</span></code></pre>
+
+      <h2>Broadcast: a connection registry</h2>
+
+      <p>
+        For chat or live telemetry, you need to push
+        messages to multiple clients. Track them in a set
+        and iterate when broadcasting.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">Hub</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">conns</span>: <span class="tok-n">set</span>[<span class="tok-n">WebSocket</span>] = <span class="tok-f">set</span>()
+
+    <span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">ws</span>: <span class="tok-n">WebSocket</span>):
+        <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">accept</span>()
+        <span class="tok-n">self</span>.<span class="tok-n">conns</span>.<span class="tok-f">add</span>(<span class="tok-n">ws</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">disconnect</span>(<span class="tok-n">self</span>, <span class="tok-n">ws</span>: <span class="tok-n">WebSocket</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">conns</span>.<span class="tok-f">discard</span>(<span class="tok-n">ws</span>)
+
+    <span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">broadcast</span>(<span class="tok-n">self</span>, <span class="tok-n">msg</span>):
+        <span class="tok-n">dead</span> = []
+        <span class="tok-k">for</span> <span class="tok-n">ws</span> <span class="tok-k">in</span> <span class="tok-n">self</span>.<span class="tok-n">conns</span>:
+            <span class="tok-k">try</span>:
+                <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">send_json</span>(<span class="tok-n">msg</span>)
+            <span class="tok-k">except</span> <span class="tok-n">Exception</span>:
+                <span class="tok-n">dead</span>.<span class="tok-f">append</span>(<span class="tok-n">ws</span>)
+        <span class="tok-k">for</span> <span class="tok-n">ws</span> <span class="tok-k">in</span> <span class="tok-n">dead</span>:
+            <span class="tok-n">self</span>.<span class="tok-n">disconnect</span>(<span class="tok-n">ws</span>)
+
+<span class="tok-n">hub</span> = <span class="tok-f">Hub</span>()
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">websocket</span>(<span class="tok-s">"/ws/feed"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">feed</span>(<span class="tok-n">ws</span>: <span class="tok-n">WebSocket</span>):
+    <span class="tok-k">await</span> <span class="tok-n">hub</span>.<span class="tok-f">connect</span>(<span class="tok-n">ws</span>)
+    <span class="tok-k">try</span>:
+        <span class="tok-k">while</span> <span class="tok-k">True</span>:
+            <span class="tok-c"># Keep the connection open; ignore inbound messages</span>
+            <span class="tok-k">await</span> <span class="tok-n">ws</span>.<span class="tok-f">receive_text</span>()
+    <span class="tok-k">except</span> <span class="tok-n">WebSocketDisconnect</span>:
+        <span class="tok-n">hub</span>.<span class="tok-f">disconnect</span>(<span class="tok-n">ws</span>)</code></pre>
+
+      <p>
+        Other parts of the app push events with
+        <code>await hub.broadcast({...})</code>. The dead-
+        socket cleanup pattern matters &mdash; clients
+        disappear without warning all the time.
+      </p>
+
+      <h2>The multi-worker problem</h2>
+
+      <p>
+        With <code>--workers 4</code>, each worker has its
+        own <code>Hub</code> instance. A message from one
+        worker won't reach clients on the others. For
+        small deployments, run a single worker. For real
+        scale, use a pub/sub backplane (Redis, NATS) so
+        each worker subscribes and forwards to its
+        connected clients.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># With Redis as a pub/sub backplane (sketch)</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">redis_subscriber</span>():
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">redis</span>.<span class="tok-f">pubsub</span>() <span class="tok-k">as</span> <span class="tok-n">ps</span>:
+        <span class="tok-k">await</span> <span class="tok-n">ps</span>.<span class="tok-f">subscribe</span>(<span class="tok-s">"feed"</span>)
+        <span class="tok-k">async</span> <span class="tok-k">for</span> <span class="tok-n">msg</span> <span class="tok-k">in</span> <span class="tok-n">ps</span>.<span class="tok-f">listen</span>():
+            <span class="tok-k">if</span> <span class="tok-n">msg</span>[<span class="tok-s">"type"</span>] == <span class="tok-s">"message"</span>:
+                <span class="tok-k">await</span> <span class="tok-n">hub</span>.<span class="tok-f">broadcast</span>(<span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">msg</span>[<span class="tok-s">"data"</span>]))</code></pre>
+
+      <h2>Heartbeats and ping/pong</h2>
+
+      <p>
+        WebSocket connections silently die behind NAT,
+        proxies, and firewalls. uvicorn sends WS-level
+        pings (controlled by <code>--ws-ping-interval</code>);
+        for application-level liveness, send your own
+        ping JSON every N seconds and expect a reply.
+      </p>
+
+      <h2>Testing WebSockets</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span>.<span class="tok-n">testclient</span> <span class="tok-k">import</span> <span class="tok-n">TestClient</span>
+
+<span class="tok-k">def</span> <span class="tok-f">test_echo</span>():
+    <span class="tok-n">client</span> = <span class="tok-f">TestClient</span>(<span class="tok-n">app</span>)
+    <span class="tok-k">with</span> <span class="tok-n">client</span>.<span class="tok-f">websocket_connect</span>(<span class="tok-s">"/ws/echo"</span>) <span class="tok-k">as</span> <span class="tok-n">ws</span>:
+        <span class="tok-n">ws</span>.<span class="tok-f">send_text</span>(<span class="tok-s">"hello"</span>)
+        <span class="tok-k">assert</span> <span class="tok-n">ws</span>.<span class="tok-f">receive_text</span>() == <span class="tok-s">"echo: hello"</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For Server-Sent Events (one-way streaming) the
+          setup is much simpler than WebSockets. Use
+          <code>StreamingResponse</code> with a generator
+          that yields <code>data: ...\n\n</code> blocks.
+          Right tool when you only need server → client.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Build a tiny telemetry feed: a
+          <code>/ws/metrics</code> endpoint that pushes
+          a JSON message every second with the current
+          process CPU and memory usage. Connect from a
+          browser console with <code>new
+          WebSocket(...)</code>. The persistent
+          connection feels different from polling once
+          you see it live.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-065-middleware.html">
+        <span class="label">← Previous</span>
+        <span class="title">HTTP middleware: cross-cutting concerns the right way</span>
+      </a>
+      <a class="next" href="day-067-background-tasks.html">
+        <span class="label">Next →</span>
+        <span class="title">Background tasks: FastAPI vs Celery vs RQ</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

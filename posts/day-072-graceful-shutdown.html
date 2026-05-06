@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 072 · Graceful shutdown: SIGTERM the right way — Learn with Pradeep</title>
+  <meta name="description" content="When the orchestrator says 'stop', you have 30 seconds. Here's how to drain in-flight requests, close connections, and exit cleanly — in sync and async code.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 072 &middot; Patterns &middot; Intermediate</div>
+      <h1>Graceful shutdown: SIGTERM the right way</h1>
+      <p class="subtitle">
+        When the orchestrator says "stop", you have 30
+        seconds. Drain in-flight requests, close
+        connections, exit cleanly &mdash; in sync and async.
+      </p>
+      <div class="article-meta">
+        <span>13 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>SIGTERM is the polite "please stop"; SIGKILL is
+        the "you had your chance". On SIGTERM: stop
+        accepting new work, finish what's in flight, close
+        clients and pools, then exit. uvicorn and gunicorn
+        do the HTTP-server side correctly &mdash; you handle
+        cleanup in a lifespan context or signal handler.</p>
+      </div>
+
+      <p>
+        Every container orchestrator (Kubernetes, ECS,
+        Nomad, systemd) sends SIGTERM, waits a grace
+        period, then SIGKILL. Code that doesn't handle
+        SIGTERM gets killed mid-request, drops connections,
+        leaves transactions half-committed. Code that does
+        gets a clean roll.
+      </p>
+
+      <h2>FastAPI: the lifespan context</h2>
+
+      <p>
+        The right place for shutdown work in FastAPI is
+        the same place we set up startup work (Day 061):
+        the <code>lifespan</code> context manager. Code
+        after the <code>yield</code> runs on shutdown.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextlib</span> <span class="tok-k">import</span> <span class="tok-n">asynccontextmanager</span>
+<span class="tok-k">import</span> <span class="tok-n">httpx</span>, <span class="tok-n">structlog</span>
+
+<span class="tok-n">log</span> = <span class="tok-n">structlog</span>.<span class="tok-f">get_logger</span>()
+
+<span class="tok-o">@</span><span class="tok-n">asynccontextmanager</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">lifespan</span>(<span class="tok-n">app</span>):
+    <span class="tok-c"># Startup</span>
+    <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">http</span> = <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>()
+    <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">db</span>   = <span class="tok-k">await</span> <span class="tok-f">connect_db</span>()
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"startup_complete"</span>)
+    <span class="tok-k">yield</span>
+    <span class="tok-c"># Shutdown — runs when SIGTERM is received</span>
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"shutdown_starting"</span>)
+    <span class="tok-k">await</span> <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">http</span>.<span class="tok-f">aclose</span>()
+    <span class="tok-k">await</span> <span class="tok-n">app</span>.<span class="tok-n">state</span>.<span class="tok-n">db</span>.<span class="tok-f">close</span>()
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"shutdown_complete"</span>)</code></pre>
+
+      <p>
+        uvicorn handles the HTTP layer for you: stops
+        accepting new connections, waits for in-flight
+        requests to finish (up to <code>--timeout-graceful-
+        shutdown</code> seconds), then triggers your
+        lifespan shutdown.
+      </p>
+
+      <h2>Plain scripts: the signal handler</h2>
+
+      <p>
+        Long-running scripts &mdash; pollers, consumers,
+        periodic syncs &mdash; need to register a signal
+        handler explicitly.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">signal</span>, <span class="tok-n">time</span>
+
+<span class="tok-n">_should_stop</span> = <span class="tok-k">False</span>
+
+<span class="tok-k">def</span> <span class="tok-f">_handle_sigterm</span>(<span class="tok-n">signum</span>, <span class="tok-n">frame</span>):
+    <span class="tok-k">global</span> <span class="tok-n">_should_stop</span>
+    <span class="tok-n">_should_stop</span> = <span class="tok-k">True</span>
+
+<span class="tok-n">signal</span>.<span class="tok-f">signal</span>(<span class="tok-n">signal</span>.<span class="tok-n">SIGTERM</span>, <span class="tok-n">_handle_sigterm</span>)
+<span class="tok-n">signal</span>.<span class="tok-f">signal</span>(<span class="tok-n">signal</span>.<span class="tok-n">SIGINT</span>,  <span class="tok-n">_handle_sigterm</span>)
+
+<span class="tok-k">while</span> <span class="tok-k">not</span> <span class="tok-n">_should_stop</span>:
+    <span class="tok-f">poll_once</span>()
+    <span class="tok-n">time</span>.<span class="tok-f">sleep</span>(<span class="tok-n">5</span>)
+
+<span class="tok-c"># Cleanup runs after the loop exits</span>
+<span class="tok-f">close_connections</span>()</code></pre>
+
+      <p>
+        The flag pattern is the safe way &mdash; signal
+        handlers run between bytecode instructions and
+        can interrupt almost anything, so keep them
+        trivial.
+      </p>
+
+      <h2>Async scripts: cancel the main task</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">asyncio</span>, <span class="tok-n">signal</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">main</span>():
+    <span class="tok-k">try</span>:
+        <span class="tok-k">while</span> <span class="tok-k">True</span>:
+            <span class="tok-k">await</span> <span class="tok-f">poll_once</span>()
+            <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">sleep</span>(<span class="tok-n">5</span>)
+    <span class="tok-k">except</span> <span class="tok-n">asyncio</span>.<span class="tok-n">CancelledError</span>:
+        <span class="tok-c"># SIGTERM arrived — clean up</span>
+        <span class="tok-k">await</span> <span class="tok-f">close_connections</span>()
+        <span class="tok-k">raise</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">_run</span>():
+    <span class="tok-n">task</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">create_task</span>(<span class="tok-f">main</span>())
+    <span class="tok-n">loop</span> = <span class="tok-n">asyncio</span>.<span class="tok-f">get_running_loop</span>()
+    <span class="tok-k">for</span> <span class="tok-n">sig</span> <span class="tok-k">in</span> (<span class="tok-n">signal</span>.<span class="tok-n">SIGTERM</span>, <span class="tok-n">signal</span>.<span class="tok-n">SIGINT</span>):
+        <span class="tok-n">loop</span>.<span class="tok-f">add_signal_handler</span>(<span class="tok-n">sig</span>, <span class="tok-n">task</span>.<span class="tok-n">cancel</span>)
+    <span class="tok-k">try</span>:
+        <span class="tok-k">await</span> <span class="tok-n">task</span>
+    <span class="tok-k">except</span> <span class="tok-n">asyncio</span>.<span class="tok-n">CancelledError</span>:
+        <span class="tok-k">pass</span>
+
+<span class="tok-n">asyncio</span>.<span class="tok-f">run</span>(<span class="tok-f">_run</span>())</code></pre>
+
+      <p>
+        SIGTERM cancels the main task, the
+        <code>CancelledError</code> propagates to your
+        cleanup code, then the program exits. Use
+        <code>add_signal_handler</code> instead of
+        <code>signal.signal</code> in async code &mdash;
+        plays nicely with the loop.
+      </p>
+
+      <h2>Don't suppress CancelledError</h2>
+
+      <p>
+        A surprisingly common mistake:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># BAD — swallows shutdown signals</span>
+<span class="tok-k">try</span>:
+    <span class="tok-k">await</span> <span class="tok-f">do_work</span>()
+<span class="tok-k">except</span> <span class="tok-n">Exception</span>:
+    <span class="tok-n">log</span>.<span class="tok-f">exception</span>(<span class="tok-s">"oops"</span>)
+    <span class="tok-c"># CancelledError matches Exception in 3.7; in 3.8+ it doesn't,
+    # but watch out for `except BaseException` patterns</span></code></pre>
+
+      <p>
+        Catch the specific exceptions you want to handle.
+        <code>CancelledError</code> should propagate so
+        the loop can actually wind down. Same goes for
+        <code>KeyboardInterrupt</code> in sync code.
+      </p>
+
+      <h2>The grace period budget</h2>
+
+      <p>
+        Kubernetes default
+        <code>terminationGracePeriodSeconds</code> is 30.
+        Within that window: drain HTTP, finish the
+        in-flight DB transaction, push final metrics,
+        flush logs. If you need more time
+        (long-running jobs), bump the grace period; don't
+        try to skip the cleanup.
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code>spec:
+  terminationGracePeriodSeconds: 60
+  containers:
+    - name: app
+      lifecycle:
+        preStop:
+          exec:
+            command: ["/bin/sh", "-c", "sleep 5"]   # let LBs notice</code></pre>
+
+      <p>
+        The <code>preStop</code> sleep gives the load
+        balancer time to remove the pod from rotation
+        before SIGTERM arrives &mdash; a few seconds of
+        sleep here saves a lot of in-flight failed
+        requests.
+      </p>
+
+      <h2>Workers and queues</h2>
+
+      <p>
+        For RQ, Celery, and similar: most have built-in
+        SIGTERM handling that finishes the current task
+        and exits. The thing to verify is that your
+        tasks are short-ish, or you've configured a
+        long enough grace period to let them complete.
+        Tasks that always exceed grace period need to
+        be checkpoint-able and idempotent.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>SIGKILL is non-negotiable</strong>
+          &mdash; you can't catch it. The kernel just
+          ends the process. Anything that <em>must</em>
+          be done at shutdown should also be safe to
+          recover from on next startup. Treat the grace
+          period as best-effort, not a guarantee.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Run <code>kill -TERM &lt;pid&gt;</code> against
+          a local copy of your service and watch the
+          shutdown logs. If you see in-flight requests
+          getting cut off, or pools left unclosed, you
+          have shutdown work to do. The same script
+          adapts trivially to test docker
+          <code>SIGTERM</code> behaviour.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-071-health-checks.html">
+        <span class="label">← Previous</span>
+        <span class="title">Health checks: liveness, readiness, and startup</span>
+      </a>
+      <a class="next" href="day-073-docker.html">
+        <span class="label">Next →</span>
+        <span class="title">Docker for Python apps: the right base image</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

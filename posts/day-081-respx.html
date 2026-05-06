@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 081 · respx: mocking httpx without breaking httpx — Learn with Pradeep</title>
+  <meta name="description" content="Mock HTTP responses for tests with respx. Stub by URL pattern, return canned bodies, assert which calls were made — without a real server.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 081 &middot; Third-party &middot; Intermediate</div>
+      <h1>respx: mocking httpx without breaking httpx</h1>
+      <p class="subtitle">
+        Mock HTTP responses for tests. Stub by URL
+        pattern, return canned bodies, assert which calls
+        were made &mdash; without a real server.
+      </p>
+      <div class="article-meta">
+        <span>22 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>For httpx-based code, use <code>respx</code> to
+        intercept requests and return canned responses.
+        For requests-based code, use
+        <code>responses</code>. For either, prefer
+        URL-pattern stubs over heavy
+        <code>unittest.mock</code> patches &mdash;
+        you're testing your code, not the HTTP library.</p>
+      </div>
+
+      <p>
+        Tests that hit real HTTP endpoints are slow,
+        flaky, and require credentials. Tests that
+        mock with <code>unittest.mock</code> bypass the
+        HTTP library entirely &mdash; you stop testing
+        URL construction, headers, and serialization.
+        respx is the middle path: real httpx, fake
+        network.
+      </p>
+
+      <h2>Basic stubbing</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">httpx</span>, <span class="tok-n">respx</span>
+
+<span class="tok-o">@</span><span class="tok-n">respx</span>.<span class="tok-n">mock</span>
+<span class="tok-k">def</span> <span class="tok-f">test_fetches_devices</span>():
+    <span class="tok-n">respx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.example.com/devices"</span>).<span class="tok-f">mock</span>(
+        <span class="tok-n">return_value</span>=<span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">200</span>, <span class="tok-n">json</span>=[
+            {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>},
+        ])
+    )
+
+    <span class="tok-n">result</span> = <span class="tok-f">my_function_that_calls_the_api</span>()
+    <span class="tok-k">assert</span> <span class="tok-f">len</span>(<span class="tok-n">result</span>) == <span class="tok-n">1</span></code></pre>
+
+      <p>
+        The decorator activates the mock for the test;
+        any httpx call to that URL gets the stubbed
+        response. Other URLs would raise
+        <code>respx.MockResponseNotFoundError</code>
+        &mdash; tests fail loud if you forgot to mock
+        a call.
+      </p>
+
+      <h2>Async, the same way</h2>
+
+      <p>
+        respx works with both sync and async httpx
+        clients. No code changes needed.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">respx</span>.<span class="tok-n">mock</span>
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">test_async_fetch</span>():
+    <span class="tok-n">respx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.example.com/health"</span>).<span class="tok-f">mock</span>(
+        <span class="tok-n">return_value</span>=<span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">200</span>, <span class="tok-n">json</span>={<span class="tok-s">"status"</span>: <span class="tok-s">"ok"</span>}),
+    )
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-n">r</span> = <span class="tok-k">await</span> <span class="tok-n">c</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.example.com/health"</span>)
+        <span class="tok-k">assert</span> <span class="tok-n">r</span>.<span class="tok-f">json</span>() == {<span class="tok-s">"status"</span>: <span class="tok-s">"ok"</span>}</code></pre>
+
+      <h2>URL patterns</h2>
+
+      <p>
+        For paths with IDs you don't want to enumerate,
+        use a regex.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">re</span>
+
+<span class="tok-n">respx</span>.<span class="tok-f">get</span>(<span class="tok-n">url__regex</span>=<span class="tok-s">r"https://api\.example\.com/devices/\d+"</span>).<span class="tok-f">mock</span>(
+    <span class="tok-n">return_value</span>=<span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">200</span>, <span class="tok-n">json</span>={<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-X"</span>}),
+)</code></pre>
+
+      <h2>Side-effect responses</h2>
+
+      <p>
+        For dynamic responses (different per call,
+        based on request body, etc.), pass a callable.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">handler</span>(<span class="tok-n">request</span>):
+    <span class="tok-n">payload</span> = <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">request</span>.<span class="tok-n">content</span>)
+    <span class="tok-k">return</span> <span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">201</span>, <span class="tok-n">json</span>={<span class="tok-s">"id"</span>: <span class="tok-n">42</span>, <span class="tok-o">**</span><span class="tok-n">payload</span>})
+
+<span class="tok-n">respx</span>.<span class="tok-f">post</span>(<span class="tok-s">"https://api.example.com/devices"</span>).<span class="tok-f">mock</span>(<span class="tok-n">side_effect</span>=<span class="tok-n">handler</span>)</code></pre>
+
+      <p>
+        Useful for echoing back submitted data with an
+        ID, or returning different status codes based
+        on input shape.
+      </p>
+
+      <h2>Asserting calls were made</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">respx</span>.<span class="tok-n">mock</span>
+<span class="tok-k">def</span> <span class="tok-f">test_sends_metric</span>():
+    <span class="tok-n">route</span> = <span class="tok-n">respx</span>.<span class="tok-f">post</span>(<span class="tok-s">"https://metrics.local/v1/ingest"</span>).<span class="tok-f">mock</span>(
+        <span class="tok-n">return_value</span>=<span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">204</span>),
+    )
+
+    <span class="tok-f">my_code_that_should_send_a_metric</span>()
+
+    <span class="tok-k">assert</span> <span class="tok-n">route</span>.<span class="tok-n">called</span>
+    <span class="tok-k">assert</span> <span class="tok-n">route</span>.<span class="tok-n">call_count</span> == <span class="tok-n">1</span>
+    <span class="tok-n">request</span> = <span class="tok-n">route</span>.<span class="tok-n">calls</span>.<span class="tok-n">last</span>.<span class="tok-n">request</span>
+    <span class="tok-k">assert</span> <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">request</span>.<span class="tok-n">content</span>)[<span class="tok-s">"value"</span>] == <span class="tok-n">42</span></code></pre>
+
+      <h2>Pass-through for partial mocking</h2>
+
+      <p>
+        Sometimes you want to mock one endpoint but let
+        others hit the real server. <code>pass_through</code>
+        does that.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">respx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.example.com/v1/special"</span>).<span class="tok-f">mock</span>(
+    <span class="tok-n">return_value</span>=<span class="tok-n">httpx</span>.<span class="tok-f">Response</span>(<span class="tok-n">200</span>, <span class="tok-n">json</span>={<span class="tok-s">"stub"</span>: <span class="tok-k">True</span>}),
+)
+<span class="tok-c"># Everything else hits the real network</span>
+<span class="tok-n">respx</span>.<span class="tok-f">route</span>().<span class="tok-f">pass_through</span>()</code></pre>
+
+      <p>
+        Mostly useful in integration-style tests where
+        only one slow/flaky upstream needs stubbing.
+      </p>
+
+      <h2>The requests-library equivalent: responses</h2>
+
+      <p>
+        For codebases still using
+        <code>requests</code>, the equivalent library
+        is <code>responses</code>:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">responses</span>, <span class="tok-n">requests</span>
+
+<span class="tok-o">@</span><span class="tok-n">responses</span>.<span class="tok-n">activate</span>
+<span class="tok-k">def</span> <span class="tok-f">test_legacy</span>():
+    <span class="tok-n">responses</span>.<span class="tok-f">add</span>(<span class="tok-n">responses</span>.<span class="tok-n">GET</span>, <span class="tok-s">"https://api.example.com/x"</span>,
+                  <span class="tok-n">json</span>={<span class="tok-s">"ok"</span>: <span class="tok-k">True</span>})
+
+    <span class="tok-k">assert</span> <span class="tok-n">requests</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://api.example.com/x"</span>).<span class="tok-f">json</span>() == {<span class="tok-s">"ok"</span>: <span class="tok-k">True</span>}</code></pre>
+
+      <p>
+        Same idea, slightly different API. Pick by
+        your HTTP library.
+      </p>
+
+      <h2>VCR: record real responses, replay forever</h2>
+
+      <p>
+        For tests against APIs you don't control: VCR
+        records the real HTTP call once, plays back
+        the recording on subsequent runs.
+        <code>pytest-vcr</code> handles the
+        integration.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">vcr</span>
+<span class="tok-k">def</span> <span class="tok-f">test_real_api</span>():
+    <span class="tok-c"># First run: hits real API, records response
+    # Subsequent runs: replays recording, no network</span>
+    <span class="tok-n">result</span> = <span class="tok-f">my_api_call</span>()
+    <span class="tok-k">assert</span> <span class="tok-n">result</span>[<span class="tok-s">"status"</span>] == <span class="tok-s">"ok"</span></code></pre>
+
+      <p>
+        Cassette files (YAML) live in your repo. Watch
+        for accidentally recording auth tokens &mdash;
+        VCR has filters to scrub sensitive headers.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          Don't mock at the
+          <code>unittest.mock.patch("httpx.get")</code>
+          level. You stop testing what you actually
+          send and start testing your mocks. Stub at
+          the URL level (respx) so the HTTP library is
+          still in the loop.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a test that hits a real API or that
+          uses heavy <code>mock.patch</code> on httpx
+          internals. Convert to respx. The test
+          becomes faster and clearer about what it's
+          asserting (URL, method, body), and you can
+          assert on outbound headers
+          (<code>Authorization</code>, custom IDs)
+          you couldn't before.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-080-factory-faker.html">
+        <span class="label">← Previous</span>
+        <span class="title">factory_boy and faker: realistic test data</span>
+      </a>
+      <a class="next" href="day-082-testcontainers.html">
+        <span class="label">Next →</span>
+        <span class="title">testcontainers: real services for integration tests</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 080 · factory_boy and faker: realistic test data — Learn with Pradeep</title>
+  <meta name="description" content="Test data that looks like real data. Faker for individual fields, factory_boy for whole objects. Sub-factories, sequences, post-generation hooks — and when polyfactory replaces both.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 080 &middot; Third-party &middot; Intermediate</div>
+      <h1>factory_boy and faker: realistic test data</h1>
+      <p class="subtitle">
+        Test data that looks like real data. Faker for
+        individual fields, factory_boy for whole objects.
+        Sub-factories, sequences, post-generation hooks.
+      </p>
+      <div class="article-meta">
+        <span>21 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>faker</code> generates one realistic
+        value at a time (names, addresses, IPs).
+        <code>factory_boy</code> wraps it into reusable
+        builders for whole models. Use sequences for
+        unique fields, sub-factories for relationships,
+        traits for variants. For pydantic-only codebases,
+        <code>polyfactory</code> derives factories
+        automatically from your models.</p>
+      </div>
+
+      <p>
+        <code>Device(hostname="sw-01", role="access")</code>
+        gets old fast. Real test data has variety, and
+        having a builder per model means every test
+        gets unique values without the test author
+        having to think about it.
+      </p>
+
+      <h2>Faker: realistic-looking primitives</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">faker</span> <span class="tok-k">import</span> <span class="tok-n">Faker</span>
+
+<span class="tok-n">fake</span> = <span class="tok-f">Faker</span>()
+
+<span class="tok-n">fake</span>.<span class="tok-f">name</span>()              <span class="tok-c"># 'Allison Hill'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">email</span>()             <span class="tok-c"># 'kennedy24@example.com'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">ipv4_private</span>()      <span class="tok-c"># '10.247.62.13'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">mac_address</span>()       <span class="tok-c"># '7e:11:c0:cd:6e:08'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">hostname</span>()          <span class="tok-c"># 'desktop-79.davis.com'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">date_time_this_year</span>()
+<span class="tok-n">fake</span>.<span class="tok-f">company</span>()           <span class="tok-c"># 'Davis-Hernandez'</span>
+<span class="tok-n">fake</span>.<span class="tok-f">text</span>(<span class="tok-n">max_nb_chars</span>=<span class="tok-n">200</span>)</code></pre>
+
+      <p>
+        Faker has hundreds of providers and supports
+        locale (<code>Faker("ja_JP")</code> for
+        Japanese names and addresses). For
+        network-engineering tasks the IP/MAC/hostname
+        ones are great.
+      </p>
+
+      <h2>factory_boy: builders that compose</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">factory</span>
+<span class="tok-k">from</span> <span class="tok-n">factory</span> <span class="tok-k">import</span> <span class="tok-n">Faker</span>, <span class="tok-n">Sequence</span>, <span class="tok-n">SubFactory</span>
+<span class="tok-k">from</span> <span class="tok-n">myapp</span>.<span class="tok-n">models</span> <span class="tok-k">import</span> <span class="tok-n">Site</span>, <span class="tok-n">Device</span>
+
+<span class="tok-k">class</span> <span class="tok-f">SiteFactory</span>(<span class="tok-n">factory</span>.<span class="tok-n">Factory</span>):
+    <span class="tok-k">class</span> <span class="tok-f">Meta</span>:
+        <span class="tok-n">model</span> = <span class="tok-n">Site</span>
+    <span class="tok-n">id</span>   = <span class="tok-f">Sequence</span>(<span class="tok-k">lambda</span> <span class="tok-n">n</span>: <span class="tok-n">n</span>)
+    <span class="tok-n">name</span> = <span class="tok-f">Faker</span>(<span class="tok-s">"city"</span>)
+
+<span class="tok-k">class</span> <span class="tok-f">DeviceFactory</span>(<span class="tok-n">factory</span>.<span class="tok-n">Factory</span>):
+    <span class="tok-k">class</span> <span class="tok-f">Meta</span>:
+        <span class="tok-n">model</span> = <span class="tok-n">Device</span>
+    <span class="tok-n">hostname</span> = <span class="tok-f">Sequence</span>(<span class="tok-k">lambda</span> <span class="tok-n">n</span>: <span class="tok-s">f"sw-{n:04d}"</span>)
+    <span class="tok-n">role</span>     = <span class="tok-f">Faker</span>(<span class="tok-s">"random_element"</span>,
+                       <span class="tok-n">elements</span>=[<span class="tok-s">"access"</span>, <span class="tok-s">"core"</span>, <span class="tok-s">"distribution"</span>])
+    <span class="tok-n">ip</span>       = <span class="tok-f">Faker</span>(<span class="tok-s">"ipv4_private"</span>)
+    <span class="tok-n">site</span>     = <span class="tok-f">SubFactory</span>(<span class="tok-n">SiteFactory</span>)</code></pre>
+
+      <p>
+        <code>Sequence</code> gives unique values per
+        instance &mdash; <code>sw-0001</code>,
+        <code>sw-0002</code>, etc. <code>SubFactory</code>
+        chains factories together: building a
+        <code>Device</code> auto-builds a <code>Site</code>
+        unless you pass one in.
+      </p>
+
+      <h2>Using factories in tests</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">test_role_filter</span>():
+    <span class="tok-n">access_devices</span> = <span class="tok-n">DeviceFactory</span>.<span class="tok-f">build_batch</span>(<span class="tok-n">3</span>, <span class="tok-n">role</span>=<span class="tok-s">"access"</span>)
+    <span class="tok-n">core_devices</span>   = <span class="tok-n">DeviceFactory</span>.<span class="tok-f">build_batch</span>(<span class="tok-n">2</span>, <span class="tok-n">role</span>=<span class="tok-s">"core"</span>)
+    <span class="tok-n">all_devices</span>    = <span class="tok-n">access_devices</span> + <span class="tok-n">core_devices</span>
+    <span class="tok-k">assert</span> <span class="tok-f">filter_by_role</span>(<span class="tok-n">all_devices</span>, <span class="tok-s">"access"</span>) == <span class="tok-n">access_devices</span>
+
+<span class="tok-k">def</span> <span class="tok-f">test_one_off</span>():
+    <span class="tok-n">d</span> = <span class="tok-n">DeviceFactory</span>.<span class="tok-f">build</span>(<span class="tok-n">role</span>=<span class="tok-s">"core"</span>, <span class="tok-n">site__name</span>=<span class="tok-s">"DC1"</span>)
+    <span class="tok-c"># site__name= reaches into the SubFactory and overrides Site.name</span>
+    <span class="tok-k">assert</span> <span class="tok-n">d</span>.<span class="tok-n">site</span>.<span class="tok-n">name</span> == <span class="tok-s">"DC1"</span></code></pre>
+
+      <p>
+        <code>build()</code> creates the object;
+        <code>build_batch(N, ...)</code> creates a list.
+        For ORM models, <code>create()</code> /
+        <code>create_batch()</code> also persist to
+        the database.
+      </p>
+
+      <h2>Traits: named variants</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">DeviceFactory</span>(<span class="tok-n">factory</span>.<span class="tok-n">Factory</span>):
+    <span class="tok-k">class</span> <span class="tok-f">Meta</span>:
+        <span class="tok-n">model</span> = <span class="tok-n">Device</span>
+    <span class="tok-n">hostname</span> = <span class="tok-f">Sequence</span>(<span class="tok-k">lambda</span> <span class="tok-n">n</span>: <span class="tok-s">f"sw-{n}"</span>)
+    <span class="tok-n">role</span>     = <span class="tok-s">"access"</span>
+    <span class="tok-n">decommissioned</span> = <span class="tok-k">False</span>
+
+    <span class="tok-k">class</span> <span class="tok-f">Params</span>:
+        <span class="tok-n">decom</span> = <span class="tok-n">factory</span>.<span class="tok-f">Trait</span>(
+            <span class="tok-n">decommissioned</span>=<span class="tok-k">True</span>,
+            <span class="tok-n">hostname</span>=<span class="tok-f">Sequence</span>(<span class="tok-k">lambda</span> <span class="tok-n">n</span>: <span class="tok-s">f"DECOM-{n}"</span>),
+        )
+
+<span class="tok-c"># Use:</span>
+<span class="tok-n">DeviceFactory</span>.<span class="tok-f">build</span>(<span class="tok-n">decom</span>=<span class="tok-k">True</span>)
+<span class="tok-c"># hostname='DECOM-7', decommissioned=True</span></code></pre>
+
+      <p>
+        Traits keep "the device but with X variation"
+        readable. Way nicer than passing many overrides.
+      </p>
+
+      <h2>Post-generation hooks</h2>
+
+      <p>
+        For relationships you can't fit into a single
+        constructor call &mdash; like a many-to-many.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">SiteFactory</span>(<span class="tok-n">factory</span>.<span class="tok-n">Factory</span>):
+    <span class="tok-k">class</span> <span class="tok-f">Meta</span>:
+        <span class="tok-n">model</span> = <span class="tok-n">Site</span>
+    <span class="tok-n">name</span> = <span class="tok-f">Faker</span>(<span class="tok-s">"city"</span>)
+
+    <span class="tok-o">@</span><span class="tok-n">factory</span>.<span class="tok-f">post_generation</span>
+    <span class="tok-k">def</span> <span class="tok-f">devices</span>(<span class="tok-n">obj</span>, <span class="tok-n">create</span>, <span class="tok-n">extracted</span>, <span class="tok-o">**</span><span class="tok-n">kwargs</span>):
+        <span class="tok-k">if</span> <span class="tok-n">extracted</span>:
+            <span class="tok-c"># Caller passed `devices=[...]`</span>
+            <span class="tok-n">obj</span>.<span class="tok-n">devices</span>.<span class="tok-f">extend</span>(<span class="tok-n">extracted</span>)
+        <span class="tok-k">elif</span> <span class="tok-s">"count"</span> <span class="tok-k">in</span> <span class="tok-n">kwargs</span>:
+            <span class="tok-c"># Caller passed `devices__count=3`</span>
+            <span class="tok-n">obj</span>.<span class="tok-n">devices</span>.<span class="tok-f">extend</span>(<span class="tok-n">DeviceFactory</span>.<span class="tok-f">build_batch</span>(<span class="tok-n">kwargs</span>[<span class="tok-s">"count"</span>]))</code></pre>
+
+      <h2>polyfactory: zero-config for pydantic and dataclasses</h2>
+
+      <p>
+        For codebases built around pydantic models,
+        <code>polyfactory</code> derives factories
+        automatically from the type hints &mdash; no
+        manual factory definitions needed.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">polyfactory</span>.<span class="tok-n">factories</span>.<span class="tok-n">pydantic_factory</span> <span class="tok-k">import</span> <span class="tok-n">ModelFactory</span>
+
+<span class="tok-k">class</span> <span class="tok-f">DeviceFactory</span>(<span class="tok-n">ModelFactory</span>[<span class="tok-n">Device</span>]):
+    <span class="tok-n">__model__</span> = <span class="tok-n">Device</span>
+
+<span class="tok-n">device</span> = <span class="tok-n">DeviceFactory</span>.<span class="tok-f">build</span>()
+<span class="tok-c"># Already valid against the pydantic schema; types match</span></code></pre>
+
+      <p>
+        Polyfactory inspects the model's type hints and
+        generates conformant data automatically. For
+        90% of cases this is enough; override fields
+        only when you need something specific.
+      </p>
+
+      <div class="callout">
+        <p>
+          For database-backed factories with
+          SQLAlchemy, the
+          <code>SQLAlchemyModelFactory</code> base
+          class adds session-aware <code>create()</code>
+          that inserts the row. Pair with the
+          <code>db_session</code> fixture from Day 077
+          and you have a clean factories-on-real-DB
+          setup.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a test file with hand-rolled factory
+          functions or repeated <code>Device(...)</code>
+          constructions. Replace with a single
+          factory_boy or polyfactory definition. The
+          tests get more variety; the next test you
+          write needs less setup; data-related bugs
+          start surfacing in cases you'd have missed
+          with hand-picked values.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-079-hypothesis.html">
+        <span class="label">← Previous</span>
+        <span class="title">hypothesis: property tests find what you didn't think of</span>
+      </a>
+      <a class="next" href="day-081-respx.html">
+        <span class="label">Next →</span>
+        <span class="title">respx: mocking httpx without breaking httpx</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

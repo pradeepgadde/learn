@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 067 · Background tasks: FastAPI vs Celery vs RQ — Learn with Pradeep</title>
+  <meta name="description" content="Three options for "do this work after the response": BackgroundTasks for fire-and-forget, RQ for simple persistent queues, Celery for the heavy stuff.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 067 &middot; Tooling &middot; Intermediate</div>
+      <h1>Background tasks: FastAPI vs Celery vs RQ</h1>
+      <p class="subtitle">
+        Three options for "do this work after the response":
+        <code>BackgroundTasks</code> for fire-and-forget,
+        RQ for simple persistent queues, Celery for the
+        heavy stuff.
+      </p>
+      <div class="article-meta">
+        <span>08 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>FastAPI <code>BackgroundTasks</code> for tasks
+        that fit "fire and forget, in this same process,
+        and we don't really care if it's lost on crash."
+        RQ for "we want a real queue but want it simple."
+        Celery for "many workers, retries, schedules,
+        chains, ten years of stack overflow answers."
+        Pick the smallest tool that fits.</p>
+      </div>
+
+      <p>
+        "Send the response now; do this slow thing
+        afterwards." Three patterns, big differences in
+        durability and complexity.
+      </p>
+
+      <h2>Tier 1: FastAPI BackgroundTasks</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastAPI</span>, <span class="tok-n">BackgroundTasks</span>
+
+<span class="tok-n">app</span> = <span class="tok-f">FastAPI</span>()
+
+<span class="tok-k">def</span> <span class="tok-f">send_welcome_email</span>(<span class="tok-n">to</span>: <span class="tok-n">str</span>):
+    <span class="tok-c"># slow SMTP call</span>
+    <span class="tok-c">...</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">post</span>(<span class="tok-s">"/signup"</span>)
+<span class="tok-k">def</span> <span class="tok-f">signup</span>(<span class="tok-n">email</span>: <span class="tok-n">str</span>, <span class="tok-n">tasks</span>: <span class="tok-n">BackgroundTasks</span>):
+    <span class="tok-f">create_user</span>(<span class="tok-n">email</span>)
+    <span class="tok-n">tasks</span>.<span class="tok-f">add_task</span>(<span class="tok-n">send_welcome_email</span>, <span class="tok-n">email</span>)
+    <span class="tok-k">return</span> {<span class="tok-s">"ok"</span>: <span class="tok-k">True</span>}        <span class="tok-c"># returns immediately</span></code></pre>
+
+      <p>
+        The task runs after the response is sent, in the
+        same worker process. Use it when:
+      </p>
+
+      <ul>
+        <li>The task is short (seconds, not minutes).</li>
+        <li>It's OK if the task is lost when the process restarts mid-task.</li>
+        <li>You don't need retries, scheduling, or visibility into queue depth.</li>
+      </ul>
+
+      <p>
+        For "send a webhook notification" or "log to an
+        audit table" &mdash; perfect. For "process this
+        upload" &mdash; you want a real queue.
+      </p>
+
+      <h2>Tier 2: RQ (Redis Queue)</h2>
+
+      <p>
+        RQ runs jobs in separate worker processes,
+        backed by Redis. Crashes don't lose jobs.
+        Failed jobs go to a failure queue you can
+        inspect.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># tasks.py</span>
+<span class="tok-k">def</span> <span class="tok-f">resize_image</span>(<span class="tok-n">path</span>: <span class="tok-n">str</span>):
+    <span class="tok-c">...</span>
+
+<span class="tok-c"># In your FastAPI app</span>
+<span class="tok-k">from</span> <span class="tok-n">redis</span>     <span class="tok-k">import</span> <span class="tok-n">Redis</span>
+<span class="tok-k">from</span> <span class="tok-n">rq</span>        <span class="tok-k">import</span> <span class="tok-n">Queue</span>
+<span class="tok-k">from</span> <span class="tok-n">tasks</span>     <span class="tok-k">import</span> <span class="tok-n">resize_image</span>
+
+<span class="tok-n">q</span> = <span class="tok-f">Queue</span>(<span class="tok-n">connection</span>=<span class="tok-f">Redis</span>.<span class="tok-f">from_url</span>(<span class="tok-s">"redis://localhost"</span>))
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">post</span>(<span class="tok-s">"/upload"</span>)
+<span class="tok-k">def</span> <span class="tok-f">upload</span>(<span class="tok-n">path</span>: <span class="tok-n">str</span>):
+    <span class="tok-n">job</span> = <span class="tok-n">q</span>.<span class="tok-f">enqueue</span>(<span class="tok-n">resize_image</span>, <span class="tok-n">path</span>)
+    <span class="tok-k">return</span> {<span class="tok-s">"job_id"</span>: <span class="tok-n">job</span>.<span class="tok-n">id</span>}</code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Run a worker in a separate process</span>
+rq worker</code></pre>
+
+      <p>
+        That's it. Add scheduling with rq-scheduler,
+        observability with rq-dashboard. The whole stack
+        fits in a few hours. Right call when "Celery is
+        too much" but you need a real queue.
+      </p>
+
+      <h2>Tier 3: Celery</h2>
+
+      <p>
+        Celery is the heavyweight: many brokers (Redis,
+        RabbitMQ, SQS), retries, scheduling (beat),
+        chains, groups, chord patterns, time limits,
+        per-task rate limits, priority queues. With it
+        comes complexity &mdash; many moving parts to
+        configure, debug, and version.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># celery_app.py</span>
+<span class="tok-k">from</span> <span class="tok-n">celery</span> <span class="tok-k">import</span> <span class="tok-n">Celery</span>
+
+<span class="tok-n">celery_app</span> = <span class="tok-f">Celery</span>(
+    <span class="tok-s">"myapp"</span>,
+    <span class="tok-n">broker</span>=<span class="tok-s">"redis://localhost/0"</span>,
+    <span class="tok-n">backend</span>=<span class="tok-s">"redis://localhost/1"</span>,
+)
+
+<span class="tok-o">@</span><span class="tok-n">celery_app</span>.<span class="tok-f">task</span>(<span class="tok-n">bind</span>=<span class="tok-k">True</span>, <span class="tok-n">max_retries</span>=<span class="tok-n">3</span>, <span class="tok-n">default_retry_delay</span>=<span class="tok-n">60</span>)
+<span class="tok-k">def</span> <span class="tok-f">sync_inventory</span>(<span class="tok-n">self</span>, <span class="tok-n">device_id</span>: <span class="tok-n">int</span>):
+    <span class="tok-k">try</span>:
+        <span class="tok-c">...</span>
+    <span class="tok-k">except</span> <span class="tok-n">TransientError</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+        <span class="tok-k">raise</span> <span class="tok-n">self</span>.<span class="tok-f">retry</span>(<span class="tok-n">exc</span>=<span class="tok-n">e</span>)
+
+<span class="tok-c"># Caller</span>
+<span class="tok-n">sync_inventory</span>.<span class="tok-f">delay</span>(<span class="tok-n">device_id</span>=<span class="tok-n">42</span>)         <span class="tok-c"># enqueue</span>
+<span class="tok-n">sync_inventory</span>.<span class="tok-f">apply_async</span>(                  <span class="tok-c"># with options</span>
+    <span class="tok-n">args</span>=[<span class="tok-n">42</span>], <span class="tok-n">countdown</span>=<span class="tok-n">30</span>, <span class="tok-n">expires</span>=<span class="tok-n">300</span>,
+)</code></pre>
+
+      <p>
+        Pick Celery when you actually need its features.
+        For most apps starting today, RQ first &mdash;
+        graduate to Celery if you outgrow it.
+      </p>
+
+      <h2>Tier 4: dramatiq, taskiq, arq, etc.</h2>
+
+      <p>
+        A few worth knowing about: <strong>dramatiq</strong>
+        is a Celery alternative with a smaller, cleaner
+        API; <strong>arq</strong> is async-native and
+        Redis-backed; <strong>taskiq</strong> is a
+        modern async-first option with FastAPI
+        integration. All produce the same shape: enqueue
+        in your web process, run in worker processes.
+      </p>
+
+      <h2>The decision tree</h2>
+
+      <ul>
+        <li><strong>Quick, in-process, fire-and-forget</strong> → FastAPI BackgroundTasks.</li>
+        <li><strong>Real queue, no exotic features</strong> → RQ or arq.</li>
+        <li><strong>Retries / scheduling / chains / many brokers / decade of recipes</strong> → Celery.</li>
+        <li><strong>Periodic batch jobs unrelated to the web app</strong> → cron or a systemd timer running a Python script. Don't pull in Celery just for cron.</li>
+      </ul>
+
+      <div class="callout warn">
+        <p>
+          <strong>Idempotency first.</strong> Whatever
+          tool you pick, design tasks to be safe to
+          re-run. Workers crash, retries happen, dead-
+          letter queues redrive. A task that double-
+          charges a card on retry is a bug, not a queue
+          choice.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          For an existing endpoint where you do a slow
+          thing inline (send email, call a third party,
+          generate a report): try the cheapest tier first.
+          Move it to <code>BackgroundTasks</code>. Time
+          the response. Promote to RQ only when the
+          fire-and-forget semantics start hurting.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-066-websockets.html">
+        <span class="label">← Previous</span>
+        <span class="title">WebSockets with FastAPI</span>
+      </a>
+      <a class="next" href="day-068-opentelemetry.html">
+        <span class="label">Next →</span>
+        <span class="title">OpenTelemetry: traces, metrics, logs in one SDK</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

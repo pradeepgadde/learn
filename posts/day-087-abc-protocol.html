@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 087 · ABCs and Protocols: two flavors of "this is a Foo" — Learn with Pradeep</title>
+  <meta name="description" content="ABCs enforce inheritance; Protocols enforce shape. When to use each, and why Protocols turned out to be the cleaner answer for most modern code.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 087 &middot; Patterns &middot; Advanced</div>
+      <h1>ABCs and Protocols: two flavors of "this is a Foo"</h1>
+      <p class="subtitle">
+        ABCs enforce inheritance; Protocols enforce
+        shape. When to use each, and why Protocols
+        turned out to be the cleaner answer for most
+        modern code.
+      </p>
+      <div class="article-meta">
+        <span>28 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>An ABC (<code>abc.ABC</code>) defines an
+        interface that subclasses must inherit from and
+        implement. A Protocol
+        (<code>typing.Protocol</code>) defines a
+        <em>shape</em>; any class with matching methods
+        satisfies it, no inheritance required. Use
+        Protocols for "looks like a duck" structural
+        typing &mdash; especially when the implementers
+        aren't yours to modify.</p>
+      </div>
+
+      <p>
+        Python's "duck typing" has always been
+        runtime-only: if it walks like a duck, it's a
+        duck. Type checkers needed a way to express
+        that statically. The pre-PEP 544 answer was
+        ABCs (nominal: you must <em>declare</em> you're
+        a duck). The post-PEP 544 answer is Protocols
+        (structural: type checker checks if you walk
+        like one).
+      </p>
+
+      <h2>ABCs: nominal interfaces</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">abc</span> <span class="tok-k">import</span> <span class="tok-n">ABC</span>, <span class="tok-n">abstractmethod</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Driver</span>(<span class="tok-n">ABC</span>):
+    <span class="tok-o">@</span><span class="tok-n">abstractmethod</span>
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">None</span>: <span class="tok-c">...</span>
+
+    <span class="tok-o">@</span><span class="tok-n">abstractmethod</span>
+    <span class="tok-k">def</span> <span class="tok-f">send</span>(<span class="tok-n">self</span>, <span class="tok-n">cmd</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">str</span>: <span class="tok-c">...</span>
+
+<span class="tok-k">class</span> <span class="tok-f">CiscoDriver</span>(<span class="tok-n">Driver</span>):
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>): <span class="tok-c">...</span>
+    <span class="tok-k">def</span> <span class="tok-f">send</span>(<span class="tok-n">self</span>, <span class="tok-n">cmd</span>):    <span class="tok-c">...</span>
+
+<span class="tok-c"># Forgetting an abstract method:</span>
+<span class="tok-k">class</span> <span class="tok-f">BrokenDriver</span>(<span class="tok-n">Driver</span>):
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>): <span class="tok-c">...</span>
+
+<span class="tok-f">BrokenDriver</span>()
+<span class="tok-c"># TypeError: Can't instantiate abstract class BrokenDriver
+# with abstract method send</span></code></pre>
+
+      <p>
+        Strengths:
+      </p>
+
+      <ul>
+        <li><strong>Runtime enforcement.</strong> Python <em>refuses</em> to instantiate an incomplete subclass. Mistakes get caught early.</li>
+        <li><strong>Shared implementation.</strong> ABCs can carry concrete helper methods.</li>
+        <li><strong>Clear lineage.</strong> <code>isinstance(d, Driver)</code> is true, definitively.</li>
+      </ul>
+
+      <p>
+        Weakness: every implementer has to
+        <em>inherit</em>. If you want to plug in a
+        third-party class that happens to have
+        <code>connect</code> and <code>send</code>, you
+        can't &mdash; you'd have to wrap it.
+      </p>
+
+      <h2>Protocols: structural interfaces</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">Protocol</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Driver</span>(<span class="tok-n">Protocol</span>):
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">None</span>: <span class="tok-c">...</span>
+    <span class="tok-k">def</span> <span class="tok-f">send</span>(<span class="tok-n">self</span>, <span class="tok-n">cmd</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">str</span>: <span class="tok-c">...</span>
+
+<span class="tok-k">class</span> <span class="tok-f">CiscoDriver</span>:                         <span class="tok-c"># NO inheritance from Driver</span>
+    <span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">self</span>, <span class="tok-n">host</span>): <span class="tok-c">...</span>
+    <span class="tok-k">def</span> <span class="tok-f">send</span>(<span class="tok-n">self</span>, <span class="tok-n">cmd</span>):    <span class="tok-c">...</span>
+
+<span class="tok-k">def</span> <span class="tok-f">use</span>(<span class="tok-n">d</span>: <span class="tok-n">Driver</span>) -&gt; <span class="tok-n">str</span>:
+    <span class="tok-n">d</span>.<span class="tok-f">connect</span>(<span class="tok-s">"sw-01"</span>)
+    <span class="tok-k">return</span> <span class="tok-n">d</span>.<span class="tok-f">send</span>(<span class="tok-s">"show ver"</span>)
+
+<span class="tok-f">use</span>(<span class="tok-f">CiscoDriver</span>())                          <span class="tok-c"># type checker: OK, structural match</span></code></pre>
+
+      <p>
+        <code>CiscoDriver</code> doesn't inherit from
+        <code>Driver</code>. It just <em>has the right
+        shape</em>. Mypy/pyright accept it because the
+        method signatures match.
+      </p>
+
+      <p>
+        Strengths:
+      </p>
+
+      <ul>
+        <li><strong>No coupling.</strong> Implementers don't need to import or inherit your protocol &mdash; their existing classes might already match.</li>
+        <li><strong>Real duck-typing, statically checked.</strong> The runtime semantics Python always had, now with a type-checker enforcement layer.</li>
+        <li><strong>Good for adapters.</strong> Need a <code>SupportsClose</code>, <code>SupportsConnect</code>? Define a tiny protocol; anything closeable works.</li>
+      </ul>
+
+      <h2>runtime_checkable for isinstance</h2>
+
+      <p>
+        Protocols are normally checked statically.
+        Add <code>@runtime_checkable</code> to also
+        get <code>isinstance(x, Driver)</code> at
+        runtime &mdash; checks for matching attribute
+        names (not signatures).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">typing</span> <span class="tok-k">import</span> <span class="tok-n">Protocol</span>, <span class="tok-n">runtime_checkable</span>
+
+<span class="tok-o">@</span><span class="tok-n">runtime_checkable</span>
+<span class="tok-k">class</span> <span class="tok-f">Closeable</span>(<span class="tok-n">Protocol</span>):
+    <span class="tok-k">def</span> <span class="tok-f">close</span>(<span class="tok-n">self</span>) -&gt; <span class="tok-n">None</span>: <span class="tok-c">...</span>
+
+<span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">obj</span>, <span class="tok-n">Closeable</span>):
+    <span class="tok-n">obj</span>.<span class="tok-f">close</span>()</code></pre>
+
+      <p>
+        Caveat: runtime checks only verify the
+        <em>names</em>, not the signatures or types.
+        For real safety, rely on the type checker;
+        treat <code>isinstance</code> as a hint.
+      </p>
+
+      <h2>When to pick which</h2>
+
+      <table class="comparison">
+        <thead>
+          <tr><th>Situation</th><th>Pick</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>You want shared implementation in the base</td>
+            <td>ABC</td>
+          </tr>
+          <tr>
+            <td>Implementers will inherit from your class anyway</td>
+            <td>ABC</td>
+          </tr>
+          <tr>
+            <td>You want runtime "instantiation refused" enforcement</td>
+            <td>ABC</td>
+          </tr>
+          <tr>
+            <td>You're typing third-party classes you don't own</td>
+            <td>Protocol</td>
+          </tr>
+          <tr>
+            <td>You want the lightest possible "looks like a Foo"</td>
+            <td>Protocol</td>
+          </tr>
+          <tr>
+            <td>You're a library author writing API surface</td>
+            <td>Protocol (usually)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>The standard library has both</h2>
+
+      <p>
+        <code>collections.abc</code> ships dozens of
+        ABCs &mdash; <code>Iterable</code>,
+        <code>Mapping</code>, <code>Hashable</code>,
+        <code>Sized</code>. Many double as Protocols
+        for type-checking purposes. So
+        <code>def f(xs: Iterable[int])</code> works
+        for any iterable, no inheritance required.
+      </p>
+
+      <p>
+        <code>typing.SupportsInt</code>,
+        <code>SupportsFloat</code>,
+        <code>SupportsAbs</code> are protocols all the
+        way down &mdash; they capture single-method
+        capabilities like "convertible to int".
+      </p>
+
+      <div class="callout">
+        <p>
+          A practical pattern: define a Protocol for
+          the public surface, ship an ABC implementation
+          that base classes can inherit from when they
+          want shared behaviour. Consumers depend on the
+          protocol; producers can choose.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take an ABC you have somewhere with no
+          shared implementation &mdash; just abstract
+          methods. Convert to a Protocol. Drop the
+          inheritance from one or two implementing
+          classes. Run mypy. The type-check still
+          passes; the coupling went away. That's the
+          structural-typing win in miniature.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-086-dunders.html">
+        <span class="label">← Previous</span>
+        <span class="title">Dunders worth knowing: __call__, __getattr__, __init_subclass__</span>
+      </a>
+      <a class="next" href="day-088-contextvars.html">
+        <span class="label">Next →</span>
+        <span class="title">contextvars: async-safe globals</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

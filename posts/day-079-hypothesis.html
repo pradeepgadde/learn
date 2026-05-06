@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 079 · hypothesis: property tests find what you didn't think of — Learn with Pradeep</title>
+  <meta name="description" content="Specify what should hold for any input; let hypothesis search for inputs that break it. The library tests no human would write — and finds the bugs no human did.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 079 &middot; Third-party &middot; Advanced</div>
+      <h1>hypothesis: property tests find what you didn't think of</h1>
+      <p class="subtitle">
+        Specify what should hold for any input; hypothesis
+        searches for inputs that break it. The library
+        tests no human would write &mdash; and finds the
+        bugs no human did.
+      </p>
+      <div class="article-meta">
+        <span>20 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate with <code>@given(strategy)</code>;
+        write a test that holds for any input from that
+        strategy. Hypothesis throws hundreds of inputs at
+        it and shrinks failures to the minimal example.
+        Best for round-trip properties, invariants, and
+        comparison against a reference implementation.</p>
+      </div>
+
+      <p>
+        Most tests follow the pattern: "for input X,
+        output should be Y." Property tests flip it:
+        "for any input, this property should hold."
+        Hypothesis is the search engine that finds
+        counter-examples.
+      </p>
+
+      <h2>The "round-trip" pattern</h2>
+
+      <p>
+        Best place to start. Anything you can serialize
+        and deserialize:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">hypothesis</span> <span class="tok-k">import</span> <span class="tok-n">given</span>, <span class="tok-n">strategies</span> <span class="tok-k">as</span> <span class="tok-n">st</span>
+<span class="tok-k">import</span> <span class="tok-n">json</span>
+
+<span class="tok-o">@</span><span class="tok-f">given</span>(<span class="tok-n">st</span>.<span class="tok-f">dictionaries</span>(<span class="tok-n">st</span>.<span class="tok-f">text</span>(), <span class="tok-n">st</span>.<span class="tok-n">integers</span>()))
+<span class="tok-k">def</span> <span class="tok-f">test_json_round_trip</span>(<span class="tok-n">d</span>):
+    <span class="tok-k">assert</span> <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-n">json</span>.<span class="tok-f">dumps</span>(<span class="tok-n">d</span>)) == <span class="tok-n">d</span></code></pre>
+
+      <p>
+        Looks tame. Run it and hypothesis will throw
+        thousands of dicts at the function: empty,
+        nested, with weird unicode, with surrogate
+        characters that aren't valid JSON. Real bugs
+        show up here.
+      </p>
+
+      <h2>Strategies: the input space</h2>
+
+      <p>
+        Strategies describe distributions of values.
+        The standard ones cover most cases:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">st</span>.<span class="tok-f">integers</span>(<span class="tok-n">min_value</span>=<span class="tok-n">0</span>, <span class="tok-n">max_value</span>=<span class="tok-n">2</span><span class="tok-o">**</span><span class="tok-n">32</span>)         <span class="tok-c"># a port number</span>
+<span class="tok-n">st</span>.<span class="tok-f">floats</span>(<span class="tok-n">allow_nan</span>=<span class="tok-k">False</span>, <span class="tok-n">allow_infinity</span>=<span class="tok-k">False</span>)
+<span class="tok-n">st</span>.<span class="tok-f">text</span>(<span class="tok-n">min_size</span>=<span class="tok-n">1</span>, <span class="tok-n">max_size</span>=<span class="tok-n">64</span>)
+<span class="tok-n">st</span>.<span class="tok-f">lists</span>(<span class="tok-n">st</span>.<span class="tok-f">integers</span>(), <span class="tok-n">unique</span>=<span class="tok-k">True</span>)
+<span class="tok-n">st</span>.<span class="tok-f">ip_addresses</span>(<span class="tok-n">v</span>=<span class="tok-n">4</span>)                                <span class="tok-c"># IPv4</span>
+<span class="tok-n">st</span>.<span class="tok-f">datetimes</span>()
+<span class="tok-n">st</span>.<span class="tok-f">one_of</span>(<span class="tok-n">st</span>.<span class="tok-n">none</span>(), <span class="tok-n">st</span>.<span class="tok-f">integers</span>())              <span class="tok-c"># Optional[int]</span>
+
+<span class="tok-c"># Build a custom strategy from primitives</span>
+<span class="tok-n">device_strategy</span> = <span class="tok-n">st</span>.<span class="tok-f">builds</span>(
+    <span class="tok-n">Device</span>,
+    <span class="tok-n">hostname</span>=<span class="tok-n">st</span>.<span class="tok-f">text</span>(<span class="tok-n">alphabet</span>=<span class="tok-s">"abcdefghijklmnop-"</span>, <span class="tok-n">min_size</span>=<span class="tok-n">1</span>),
+    <span class="tok-n">role</span>    =<span class="tok-n">st</span>.<span class="tok-f">sampled_from</span>([<span class="tok-s">"access"</span>, <span class="tok-s">"core"</span>, <span class="tok-s">"distribution"</span>]),
+    <span class="tok-n">port</span>    =<span class="tok-n">st</span>.<span class="tok-f">integers</span>(<span class="tok-n">min_value</span>=<span class="tok-n">1</span>, <span class="tok-n">max_value</span>=<span class="tok-n">65535</span>),
+)</code></pre>
+
+      <h2>Invariants: things that should always hold</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-f">given</span>(<span class="tok-n">st</span>.<span class="tok-f">lists</span>(<span class="tok-n">st</span>.<span class="tok-f">integers</span>()))
+<span class="tok-k">def</span> <span class="tok-f">test_sort_preserves_length</span>(<span class="tok-n">xs</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">len</span>(<span class="tok-f">sorted</span>(<span class="tok-n">xs</span>)) == <span class="tok-f">len</span>(<span class="tok-n">xs</span>)
+
+<span class="tok-o">@</span><span class="tok-f">given</span>(<span class="tok-n">st</span>.<span class="tok-f">lists</span>(<span class="tok-n">st</span>.<span class="tok-f">integers</span>()))
+<span class="tok-k">def</span> <span class="tok-f">test_sort_is_idempotent</span>(<span class="tok-n">xs</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">sorted</span>(<span class="tok-f">sorted</span>(<span class="tok-n">xs</span>)) == <span class="tok-f">sorted</span>(<span class="tok-n">xs</span>)</code></pre>
+
+      <p>
+        Properties that hold for <em>any</em> input
+        are gold. Each one is essentially infinite
+        unit tests in two lines.
+      </p>
+
+      <h2>Comparison: oracle pattern</h2>
+
+      <p>
+        When you have a known-correct slow
+        implementation and you're optimizing it &mdash;
+        check the fast one against the slow one for
+        random inputs.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">slow_unique</span>(<span class="tok-n">xs</span>):
+    <span class="tok-k">return</span> [<span class="tok-n">x</span> <span class="tok-k">for</span> <span class="tok-n">i</span>, <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(<span class="tok-n">xs</span>) <span class="tok-k">if</span> <span class="tok-n">x</span> <span class="tok-k">not</span> <span class="tok-k">in</span> <span class="tok-n">xs</span>[:<span class="tok-n">i</span>]]
+
+<span class="tok-o">@</span><span class="tok-f">given</span>(<span class="tok-n">st</span>.<span class="tok-f">lists</span>(<span class="tok-n">st</span>.<span class="tok-f">integers</span>(<span class="tok-n">min_value</span>=<span class="tok-n">0</span>, <span class="tok-n">max_value</span>=<span class="tok-n">100</span>)))
+<span class="tok-k">def</span> <span class="tok-f">test_fast_unique_matches</span>(<span class="tok-n">xs</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">fast_unique</span>(<span class="tok-n">xs</span>) == <span class="tok-f">slow_unique</span>(<span class="tok-n">xs</span>)</code></pre>
+
+      <h2>Shrinking: the killer feature</h2>
+
+      <p>
+        When hypothesis finds a failing input, it
+        doesn't show you the random 47-element list
+        that triggered the bug. It <em>shrinks</em> the
+        input to the minimal failing case &mdash; usually
+        a 2 or 3 element example.
+      </p>
+
+<pre class="code"><span class="code-label">text</span><code>Falsifying example: test_round_trip(d={'\udcff': 0})
+<span class="tok-c"># Hypothesis found the issue with a single key/value pair —
+# the failure trigger is a surrogate character that's not valid JSON.</span></code></pre>
+
+      <p>
+        That's worth gold during debugging. The minimal
+        example is almost always the bug, not the
+        elaborate input.
+      </p>
+
+      <h2>Replaying past failures</h2>
+
+      <p>
+        Hypothesis remembers failing examples in
+        <code>.hypothesis/</code> and re-runs them on
+        every test invocation. So once a bug is found
+        and you check in the fix, the test stays in your
+        suite forever &mdash; with the original
+        failing example baked in.
+      </p>
+
+      <h2>Settings: speed vs thoroughness</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">hypothesis</span> <span class="tok-k">import</span> <span class="tok-n">settings</span>, <span class="tok-n">HealthCheck</span>
+
+<span class="tok-o">@</span><span class="tok-f">settings</span>(<span class="tok-n">max_examples</span>=<span class="tok-n">1000</span>, <span class="tok-n">deadline</span>=<span class="tok-n">200</span>)
+<span class="tok-o">@</span><span class="tok-f">given</span>(<span class="tok-c">...</span>)
+<span class="tok-k">def</span> <span class="tok-f">test_thorough</span>(<span class="tok-c">...</span>): ...</code></pre>
+
+      <p>
+        Default is 100 examples per test &mdash;
+        adequate for CI. Bump for nightly runs;
+        decrease in the fast loop if you're iterating.
+      </p>
+
+      <h2>What it's NOT for</h2>
+
+      <ul>
+        <li><strong>Specific behavior tests</strong> &mdash; "this exact input should produce this exact output." Use a regular pytest test.</li>
+        <li><strong>Tests that depend on external state</strong> &mdash; databases, networks. Hypothesis runs each test many times; side effects compound.</li>
+        <li><strong>Tests of code that rejects most inputs</strong> &mdash; if 99% of generated inputs hit the validation path and return early, you're not testing what you think.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          For network-engineering tasks, hypothesis
+          shines on serializers/parsers. Round-trip
+          test your config-render &rarr; config-parse
+          pipeline. The first run of a property test
+          on a parser nearly always finds something.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick any function in your code that takes
+          structured input (dict, list, string with a
+          format). Write one round-trip or invariant
+          test with hypothesis. Run it once. If it
+          passes, your code's better than you think.
+          If it fails &mdash; you found the bug
+          nobody else was going to.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-078-pytest-parametrize.html">
+        <span class="label">← Previous</span>
+        <span class="title">pytest parametrize: tables of test cases</span>
+      </a>
+      <a class="next" href="day-080-factory-faker.html">
+        <span class="label">Next →</span>
+        <span class="title">factory_boy and faker: realistic test data</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 060 · FastAPI: an API in twelve lines — Learn with Pradeep</title>
+  <meta name="description" content="FastAPI turns type hints into a validated, documented HTTP API. Path operations, request bodies, dependencies — all from the function signature.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 060 &middot; Third-party &middot; Beginner</div>
+      <h1>FastAPI: an API in twelve lines</h1>
+      <p class="subtitle">
+        Type hints become a validated, documented HTTP API.
+        Path operations, request bodies, dependencies — all
+        from the function signature.
+      </p>
+      <div class="article-meta">
+        <span>01 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Decorate a function with
+        <code>@app.get("/path")</code>, annotate parameters
+        with types and pydantic models, run with
+        <code>uvicorn app:app --reload</code>. You get
+        validation, JSON parsing, OpenAPI schema, and
+        interactive docs at <code>/docs</code> for free.</p>
+      </div>
+
+      <p>
+        FastAPI is what happens when typer (Day 050) meets the
+        web. The same design philosophy &mdash; the function
+        signature is the schema &mdash; produces a server that
+        validates input, generates docs, and runs fast enough
+        to compete with Go and Node.
+      </p>
+
+      <h2>The minimum</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># app.py</span>
+<span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastAPI</span>
+<span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>
+
+<span class="tok-n">app</span> = <span class="tok-f">FastAPI</span>()
+
+<span class="tok-k">class</span> <span class="tok-f">Device</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">role</span>:     <span class="tok-n">str</span>
+    <span class="tok-n">port</span>:     <span class="tok-n">int</span> = <span class="tok-n">22</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/health"</span>)
+<span class="tok-k">def</span> <span class="tok-f">health</span>():
+    <span class="tok-k">return</span> {<span class="tok-s">"ok"</span>: <span class="tok-k">True</span>}
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">post</span>(<span class="tok-s">"/devices"</span>)
+<span class="tok-k">def</span> <span class="tok-f">create_device</span>(<span class="tok-n">d</span>: <span class="tok-n">Device</span>) -&gt; <span class="tok-n">Device</span>:
+    <span class="tok-k">return</span> <span class="tok-n">d</span></code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add fastapi uvicorn
+uvicorn app:app --reload
+<span class="tok-c"># Browse http://localhost:8000/docs for live, interactive Swagger UI</span></code></pre>
+
+      <p>
+        The <code>Device</code> model validates the request
+        body. The return type drives the response schema.
+        Hit <code>/docs</code> and you get Swagger UI with a
+        try-it-out button. Hit <code>/redoc</code> for the
+        ReDoc version. None of this required configuration.
+      </p>
+
+      <h2>Path and query parameters</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/devices/{hostname}"</span>)
+<span class="tok-k">def</span> <span class="tok-f">get_device</span>(<span class="tok-n">hostname</span>: <span class="tok-n">str</span>, <span class="tok-n">verbose</span>: <span class="tok-n">bool</span> = <span class="tok-k">False</span>):
+    <span class="tok-c"># /devices/sw-01?verbose=true</span>
+    <span class="tok-k">return</span> {<span class="tok-s">"hostname"</span>: <span class="tok-n">hostname</span>, <span class="tok-s">"verbose"</span>: <span class="tok-n">verbose</span>}</code></pre>
+
+      <p>
+        Parameters in the path go into URL placeholders.
+        Everything else becomes a query parameter (with
+        validation). <code>?verbose=true</code> is parsed to
+        <code>True</code>; <code>?verbose=banana</code>
+        returns a 422 with a clear error.
+      </p>
+
+      <h2>Response model: separate input from output</h2>
+
+      <p>
+        The same model rarely fits both directions &mdash;
+        you don't want to accept an <code>id</code> on
+        creation but you want to return one. Use
+        <code>response_model</code> to pin the output shape.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">DeviceIn</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">role</span>:     <span class="tok-n">str</span>
+
+<span class="tok-k">class</span> <span class="tok-f">DeviceOut</span>(<span class="tok-n">DeviceIn</span>):
+    <span class="tok-n">id</span>:        <span class="tok-n">int</span>
+    <span class="tok-n">created_at</span>: <span class="tok-n">datetime</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">post</span>(<span class="tok-s">"/devices"</span>, <span class="tok-n">response_model</span>=<span class="tok-n">DeviceOut</span>)
+<span class="tok-k">def</span> <span class="tok-f">create_device</span>(<span class="tok-n">d</span>: <span class="tok-n">DeviceIn</span>):
+    <span class="tok-c"># Save and return; FastAPI ensures the response matches DeviceOut</span>
+    <span class="tok-k">return</span> <span class="tok-f">save</span>(<span class="tok-n">d</span>)</code></pre>
+
+      <p>
+        Anything not in <code>DeviceOut</code> (passwords,
+        internal tokens, raw DB columns) gets stripped from
+        the response. Cheap data-leakage defense.
+      </p>
+
+      <h2>Dependencies: shared setup per request</h2>
+
+      <p>
+        Dependencies are functions whose result gets
+        injected. Use them for auth, DB sessions, common
+        query parameters, anything per-request.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">Depends</span>, <span class="tok-n">HTTPException</span>, <span class="tok-n">Header</span>
+
+<span class="tok-k">def</span> <span class="tok-f">require_admin</span>(<span class="tok-n">x_token</span>: <span class="tok-n">str</span> = <span class="tok-f">Header</span>(...)):
+    <span class="tok-k">if</span> <span class="tok-n">x_token</span> != <span class="tok-s">"secret"</span>:
+        <span class="tok-k">raise</span> <span class="tok-n">HTTPException</span>(<span class="tok-n">status_code</span>=<span class="tok-n">401</span>, <span class="tok-n">detail</span>=<span class="tok-s">"unauthorized"</span>)
+    <span class="tok-k">return</span> <span class="tok-s">"admin"</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">delete</span>(<span class="tok-s">"/devices/{hostname}"</span>)
+<span class="tok-k">def</span> <span class="tok-f">delete_device</span>(<span class="tok-n">hostname</span>: <span class="tok-n">str</span>, <span class="tok-n">user</span>: <span class="tok-n">str</span> = <span class="tok-f">Depends</span>(<span class="tok-n">require_admin</span>)):
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        The dependency runs before the path function. Its
+        return value becomes the parameter value. Failures
+        short-circuit with the right HTTP status.
+      </p>
+
+      <h2>Async by default</h2>
+
+      <p>
+        Most path functions can be <code>async def</code>.
+        Combined with httpx (Day 017) or asyncssh (Day 025),
+        a single FastAPI worker can handle hundreds of
+        concurrent slow requests.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">httpx</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/probe/{host}"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">probe</span>(<span class="tok-n">host</span>: <span class="tok-n">str</span>):
+    <span class="tok-k">async</span> <span class="tok-k">with</span> <span class="tok-n">httpx</span>.<span class="tok-f">AsyncClient</span>() <span class="tok-k">as</span> <span class="tok-n">c</span>:
+        <span class="tok-n">r</span> = <span class="tok-k">await</span> <span class="tok-n">c</span>.<span class="tok-f">get</span>(<span class="tok-s">f"https://{host}"</span>, <span class="tok-n">timeout</span>=<span class="tok-n">5</span>)
+    <span class="tok-k">return</span> {<span class="tok-s">"status"</span>: <span class="tok-n">r</span>.<span class="tok-n">status_code</span>}</code></pre>
+
+      <p>
+        Mix and match async and sync handlers freely &mdash;
+        FastAPI runs sync ones in a thread pool so they
+        don't block the event loop.
+      </p>
+
+      <div class="callout">
+        <p>
+          <strong>FastAPI vs Flask in 2026.</strong> Flask
+          is still fine for tiny services and templated HTML
+          apps. For new JSON APIs, FastAPI's free
+          validation, free docs, and async-first design are
+          hard to argue with. Migration from Flask is
+          straightforward — both use Python functions as
+          routes.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Build a tiny FastAPI app with one
+          <code>POST</code> endpoint that takes a pydantic
+          model. Run it. Open <code>/docs</code> in your
+          browser. Submit a request with the wrong type in
+          one field and watch the error response point at
+          exactly the broken field. You'll feel why people
+          ditch Flask for it.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-059-pathlib-advanced.html">
+        <span class="label">← Previous</span>
+        <span class="title">pathlib advanced: resolve, relative_to, walk</span>
+      </a>
+      <a class="next" href="day-061-uvicorn.html">
+        <span class="label">Next →</span>
+        <span class="title">uvicorn and ASGI: serving Python in production</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 088 · contextvars: async-safe globals — Learn with Pradeep</title>
+  <meta name="description" content="threading.local broke with asyncio; contextvars fixes it. Per-task storage for request IDs, user context, and trace info — without passing them through every function.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 088 &middot; Standard library &middot; Advanced</div>
+      <h1>contextvars: async-safe globals</h1>
+      <p class="subtitle">
+        <code>threading.local</code> broke with asyncio.
+        <code>contextvars</code> fixes it. Per-task
+        storage for request IDs, user context, and trace
+        info &mdash; without threading them through
+        every function call.
+      </p>
+      <div class="article-meta">
+        <span>29 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Declare a <code>ContextVar</code> at module
+        level. Set it at the entry point of each
+        request/task. Read it anywhere in the call stack
+        without passing it as a parameter. Each asyncio
+        task gets its own copy; changes in one task don't
+        leak to another. Think "thread-local, but for
+        coroutines".</p>
+      </div>
+
+      <p>
+        Two patterns appear in every non-trivial async
+        codebase: "I need this request's ID to reach
+        the logger" and "I need the current user to
+        reach the permission check, five calls deep."
+        Passing both through every function signature
+        is noisy. A global is shared across concurrent
+        tasks and is wrong. <code>contextvars</code> is
+        the right answer.
+      </p>
+
+      <h2>The basics</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">contextvars</span> <span class="tok-k">import</span> <span class="tok-n">ContextVar</span>
+
+<span class="tok-c"># Declare at module level</span>
+<span class="tok-n">request_id</span>: <span class="tok-n">ContextVar</span>[<span class="tok-n">str</span>] = <span class="tok-f">ContextVar</span>(<span class="tok-s">"request_id"</span>, <span class="tok-n">default</span>=<span class="tok-s">""</span>)
+<span class="tok-n">current_user</span>: <span class="tok-n">ContextVar</span>[<span class="tok-n">str</span>] = <span class="tok-f">ContextVar</span>(<span class="tok-s">"current_user"</span>)
+
+<span class="tok-c"># Set a value; returns a Token you can use to reset later</span>
+<span class="tok-n">token</span> = <span class="tok-n">request_id</span>.<span class="tok-f">set</span>(<span class="tok-s">"abc-123"</span>)
+
+<span class="tok-c"># Read it from anywhere in the call chain</span>
+<span class="tok-n">rid</span> = <span class="tok-n">request_id</span>.<span class="tok-f">get</span>()          <span class="tok-c"># "abc-123"</span>
+
+<span class="tok-c"># Restore to the previous value (optional)</span>
+<span class="tok-n">request_id</span>.<span class="tok-f">reset</span>(<span class="tok-n">token</span>)</code></pre>
+
+      <h2>Real use: request ID through a FastAPI app</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># vars.py</span>
+<span class="tok-k">from</span> <span class="tok-n">contextvars</span> <span class="tok-k">import</span> <span class="tok-n">ContextVar</span>
+<span class="tok-n">request_id</span>: <span class="tok-n">ContextVar</span>[<span class="tok-n">str</span>] = <span class="tok-f">ContextVar</span>(<span class="tok-s">"request_id"</span>, <span class="tok-n">default</span>=<span class="tok-s">""</span>)
+
+<span class="tok-c"># middleware.py</span>
+<span class="tok-k">from</span> <span class="tok-n">starlette</span>.<span class="tok-n">middleware</span>.<span class="tok-n">base</span> <span class="tok-k">import</span> <span class="tok-n">BaseHTTPMiddleware</span>
+<span class="tok-k">import</span> <span class="tok-n">uuid</span>
+<span class="tok-k">from</span> <span class="tok-n">.vars</span> <span class="tok-k">import</span> <span class="tok-n">request_id</span>
+
+<span class="tok-k">class</span> <span class="tok-f">RequestIDMiddleware</span>(<span class="tok-n">BaseHTTPMiddleware</span>):
+    <span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">dispatch</span>(<span class="tok-n">self</span>, <span class="tok-n">request</span>, <span class="tok-n">call_next</span>):
+        <span class="tok-n">rid</span> = <span class="tok-n">request</span>.<span class="tok-n">headers</span>.<span class="tok-f">get</span>(<span class="tok-s">"X-Request-ID"</span>, <span class="tok-f">str</span>(<span class="tok-n">uuid</span>.<span class="tok-f">uuid4</span>()))
+        <span class="tok-n">token</span> = <span class="tok-n">request_id</span>.<span class="tok-f">set</span>(<span class="tok-n">rid</span>)
+        <span class="tok-k">try</span>:
+            <span class="tok-n">response</span> = <span class="tok-k">await</span> <span class="tok-f">call_next</span>(<span class="tok-n">request</span>)
+        <span class="tok-k">finally</span>:
+            <span class="tok-n">request_id</span>.<span class="tok-f">reset</span>(<span class="tok-n">token</span>)
+        <span class="tok-n">response</span>.<span class="tok-n">headers</span>[<span class="tok-s">"X-Request-ID"</span>] = <span class="tok-n">rid</span>
+        <span class="tok-k">return</span> <span class="tok-n">response</span>
+
+<span class="tok-c"># db.py — deep in the call stack, no rid parameter needed</span>
+<span class="tok-k">from</span> <span class="tok-n">.vars</span> <span class="tok-k">import</span> <span class="tok-n">request_id</span>
+<span class="tok-k">import</span> <span class="tok-n">structlog</span>
+
+<span class="tok-n">log</span> = <span class="tok-n">structlog</span>.<span class="tok-f">get_logger</span>()
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">fetch_device</span>(<span class="tok-n">device_id</span>: <span class="tok-n">int</span>):
+    <span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"fetch_device"</span>, <span class="tok-n">rid</span>=<span class="tok-n">request_id</span>.<span class="tok-f">get</span>(), <span class="tok-n">id</span>=<span class="tok-n">device_id</span>)
+    <span class="tok-c">...</span></code></pre>
+
+      <p>
+        Every log line from every function in this
+        request emits the same <code>rid</code> &mdash;
+        without it being passed through the router,
+        the service layer, and the repository.
+      </p>
+
+      <h2>Why not threading.local?</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">threading</span>
+<span class="tok-n">_local</span> = <span class="tok-n">threading</span>.<span class="tok-f">local</span>()
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">handler_a</span>():
+    <span class="tok-n">_local</span>.<span class="tok-n">rid</span> = <span class="tok-s">"aaa"</span>
+    <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">sleep</span>(<span class="tok-n">0</span>)   <span class="tok-c"># yields control</span>
+    <span class="tok-c"># _local.rid might be "bbb" now — another coroutine ran on this thread</span></code></pre>
+
+      <p>
+        asyncio runs many coroutines on a single
+        thread. <code>threading.local</code> is
+        per-thread, so all concurrent tasks on the same
+        thread share the same storage &mdash; data
+        leaks between requests. <code>ContextVar</code>
+        is per-task: each asyncio task (and its
+        children) has its own context copy.
+      </p>
+
+      <h2>Child tasks inherit, but don't share</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">asyncio</span>
+<span class="tok-k">from</span> <span class="tok-n">contextvars</span> <span class="tok-k">import</span> <span class="tok-n">ContextVar</span>
+
+<span class="tok-n">var</span>: <span class="tok-n">ContextVar</span>[<span class="tok-n">int</span>] = <span class="tok-f">ContextVar</span>(<span class="tok-s">"var"</span>, <span class="tok-n">default</span>=<span class="tok-n">0</span>)
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">child</span>():
+    <span class="tok-f">print</span>(<span class="tok-n">var</span>.<span class="tok-f">get</span>())         <span class="tok-c"># sees parent's value: 42</span>
+    <span class="tok-n">var</span>.<span class="tok-f">set</span>(<span class="tok-n">99</span>)             <span class="tok-c"># only changes child's copy</span>
+
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">parent</span>():
+    <span class="tok-n">var</span>.<span class="tok-f">set</span>(<span class="tok-n">42</span>)
+    <span class="tok-k">await</span> <span class="tok-n">asyncio</span>.<span class="tok-f">create_task</span>(<span class="tok-f">child</span>())
+    <span class="tok-f">print</span>(<span class="tok-n">var</span>.<span class="tok-f">get</span>())         <span class="tok-c"># still 42 — child's write didn't propagate back</span></code></pre>
+
+      <p>
+        A new task inherits a <em>copy</em> of the
+        context at the moment of creation. Mutations
+        in the child don't flow back up. This is
+        exactly the right semantics for request
+        isolation.
+      </p>
+
+      <h2>Structlog integration</h2>
+
+      <p>
+        structlog (Day 034) has first-class support for
+        context vars. Bind values to the context once,
+        have them appear on every subsequent log line
+        automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">structlog</span>
+
+<span class="tok-c"># In middleware:</span>
+<span class="tok-n">structlog</span>.<span class="tok-f">contextvars</span>.<span class="tok-f">clear_contextvars</span>()
+<span class="tok-n">structlog</span>.<span class="tok-f">contextvars</span>.<span class="tok-f">bind_contextvars</span>(<span class="tok-n">request_id</span>=<span class="tok-n">rid</span>)
+
+<span class="tok-c"># Anywhere else in the request — no extra parameters:</span>
+<span class="tok-n">log</span>.<span class="tok-f">info</span>(<span class="tok-s">"processing"</span>)
+<span class="tok-c"># {"event": "processing", "request_id": "abc-123", ...}</span></code></pre>
+
+      <h2>Sync code too</h2>
+
+      <p>
+        <code>contextvars</code> works fine in sync
+        Python &mdash; each thread gets its own context.
+        For thread pools called from async code, the
+        event loop copies the context into the thread
+        automatically when using
+        <code>loop.run_in_executor</code>.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          A common footgun: setting a ContextVar in a
+          <code>@pytest.fixture</code> without resetting
+          it. The next test runs with leftover context.
+          Reset in the fixture's teardown, or use
+          <code>contextvars.copy_context().run(...)</code>
+          to sandbox the test in a fresh context.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add a request-ID context var to one of your
+          FastAPI apps via middleware. Verify that two
+          concurrent requests each log their own ID
+          and never each other's. Then remove all the
+          <code>rid</code> parameters that previously
+          threaded through your service layer.
+          The diff is always satisfying.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-087-abc-protocol.html">
+        <span class="label">← Previous</span>
+        <span class="title">ABCs and Protocols: two flavors of "this is a Foo"</span>
+      </a>
+      <a class="next" href="day-089-stringio-bytesio.html">
+        <span class="label">Next →</span>
+        <span class="title">io.StringIO and BytesIO: in-memory files</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

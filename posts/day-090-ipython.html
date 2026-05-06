@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 090 · IPython and the REPL toolkit: March finale — Learn with Pradeep</title>
+  <meta name="description" content="The REPL is where Python thinking happens. IPython, rich.inspect(), %timeit, %debug, and the workflow habits that make exploration fast and results reproducible.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 090 &middot; Tooling &middot; Beginner</div>
+      <h1>IPython and the REPL toolkit: March finale</h1>
+      <p class="subtitle">
+        The REPL is where Python thinking happens.
+        IPython, <code>rich.inspect()</code>,
+        <code>%timeit</code>, <code>%debug</code>, and
+        the habits that make exploration fast and
+        results reproducible.
+      </p>
+      <div class="article-meta">
+        <span>31 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>IPython gives you tab completion, magic
+        commands (<code>%timeit</code>,
+        <code>%debug</code>, <code>%run</code>), object
+        introspection with <code>?</code>, and a history
+        that outlasts the session. Pair with
+        <code>rich.inspect()</code> for a pretty-printed
+        object explorer. Understand the REPL as a
+        first-class thinking tool, not a fallback for
+        when you don't want to write a test.</p>
+      </div>
+
+      <p>
+        Python's default REPL is fine; IPython is
+        excellent. After ninety days of stdlib,
+        third-party libraries, CI, Docker, and
+        packaging, it's worth closing the month on the
+        tool you'll actually use to explore all of it:
+        the interactive shell.
+      </p>
+
+      <h2>Getting started</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uv tool install ipython
+ipython</code></pre>
+
+      <p>
+        Or inside a project:
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add --dev ipython
+uv run ipython</code></pre>
+
+      <h2>?  and  ?? — instant docs</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">In</span> [<span class="tok-n">1</span>]: <span class="tok-k">import</span> <span class="tok-n">pathlib</span>
+
+<span class="tok-n">In</span> [<span class="tok-n">2</span>]: <span class="tok-n">pathlib</span>.<span class="tok-n">Path</span>.<span class="tok-f">glob</span>?           <span class="tok-c"># shows docstring</span>
+<span class="tok-n">In</span> [<span class="tok-n">3</span>]: <span class="tok-n">pathlib</span>.<span class="tok-n">Path</span>.<span class="tok-f">glob</span>??          <span class="tok-c"># shows source code</span></code></pre>
+
+      <p>
+        The <code>?</code>/<code>??</code> shorthand
+        is the fastest way to check a signature or
+        read an implementation without leaving the REPL.
+        Works on functions, classes, modules, and
+        instances.
+      </p>
+
+      <h2>Tab completion and autoreload</h2>
+
+      <p>
+        Tab completes attribute names, path strings
+        (inside <code>Path("")</code>), and dict keys.
+        For iterative script development, the
+        autoreload extension reloads changed modules
+        automatically:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">In</span> [<span class="tok-n">1</span>]: %<span class="tok-f">load_ext</span> <span class="tok-n">autoreload</span>
+<span class="tok-n">In</span> [<span class="tok-n">2</span>]: %<span class="tok-n">autoreload</span> <span class="tok-n">2</span>         <span class="tok-c"># reload all modules before execution</span>
+<span class="tok-n">In</span> [<span class="tok-n">3</span>]: <span class="tok-k">from</span> <span class="tok-n">myapp</span> <span class="tok-k">import</span> <span class="tok-n">core</span>
+
+<span class="tok-c"># Edit myapp/core.py in your editor, then call core.my_func()
+# without restarting IPython — changes appear immediately</span></code></pre>
+
+      <h2>%timeit — quick benchmarks</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">In</span> [<span class="tok-n">4</span>]: %<span class="tok-f">timeit</span> <span class="tok-f">sorted</span>(<span class="tok-f">range</span>(<span class="tok-n">1000</span>))
+<span class="tok-c"># 18.5 μs ± 312 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
+
+# Multi-line variant:</span>
+<span class="tok-n">In</span> [<span class="tok-n">5</span>]: %%<span class="tok-f">timeit</span>
+   ...: <span class="tok-n">data</span> = <span class="tok-f">list</span>(<span class="tok-f">range</span>(<span class="tok-n">1000</span>))
+   ...: <span class="tok-f">sorted</span>(<span class="tok-n">data</span>)</code></pre>
+
+      <p>
+        Runs the expression in a tight loop,
+        auto-scales iterations, reports mean &plusmn;
+        standard deviation. The fastest way to compare
+        two implementations without writing a
+        benchmark script.
+      </p>
+
+      <h2>%debug — post-mortem debugging</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">In</span> [<span class="tok-n">6</span>]: <span class="tok-f">parse_cidr</span>(<span class="tok-s">"not-an-ip"</span>)
+<span class="tok-c"># ValueError: 'not-an-ip' does not appear to be an IPv4 or IPv6 network</span>
+
+<span class="tok-n">In</span> [<span class="tok-n">7</span>]: %<span class="tok-n">debug</span>
+<span class="tok-c"># Opens the debugger AT the frame where the exception occurred
+# Full pdb — u/d to move frames, p to print, l to list source</span></code></pre>
+
+      <p>
+        Post-mortem debugging drops you inside the
+        traceback to inspect locals. Usually faster
+        than adding <code>print()</code> statements
+        and rerunning.
+      </p>
+
+      <h2>%run — run a script in the REPL namespace</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">In</span> [<span class="tok-n">8</span>]: %<span class="tok-f">run</span> <span class="tok-n">my_script</span>.<span class="tok-n">py</span>
+<span class="tok-c"># All top-level names from the script are now in the REPL
+# Great for "run a data pipeline, then explore the results"</span></code></pre>
+
+      <h2>rich.inspect() — pretty object explorer</h2>
+
+      <p>
+        When <code>?</code> isn't pretty enough,
+        <code>rich.inspect</code> gives you a coloured
+        table of all attributes and methods:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">rich</span> <span class="tok-k">import</span> <span class="tok-n">inspect</span>
+<span class="tok-k">import</span> <span class="tok-n">httpx</span>
+
+<span class="tok-n">r</span> = <span class="tok-n">httpx</span>.<span class="tok-f">get</span>(<span class="tok-s">"https://httpbin.org/get"</span>)
+<span class="tok-f">inspect</span>(<span class="tok-n">r</span>)                             <span class="tok-c"># attributes + methods</span>
+<span class="tok-f">inspect</span>(<span class="tok-n">r</span>, <span class="tok-n">methods</span>=<span class="tok-k">True</span>)               <span class="tok-c"># include all methods</span>
+<span class="tok-f">inspect</span>(<span class="tok-n">r</span>, <span class="tok-n">private</span>=<span class="tok-k">True</span>)              <span class="tok-c"># include _ prefixed attrs</span></code></pre>
+
+      <p>
+        Much friendlier than <code>dir(r)</code> for
+        exploring unfamiliar objects from a new
+        library.
+      </p>
+
+      <h2>Configuring IPython</h2>
+
+      <p>
+        One-time setup: generate a profile, then edit
+        <code>~/.ipython/profile_default/ipython_config.py</code>:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Auto-load autoreload and rich on startup:</span>
+<span class="tok-n">c</span>.<span class="tok-n">InteractiveShellApp</span>.<span class="tok-n">extensions</span> = [<span class="tok-s">'autoreload'</span>]
+<span class="tok-n">c</span>.<span class="tok-n">InteractiveShellApp</span>.<span class="tok-n">exec_lines</span> = [
+    <span class="tok-s">'%autoreload 2'</span>,
+    <span class="tok-s">'from rich import inspect, print'</span>,
+]</code></pre>
+
+      <p>
+        Now every new IPython session starts with
+        autoreload and <code>rich.print</code> ready.
+      </p>
+
+      <h2>A quick workflow note</h2>
+
+      <p>
+        The REPL is for exploration; tests are for
+        codifying what you found. A good pattern:
+        explore an idea in IPython, verify it works,
+        then write it as a test so it stays working.
+        The REPL is the scratch pad; the test suite
+        is where conclusions live.
+      </p>
+
+      <div class="callout">
+        <p>
+          Three months in. Ninety days, ninety ideas
+          &mdash; from f-strings to property tests to
+          type stubs. The breadth was deliberate: this
+          is the vocabulary that separates Python
+          users from Python <em>practitioners</em>.
+          April continues.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Open IPython (or install it today if you
+          haven't). Run <code>%timeit</code> on two
+          ways you'd normally do the same thing &mdash;
+          a list comprehension vs a loop, a set lookup
+          vs a linear scan. Let the numbers inform the
+          decision rather than intuition. That's the
+          culture the REPL encourages.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-089-stringio-bytesio.html">
+        <span class="label">← Previous</span>
+        <span class="title">io.StringIO and BytesIO: in-memory files</span>
+      </a>
+      <a class="next" href="/learn/">
+        <span class="label">↑ Back to all entries</span>
+        <span class="title">April continues &rarr;</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

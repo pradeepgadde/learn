@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Learn — Daily Python Skills · Pradeep Gadde</title>
-  <meta name="description" content="A daily Python skill, distilled. One small, useful idea every day from Pradeep Gadde.">
-  <meta property="og:title" content="Learn — Daily Python Skills">
-  <meta property="og:description" content="A daily Python skill, distilled. One small, useful idea every day.">
-  <meta property="og:type" content="website">
+  <title>Learn with Pradeep &mdash; Daily Python</title>
+  <meta name="description" content="90 daily Python skill posts: networking, FastAPI, testing, Docker, packaging, and more. One concept per day, always with code.">
   <link rel="stylesheet" href="assets/learn.css">
 </head>
 <body>
@@ -17,958 +14,848 @@
     <nav class="nav">
       <a href="/">Home</a>
       <a href="/blog/">Blog</a>
-      <a href="/learn/" aria-current="page">Learn</a>
+      <a href="/learn/">Learn</a>
     </nav>
   </header>
 
   <section class="hero">
     <div class="hero-inner">
-      <div class="eyebrow">A daily field guide</div>
-      <h1>Daily Python<br>skills, <em>distilled</em>.</h1>
-      <p class="lede">
-        One small, sharp Python idea every day &mdash; the kind of thing
-        you wish someone had shown you earlier. No fluff, no framework
-        evangelism. Just the move, the why, and a snippet you can paste
-        into a REPL right now.
+      <h1 class="hero-title">Learn Python, one day at a time.</h1>
+      <p class="hero-lede">
+        90 daily posts on Python for CloudNetDevOps &mdash; f-strings to
+        FastAPI, dataclasses to Docker, parametrize to PyPI. Each post
+        fits in a coffee break.
       </p>
+    </div>
+  </section>
 
-      <div class="hero-meta">
-        <div class="stat">
-          Skills published
-          <strong id="stat-count">031</strong>
-        </div>
-        <div class="stat">
-          Reading time each
-          <strong>~3 min</strong>
-        </div>
-        <div class="stat">
-          New entry
-          <strong>Every day</strong>
-        </div>
+  <main class="main">
+    <div class="section-label">
+      <span class="count-label" id="count-label">90 entries</span>
+    </div>
+    <div class="grid" id="grid">
+    <a class="card featured" href="posts/day-090-ipython.html">
+      <div class="card-meta">Day 090 &middot; Tooling</div>
+      <h2 class="card-title">IPython and the REPL toolkit: March finale</h2>
+      <p class="card-excerpt">?, %timeit, %debug, autoreload, rich.inspect. Explore fast.</p>
+      <div class="card-footer">
+        <span class="card-date">31 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">repl</span></div>
       </div>
+    </a>
+    <a class="card" href="posts/day-089-stringio-bytesio.html">
+      <div class="card-meta">Day 089 &middot; Standard library</div>
+      <h2 class="card-title">io.StringIO and BytesIO: in-memory files</h2>
+      <p class="card-excerpt">Test file-writing code, build buffers, stream without disk I/O.</p>
+      <div class="card-footer">
+        <span class="card-date">30 Mar 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">testing</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-088-contextvars.html">
+      <div class="card-meta">Day 088 &middot; Standard library</div>
+      <h2 class="card-title">contextvars: async-safe globals</h2>
+      <p class="card-excerpt">Per-task storage for request IDs without passing them everywhere.</p>
+      <div class="card-footer">
+        <span class="card-date">29 Mar 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">async</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-087-abc-protocol.html">
+      <div class="card-meta">Day 087 &middot; Patterns</div>
+      <h2 class="card-title">ABCs and Protocols: two flavors of 'this is a Foo'</h2>
+      <p class="card-excerpt">Nominal vs structural interfaces. When to use each.</p>
+      <div class="card-footer">
+        <span class="card-date">28 Mar 2026</span>
+        <div class="card-tags"><span class="tag">patterns</span><span class="tag">typing</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-086-dunders.html">
+      <div class="card-meta">Day 086 &middot; Syntax</div>
+      <h2 class="card-title">Dunders worth knowing: __call__, __getattr__, __init_subclass__</h2>
+      <p class="card-excerpt">Callable instances, attribute proxies, and subclass-time hooks.</p>
+      <div class="card-footer">
+        <span class="card-date">27 Mar 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span><span class="tag">oop</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-085-type-stubs.html">
+      <div class="card-meta">Day 085 &middot; Patterns</div>
+      <h2 class="card-title">Type stubs and py.typed: ship type info with your package</h2>
+      <p class="card-excerpt">py.typed marker, .pyi stubs, stubgen, and the partial-typing flag.</p>
+      <div class="card-footer">
+        <span class="card-date">26 Mar 2026</span>
+        <div class="card-tags"><span class="tag">typing</span><span class="tag">packaging</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-084-pypi-publishing.html">
+      <div class="card-meta">Day 084 &middot; Tooling</div>
+      <h2 class="card-title">Publishing to PyPI: trusted publishing from CI</h2>
+      <p class="card-excerpt">OIDC trusted publishing. No tokens, no secrets. Tag-triggered.</p>
+      <div class="card-footer">
+        <span class="card-date">25 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">packaging</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-083-hatch.html">
+      <div class="card-meta">Day 083 &middot; Tooling</div>
+      <h2 class="card-title">hatch: building Python packages without setup.py</h2>
+      <p class="card-excerpt">pyproject.toml only. Build, version bump, environments, scripts.</p>
+      <div class="card-footer">
+        <span class="card-date">24 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">packaging</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-082-testcontainers.html">
+      <div class="card-meta">Day 082 &middot; Third-party</div>
+      <h2 class="card-title">testcontainers: real services for integration tests</h2>
+      <p class="card-excerpt">Postgres/Redis/Kafka in Docker for the duration of the test run.</p>
+      <div class="card-footer">
+        <span class="card-date">23 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-081-respx.html">
+      <div class="card-meta">Day 081 &middot; Third-party</div>
+      <h2 class="card-title">respx: mocking httpx without breaking httpx</h2>
+      <p class="card-excerpt">Stub URLs, assert calls made, dynamic side-effects. No mock.patch.</p>
+      <div class="card-footer">
+        <span class="card-date">22 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-080-factory-faker.html">
+      <div class="card-meta">Day 080 &middot; Third-party</div>
+      <h2 class="card-title">factory_boy and faker: realistic test data</h2>
+      <p class="card-excerpt">Sequences, SubFactories, Traits, and polyfactory for pydantic.</p>
+      <div class="card-footer">
+        <span class="card-date">21 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-079-hypothesis.html">
+      <div class="card-meta">Day 079 &middot; Third-party</div>
+      <h2 class="card-title">hypothesis: property tests find what you didn't think of</h2>
+      <p class="card-excerpt">Give it a strategy; let it find the counter-example.</p>
+      <div class="card-footer">
+        <span class="card-date">20 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-078-pytest-parametrize.html">
+      <div class="card-meta">Day 078 &middot; Third-party</div>
+      <h2 class="card-title">pytest parametrize: tables of test cases</h2>
+      <p class="card-excerpt">One function, many rows. ids=, stacked decorators, indirect, xfail.</p>
+      <div class="card-footer">
+        <span class="card-date">19 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-077-pytest-fixtures.html">
+      <div class="card-meta">Day 077 &middot; Third-party</div>
+      <h2 class="card-title">pytest fixtures: scope, factories, and yield</h2>
+      <p class="card-excerpt">Session-scoped expensive setup, factory fixtures, conftest hierarchy.</p>
+      <div class="card-footer">
+        <span class="card-date">18 Mar 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-076-pre-commit.html">
+      <div class="card-meta">Day 076 &middot; Tooling</div>
+      <h2 class="card-title">Pre-commit beyond ruff: the hooks worth wiring up</h2>
+      <p class="card-excerpt">Trailing whitespace, detect-secrets, actionlint, shellcheck.</p>
+      <div class="card-footer">
+        <span class="card-date">17 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">ci</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-075-github-actions.html">
+      <div class="card-meta">Day 075 &middot; Tooling</div>
+      <h2 class="card-title">GitHub Actions for Python CI</h2>
+      <p class="card-excerpt">Matrix tests, uv caching, ruff, mypy, pytest, Docker build+push.</p>
+      <div class="card-footer">
+        <span class="card-date">16 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">ci</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-074-multistage-docker.html">
+      <div class="card-meta">Day 074 &middot; Tooling</div>
+      <h2 class="card-title">Multi-stage Dockerfiles: the build/runtime split</h2>
+      <p class="card-excerpt">Compile heavy, copy lean. Smaller images, no compiler in production.</p>
+      <div class="card-footer">
+        <span class="card-date">15 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">docker</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-073-docker.html">
+      <div class="card-meta">Day 073 &middot; Tooling</div>
+      <h2 class="card-title">Docker for Python apps: the right base image</h2>
+      <p class="card-excerpt">slim vs alpine vs distroless. PID 1, signals, .dockerignore.</p>
+      <div class="card-footer">
+        <span class="card-date">14 Mar 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">docker</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-072-graceful-shutdown.html">
+      <div class="card-meta">Day 072 &middot; Patterns</div>
+      <h2 class="card-title">Graceful shutdown: SIGTERM the right way</h2>
+      <p class="card-excerpt">Drain in-flight requests, close pools, exit cleanly — sync and async.</p>
+      <div class="card-footer">
+        <span class="card-date">13 Mar 2026</span>
+        <div class="card-tags"><span class="tag">patterns</span><span class="tag">deployment</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-071-health-checks.html">
+      <div class="card-meta">Day 071 &middot; Patterns</div>
+      <h2 class="card-title">Health checks: liveness, readiness, and startup</h2>
+      <p class="card-excerpt">Three probes, one endpoint each. Kubernetes, docker, and DIY.</p>
+      <div class="card-footer">
+        <span class="card-date">12 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">patterns</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-070-sentry.html">
+      <div class="card-meta">Day 070 &middot; Third-party</div>
+      <h2 class="card-title">Sentry: error tracking for real apps</h2>
+      <p class="card-excerpt">sentry_sdk.init(), breadcrumbs, release tracking, performance.</p>
+      <div class="card-footer">
+        <span class="card-date">11 Mar 2026</span>
+        <div class="card-tags"><span class="tag">observability</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-069-prometheus.html">
+      <div class="card-meta">Day 069 &middot; Third-party</div>
+      <h2 class="card-title">prometheus_client: custom metrics in Python</h2>
+      <p class="card-excerpt">Counter, Gauge, Histogram, Summary. Scrape endpoint and labels.</p>
+      <div class="card-footer">
+        <span class="card-date">10 Mar 2026</span>
+        <div class="card-tags"><span class="tag">observability</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-068-opentelemetry.html">
+      <div class="card-meta">Day 068 &middot; Third-party</div>
+      <h2 class="card-title">OpenTelemetry: traces, metrics, and logs</h2>
+      <p class="card-excerpt">Auto-instrument FastAPI. Export to Jaeger, OTLP, Prometheus.</p>
+      <div class="card-footer">
+        <span class="card-date">9 Mar 2026</span>
+        <div class="card-tags"><span class="tag">observability</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-067-background-tasks.html">
+      <div class="card-meta">Day 067 &middot; Patterns</div>
+      <h2 class="card-title">Background tasks: FastAPI, Celery, and RQ</h2>
+      <p class="card-excerpt">Fire-and-forget vs queued tasks vs scheduled jobs.</p>
+      <div class="card-footer">
+        <span class="card-date">8 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">patterns</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-066-websockets.html">
+      <div class="card-meta">Day 066 &middot; Third-party</div>
+      <h2 class="card-title">WebSockets in FastAPI: bidirectional streams</h2>
+      <p class="card-excerpt">ws:// connections, connection manager, broadcast patterns.</p>
+      <div class="card-footer">
+        <span class="card-date">7 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-065-middleware.html">
+      <div class="card-meta">Day 065 &middot; Patterns</div>
+      <h2 class="card-title">Middleware in FastAPI and Starlette</h2>
+      <p class="card-excerpt">Request/response hooks, timing, auth, and the ASGI middleware protocol.</p>
+      <div class="card-footer">
+        <span class="card-date">6 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">patterns</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-064-alembic.html">
+      <div class="card-meta">Day 064 &middot; Third-party</div>
+      <h2 class="card-title">Alembic: database migrations that don't bite</h2>
+      <p class="card-excerpt">autogenerate, upgrade, downgrade, and the revision chain.</p>
+      <div class="card-footer">
+        <span class="card-date">5 Mar 2026</span>
+        <div class="card-tags"><span class="tag">database</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-063-sqlalchemy.html">
+      <div class="card-meta">Day 063 &middot; Third-party</div>
+      <h2 class="card-title">SQLAlchemy 2.0: the ORM, modernised</h2>
+      <p class="card-excerpt">Mapped, relationship, Session, and select() — the 2.0 style.</p>
+      <div class="card-footer">
+        <span class="card-date">4 Mar 2026</span>
+        <div class="card-tags"><span class="tag">database</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-062-pydantic-deep.html">
+      <div class="card-meta">Day 062 &middot; Third-party</div>
+      <h2 class="card-title">pydantic deep cuts: validators and custom types</h2>
+      <p class="card-excerpt">field_validator, model_validator, Annotated types, strict mode.</p>
+      <div class="card-footer">
+        <span class="card-date">3 Mar 2026</span>
+        <div class="card-tags"><span class="tag">validation</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-061-uvicorn-asgi.html">
+      <div class="card-meta">Day 061 &middot; Third-party</div>
+      <h2 class="card-title">uvicorn and ASGI: the runtime under FastAPI</h2>
+      <p class="card-excerpt">Workers, reload, keep-alive, and the ASGI contract explained.</p>
+      <div class="card-footer">
+        <span class="card-date">2 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-060-fastapi.html">
+      <div class="card-meta">Day 060 &middot; Third-party</div>
+      <h2 class="card-title">FastAPI: the modern Python API framework</h2>
+      <p class="card-excerpt">Automatic docs, Pydantic validation, async by default.</p>
+      <div class="card-footer">
+        <span class="card-date">1 Mar 2026</span>
+        <div class="card-tags"><span class="tag">web</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-059-pathlib-advanced.html">
+      <div class="card-meta">Day 059 &middot; Standard library</div>
+      <h2 class="card-title">pathlib: the advanced moves</h2>
+      <p class="card-excerpt">Relative paths, symlinks, stat, chmod, and cross-platform edge cases.</p>
+      <div class="card-footer">
+        <span class="card-date">28 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">files</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-058-dataclasses-json.html">
+      <div class="card-meta">Day 058 &middot; Patterns</div>
+      <h2 class="card-title">dataclasses + JSON: round-trip serialisation</h2>
+      <p class="card-excerpt">From dict to dataclass and back. asdict, replace, and nested types.</p>
+      <div class="card-footer">
+        <span class="card-date">27 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">data</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-057-re.html">
+      <div class="card-meta">Day 057 &middot; Standard library</div>
+      <h2 class="card-title">re: regular expressions that don't hurt</h2>
+      <p class="card-excerpt">Compile once, named groups, re.sub with a function, VERBOSE mode.</p>
+      <div class="card-footer">
+        <span class="card-date">26 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">text</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-056-glob.html">
+      <div class="card-meta">Day 056 &middot; Standard library</div>
+      <h2 class="card-title">glob and fnmatch: shell-style file patterns</h2>
+      <p class="card-excerpt">*.log, **/*.cfg, and filtering with fnmatch in pure Python.</p>
+      <div class="card-footer">
+        <span class="card-date">25 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">files</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-055-shutil.html">
+      <div class="card-meta">Day 055 &middot; Standard library</div>
+      <h2 class="card-title">shutil: high-level file operations</h2>
+      <p class="card-excerpt">Copy, move, archive, disk usage. The file system utils os.path lacks.</p>
+      <div class="card-footer">
+        <span class="card-date">24 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">files</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-054-tempfile.html">
+      <div class="card-meta">Day 054 &middot; Standard library</div>
+      <h2 class="card-title">tempfile: scratch files and directories that clean up</h2>
+      <p class="card-excerpt">TemporaryFile, NamedTemporaryFile, TemporaryDirectory.</p>
+      <div class="card-footer">
+        <span class="card-date">23 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">files</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-053-secrets.html">
+      <div class="card-meta">Day 053 &middot; Standard library</div>
+      <h2 class="card-title">secrets: cryptographically secure random values</h2>
+      <p class="card-excerpt">Tokens, passwords, URL slugs — not random, not os.urandom directly.</p>
+      <div class="card-footer">
+        <span class="card-date">22 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">security</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-052-hashlib-hmac.html">
+      <div class="card-meta">Day 052 &middot; Standard library</div>
+      <h2 class="card-title">hashlib and hmac: hashing and message auth</h2>
+      <p class="card-excerpt">SHA-256 checksums, file integrity, HMAC webhook verification.</p>
+      <div class="card-footer">
+        <span class="card-date">21 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">security</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-051-zoneinfo.html">
+      <div class="card-meta">Day 051 &middot; Standard library</div>
+      <h2 class="card-title">zoneinfo: timezone-aware datetimes the right way</h2>
+      <p class="card-excerpt">The stdlib answer to pytz. IANA timezone database, DST handled.</p>
+      <div class="card-footer">
+        <span class="card-date">20 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">datetime</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-050-typer.html">
+      <div class="card-meta">Day 050 &middot; Third-party</div>
+      <h2 class="card-title">typer: CLIs from type annotations</h2>
+      <p class="card-excerpt">Zero boilerplate CLI from function signatures. Tab completion free.</p>
+      <div class="card-footer">
+        <span class="card-date">19 Feb 2026</span>
+        <div class="card-tags"><span class="tag">cli</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-049-functools.html">
+      <div class="card-meta">Day 049 &middot; Standard library</div>
+      <h2 class="card-title">functools: partial, reduce, and cached_property</h2>
+      <p class="card-excerpt">Specialize functions, fold sequences, cache computed properties.</p>
+      <div class="card-footer">
+        <span class="card-date">18 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">functional</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-048-itertools-chain.html">
+      <div class="card-meta">Day 048 &middot; Standard library</div>
+      <h2 class="card-title">itertools: chain, takewhile, and groupby</h2>
+      <p class="card-excerpt">Three combinators that flatten, filter, and group any iterable.</p>
+      <div class="card-footer">
+        <span class="card-date">17 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">itertools</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-047-deque.html">
+      <div class="card-meta">Day 047 &middot; Standard library</div>
+      <h2 class="card-title">collections.deque: the double-ended queue</h2>
+      <p class="card-excerpt">O(1) append and popleft. Bounded queues, sliding windows.</p>
+      <div class="card-footer">
+        <span class="card-date">16 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">collections</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-046-bisect.html">
+      <div class="card-meta">Day 046 &middot; Standard library</div>
+      <h2 class="card-title">bisect: binary search in sorted lists</h2>
+      <p class="card-excerpt">O(log n) insertion and lookup. insort, bisect_left, bisect_right.</p>
+      <div class="card-footer">
+        <span class="card-date">15 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">algorithms</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-045-heapq.html">
+      <div class="card-meta">Day 045 &middot; Standard library</div>
+      <h2 class="card-title">heapq: priority queues without drama</h2>
+      <p class="card-excerpt">nlargest, nsmallest, and a heap in plain list clothing.</p>
+      <div class="card-footer">
+        <span class="card-date">14 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">algorithms</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-044-weakref.html">
+      <div class="card-meta">Day 044 &middot; Standard library</div>
+      <h2 class="card-title">weakref: hold references that don't prevent GC</h2>
+      <p class="card-excerpt">Caches that shrink under memory pressure. Avoid circular references.</p>
+      <div class="card-footer">
+        <span class="card-date">13 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">memory</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-043-slots.html">
+      <div class="card-meta">Day 043 &middot; Syntax</div>
+      <h2 class="card-title">__slots__: leaner instances at scale</h2>
+      <p class="card-excerpt">Save memory and speed attribute access on classes you create many of.</p>
+      <div class="card-footer">
+        <span class="card-date">12 Feb 2026</span>
+        <div class="card-tags"><span class="tag">performance</span><span class="tag">oop</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-042-mypy.html">
+      <div class="card-meta">Day 042 &middot; Tooling</div>
+      <h2 class="card-title">mypy: catch type errors before runtime</h2>
+      <p class="card-excerpt">Strict mode, reveal_type, ignores that don't hide bugs.</p>
+      <div class="card-footer">
+        <span class="card-date">11 Feb 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">typing</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-041-ruff.html">
+      <div class="card-meta">Day 041 &middot; Tooling</div>
+      <h2 class="card-title">ruff: one linter to rule them all</h2>
+      <p class="card-excerpt">10–100x faster than flake8. Drop-in with isort built in.</p>
+      <div class="card-footer">
+        <span class="card-date">10 Feb 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">linting</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-040-exception-groups.html">
+      <div class="card-meta">Day 040 &middot; Syntax</div>
+      <h2 class="card-title">Exception groups and except*: multi-error handling</h2>
+      <p class="card-excerpt">Raise and catch multiple independent errors from concurrent tasks.</p>
+      <div class="card-footer">
+        <span class="card-date">9 Feb 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span><span class="tag">async</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-039-asyncio-gather.html">
+      <div class="card-meta">Day 039 &middot; Standard library</div>
+      <h2 class="card-title">asyncio.gather and TaskGroup: fan-out concurrency</h2>
+      <p class="card-excerpt">Run many coroutines at once. Handle partial failures cleanly.</p>
+      <div class="card-footer">
+        <span class="card-date">8 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">async</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-038-concurrent-futures.html">
+      <div class="card-meta">Day 038 &middot; Standard library</div>
+      <h2 class="card-title">concurrent.futures: threads and processes in one API</h2>
+      <p class="card-excerpt">ThreadPoolExecutor, ProcessPoolExecutor, map, submit.</p>
+      <div class="card-footer">
+        <span class="card-date">7 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">concurrency</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-037-sqlite3.html">
+      <div class="card-meta">Day 037 &middot; Standard library</div>
+      <h2 class="card-title">sqlite3: SQL without a server</h2>
+      <p class="card-excerpt">Row factories, parameter binding, WAL mode, and when to upgrade.</p>
+      <div class="card-footer">
+        <span class="card-date">6 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">database</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-036-csv.html">
+      <div class="card-meta">Day 036 &middot; Standard library</div>
+      <h2 class="card-title">csv: the right way to read and write CSVs</h2>
+      <p class="card-excerpt">DictReader, DictWriter, dialects, quoting. Never split on comma.</p>
+      <div class="card-footer">
+        <span class="card-date">5 Feb 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">data</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-035-cprofile.html">
+      <div class="card-meta">Day 035 &middot; Standard library</div>
+      <h2 class="card-title">cProfile: find where time actually goes</h2>
+      <p class="card-excerpt">Profile a script or function call. Read pstats. Use snakeviz.</p>
+      <div class="card-footer">
+        <span class="card-date">4 Feb 2026</span>
+        <div class="card-tags"><span class="tag">performance</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-034-structlog.html">
+      <div class="card-meta">Day 034 &middot; Third-party</div>
+      <h2 class="card-title">structlog: structured logging done right</h2>
+      <p class="card-excerpt">JSON log lines, bound context, async support, and a stdlib bridge.</p>
+      <div class="card-footer">
+        <span class="card-date">3 Feb 2026</span>
+        <div class="card-tags"><span class="tag">observability</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-033-tenacity.html">
+      <div class="card-meta">Day 033 &middot; Third-party</div>
+      <h2 class="card-title">tenacity: retry with style</h2>
+      <p class="card-excerpt">Exponential back-off, jitter, before/after callbacks. One decorator.</p>
+      <div class="card-footer">
+        <span class="card-date">2 Feb 2026</span>
+        <div class="card-tags"><span class="tag">patterns</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-032-pydantic.html">
+      <div class="card-meta">Day 032 &middot; Third-party</div>
+      <h2 class="card-title">pydantic: runtime type enforcement</h2>
+      <p class="card-excerpt">Validate dicts, env vars, and API payloads. Strict mode and errors.</p>
+      <div class="card-footer">
+        <span class="card-date">1 Feb 2026</span>
+        <div class="card-tags"><span class="tag">validation</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-031-rich.html">
+      <div class="card-meta">Day 031 &middot; Third-party</div>
+      <h2 class="card-title">rich: beautiful terminal output</h2>
+      <p class="card-excerpt">Tables, progress bars, syntax highlighting, and inspect() in the REPL.</p>
+      <div class="card-footer">
+        <span class="card-date">31 Jan 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span><span class="tag">cli</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-030-netconf-ncclient.html">
+      <div class="card-meta">Day 030 &middot; Networking</div>
+      <h2 class="card-title">NETCONF and ncclient: model-driven management</h2>
+      <p class="card-excerpt">Edit-config, get-config, lock/unlock — programmatic config on real kit.</p>
+      <div class="card-footer">
+        <span class="card-date">30 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">netconf</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-029-pyats-genie.html">
+      <div class="card-meta">Day 029 &middot; Networking</div>
+      <h2 class="card-title">pyATS and Genie: Cisco's test automation framework</h2>
+      <p class="card-excerpt">Model-driven config parsing plus a full network test harness.</p>
+      <div class="card-footer">
+        <span class="card-date">29 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">testing</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-028-textfsm.html">
+      <div class="card-meta">Day 028 &middot; Networking</div>
+      <h2 class="card-title">TextFSM: parse CLI output into structured data</h2>
+      <p class="card-excerpt">Template-driven parser for show commands. NTC-templates library.</p>
+      <div class="card-footer">
+        <span class="card-date">28 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">parsing</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-027-scapy.html">
+      <div class="card-meta">Day 027 &middot; Networking</div>
+      <h2 class="card-title">Scapy: craft and parse packets in Python</h2>
+      <p class="card-excerpt">Build Ethernet/IP/TCP frames by hand. Sniff, replay, fuzz.</p>
+      <div class="card-footer">
+        <span class="card-date">27 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">packets</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-026-jinja2.html">
+      <div class="card-meta">Day 026 &middot; Third-party</div>
+      <h2 class="card-title">Jinja2: config generation at scale</h2>
+      <p class="card-excerpt">Template network configs with loops, conditionals, and filters.</p>
+      <div class="card-footer">
+        <span class="card-date">26 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">templating</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-025-asyncssh.html">
+      <div class="card-meta">Day 025 &middot; Networking</div>
+      <h2 class="card-title">asyncssh: concurrent SSH without threads</h2>
+      <p class="card-excerpt">Async SSH that scales. Poll dozens of devices at once.</p>
+      <div class="card-footer">
+        <span class="card-date">25 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">async</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-024-paramiko-netmiko.html">
+      <div class="card-meta">Day 024 &middot; Networking</div>
+      <h2 class="card-title">paramiko and netmiko: SSH the right way</h2>
+      <p class="card-excerpt">Programmatic SSH with key auth, exec_command, and vendor handling.</p>
+      <div class="card-footer">
+        <span class="card-date">24 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">ssh</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-023-socket.html">
+      <div class="card-meta">Day 023 &middot; Networking</div>
+      <h2 class="card-title">socket: raw TCP and UDP connections</h2>
+      <p class="card-excerpt">Connect, bind, listen, accept. The layer everything else builds on.</p>
+      <div class="card-footer">
+        <span class="card-date">23 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-022-ipaddress.html">
+      <div class="card-meta">Day 022 &middot; Networking</div>
+      <h2 class="card-title">ipaddress: work with IPs like a NetEng</h2>
+      <p class="card-excerpt">Parse, validate, iterate, and compare IPv4 and IPv6 in pure Python.</p>
+      <div class="card-footer">
+        <span class="card-date">22 Jan 2026</span>
+        <div class="card-tags"><span class="tag">networking</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-021-comprehensions.html">
+      <div class="card-meta">Day 021 &middot; Syntax</div>
+      <h2 class="card-title">Comprehensions: list, dict, set, and generator</h2>
+      <p class="card-excerpt">Readable transformations in one line. When to use each form.</p>
+      <div class="card-footer">
+        <span class="card-date">21 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-020-generators.html">
+      <div class="card-meta">Day 020 &middot; Syntax</div>
+      <h2 class="card-title">Generators: lazy sequences and infinite streams</h2>
+      <p class="card-excerpt">yield turns a function into an iterator. Memory-efficient pipelines.</p>
+      <div class="card-footer">
+        <span class="card-date">20 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span><span class="tag">performance</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-019-uv.html">
+      <div class="card-meta">Day 019 &middot; Tooling</div>
+      <h2 class="card-title">uv: the Python package manager that won</h2>
+      <p class="card-excerpt">10–100x faster than pip. Drop-in replacement for pip + virtualenv.</p>
+      <div class="card-footer">
+        <span class="card-date">19 Jan 2026</span>
+        <div class="card-tags"><span class="tag">tooling</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-018-pytest.html">
+      <div class="card-meta">Day 018 &middot; Third-party</div>
+      <h2 class="card-title">pytest: the test runner that gets out of your way</h2>
+      <p class="card-excerpt">Plain assert, fixtures, marks, and the parametrize shortcut.</p>
+      <div class="card-footer">
+        <span class="card-date">18 Jan 2026</span>
+        <div class="card-tags"><span class="tag">testing</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-017-httpx.html">
+      <div class="card-meta">Day 017 &middot; Third-party</div>
+      <h2 class="card-title">httpx: modern HTTP for humans and async code</h2>
+      <p class="card-excerpt">Sync and async in one API. Connection pools, redirects, timeouts.</p>
+      <div class="card-footer">
+        <span class="card-date">17 Jan 2026</span>
+        <div class="card-tags"><span class="tag">http</span><span class="tag">third-party</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-016-logging.html">
+      <div class="card-meta">Day 016 &middot; Standard library</div>
+      <h2 class="card-title">logging: structured from the start</h2>
+      <p class="card-excerpt">Levels, handlers, formatters, and why print() doesn't scale.</p>
+      <div class="card-footer">
+        <span class="card-date">16 Jan 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">observability</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-015-json-yaml.html">
+      <div class="card-meta">Day 015 &middot; Standard library</div>
+      <h2 class="card-title">JSON and YAML: the two config dialects</h2>
+      <p class="card-excerpt">json stdlib plus PyYAML / ruamel; safe_load; round-trip fidelity.</p>
+      <div class="card-footer">
+        <span class="card-date">15 Jan 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">data</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-014-argparse.html">
+      <div class="card-meta">Day 014 &middot; Standard library</div>
+      <h2 class="card-title">argparse: command-line interfaces that self-document</h2>
+      <p class="card-excerpt">Positional args, flags, subcommands, and auto-generated help text.</p>
+      <div class="card-footer">
+        <span class="card-date">14 Jan 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">cli</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-013-subprocess.html">
+      <div class="card-meta">Day 013 &middot; Standard library</div>
+      <h2 class="card-title">subprocess: run shell commands safely</h2>
+      <p class="card-excerpt">run(), check=True, capture_output, and why shell=True is usually wrong.</p>
+      <div class="card-footer">
+        <span class="card-date">13 Jan 2026</span>
+        <div class="card-tags"><span class="tag">stdlib</span><span class="tag">shell</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-012-type-hints.html">
+      <div class="card-meta">Day 012 &middot; Syntax</div>
+      <h2 class="card-title">Type hints: the what and the why</h2>
+      <p class="card-excerpt">Annotations, generics, Optional, Union — and why mypy finds real bugs.</p>
+      <div class="card-footer">
+        <span class="card-date">12 Jan 2026</span>
+        <div class="card-tags"><span class="tag">typing</span><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-011-match.html">
+      <div class="card-meta">Day 011 &middot; Syntax</div>
+      <h2 class="card-title">match/case: structural pattern matching</h2>
+      <p class="card-excerpt">Destructure dicts, lists, and objects in one readable block.</p>
+      <div class="card-footer">
+        <span class="card-date">11 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-010-contextmanager.html">
+      <div class="card-meta">Day 010 &middot; Standard library</div>
+      <h2 class="card-title">@contextmanager: clean setup and teardown</h2>
+      <p class="card-excerpt">Turn a generator into a with-statement resource manager.</p>
+      <div class="card-footer">
+        <span class="card-date">10 Jan 2026</span>
+        <div class="card-tags"><span class="tag">patterns</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-009-itertools-batched.html">
+      <div class="card-meta">Day 009 &middot; Standard library</div>
+      <h2 class="card-title">itertools.batched: chunk any iterable</h2>
+      <p class="card-excerpt">Process large sequences in fixed-size windows.</p>
+      <div class="card-footer">
+        <span class="card-date">9 Jan 2026</span>
+        <div class="card-tags"><span class="tag">itertools</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-008-cache.html">
+      <div class="card-meta">Day 008 &middot; Standard library</div>
+      <h2 class="card-title">@cache and @lru_cache: memoise expensive calls</h2>
+      <p class="card-excerpt">One decorator, dramatic speedups for pure functions.</p>
+      <div class="card-footer">
+        <span class="card-date">8 Jan 2026</span>
+        <div class="card-tags"><span class="tag">performance</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-007-dataclasses.html">
+      <div class="card-meta">Day 007 &middot; Syntax</div>
+      <h2 class="card-title">dataclasses: structured data without boilerplate</h2>
+      <p class="card-excerpt">__init__, __repr__, __eq__ generated for free.</p>
+      <div class="card-footer">
+        <span class="card-date">7 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span><span class="tag">oop</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-006-walrus.html">
+      <div class="card-meta">Day 006 &middot; Syntax</div>
+      <h2 class="card-title">The walrus operator: assign-and-test in one step</h2>
+      <p class="card-excerpt">Compact loops and comprehensions with :=.</p>
+      <div class="card-footer">
+        <span class="card-date">6 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-005-enumerate.html">
+      <div class="card-meta">Day 005 &middot; Syntax</div>
+      <h2 class="card-title">enumerate and zip: loop with index and pairs</h2>
+      <p class="card-excerpt">Never write range(len(xs)) again.</p>
+      <div class="card-footer">
+        <span class="card-date">5 Jan 2026</span>
+        <div class="card-tags"><span class="tag">loops</span><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-004-dict-get.html">
+      <div class="card-meta">Day 004 &middot; Syntax</div>
+      <h2 class="card-title">dict.get(), setdefault(), and defaultdict</h2>
+      <p class="card-excerpt">Three patterns for dicts that handle missing keys gracefully.</p>
+      <div class="card-footer">
+        <span class="card-date">4 Jan 2026</span>
+        <div class="card-tags"><span class="tag">dicts</span><span class="tag">syntax</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-003-counter.html">
+      <div class="card-meta">Day 003 &middot; Standard library</div>
+      <h2 class="card-title">collections.Counter: frequency maps in one line</h2>
+      <p class="card-excerpt">Count anything hashable. Most-common, arithmetic, set ops.</p>
+      <div class="card-footer">
+        <span class="card-date">3 Jan 2026</span>
+        <div class="card-tags"><span class="tag">collections</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-002-pathlib.html">
+      <div class="card-meta">Day 002 &middot; Standard library</div>
+      <h2 class="card-title">pathlib: ditch os.path forever</h2>
+      <p class="card-excerpt">Path objects that understand your filesystem. Glob, read, write, mkdir.</p>
+      <div class="card-footer">
+        <span class="card-date">2 Jan 2026</span>
+        <div class="card-tags"><span class="tag">files</span><span class="tag">stdlib</span></div>
+      </div>
+    </a>
+    <a class="card" href="posts/day-001-f-strings.html">
+      <div class="card-meta">Day 001 &middot; Syntax</div>
+      <h2 class="card-title">f-strings: the only string formatting you need</h2>
+      <p class="card-excerpt">Literals, expressions, format specs, and the = debugging shorthand.</p>
+      <div class="card-footer">
+        <span class="card-date">1 Jan 2026</span>
+        <div class="card-tags"><span class="tag">syntax</span><span class="tag">strings</span></div>
+      </div>
+    </a>
     </div>
-  </section>
-
-  <section class="posts-section">
-    <div class="section-head">
-      <h2>The collection</h2>
-      <span class="count" id="count-label">059 entries</span>
-    </div>
-
-    <!--
-      ============================================================
-      POST INDEX
-      Newest entry first. The first card in the list gets the
-      "featured" class — move it to the new top card on each
-      publishing day.
-      ============================================================
-    -->
-    <div class="posts" id="post-list">
-
-      <a class="post-card featured" href="posts/day-059-pathlib-advanced.html">
-        <span class="day-no">Day 059 &middot; Standard library</span>
-        <h3>pathlib advanced: resolve, relative_to, walk</h3>
-        <p class="excerpt">
-          Beyond the basics — resolve absolute paths, escape symlinks, compute relative paths safely, and use Path.walk for tree iteration.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">filesystem</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-058-dataclasses-json.html">
-        <span class="day-no">Day 058 &middot; Standard library</span>
-        <h3>dataclasses + JSON: the round-trip</h3>
-        <p class="excerpt">
-          Three ways to round-trip dataclasses through JSON. Pick by how strict you need the validation.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">data</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-057-re.html">
-        <span class="day-no">Day 057 &middot; Standard library</span>
-        <h3>re: regex features past the basics</h3>
-        <p class="excerpt">
-          Named groups, verbose mode for readable patterns, lookahead and lookbehind. The features that turn regex from write-only to maintainable.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">text</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-056-glob.html">
-        <span class="day-no">Day 056 &middot; Standard library</span>
-        <h3>glob vs pathlib.glob: pick your matcher</h3>
-        <p class="excerpt">
-          Two glob APIs, three patterns. ** for recursion, the case-sensitivity gotcha, and when to skip glob entirely for os.scandir.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">filesystem</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-055-shutil.html">
-        <span class="day-no">Day 055 &middot; Standard library</span>
-        <h3>shutil: the file-operations toolbox</h3>
-        <p class="excerpt">
-          copy, move, rmtree, archive making, disk usage, terminal size — the swiss-army knife for file-system operations.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">filesystem</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-054-tempfile.html">
-        <span class="day-no">Day 054 &middot; Standard library</span>
-        <h3>tempfile: scratch space, done right</h3>
-        <p class="excerpt">
-          Files and directories that clean themselves up. Stop writing to /tmp/myfile.txt and forgetting to delete it.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">filesystem</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-053-secrets.html">
-        <span class="day-no">Day 053 &middot; Standard library</span>
-        <h3>secrets: not random, secure</h3>
-        <p class="excerpt">
-          random is for dice rolls. secrets is for tokens, passwords, and anything an attacker shouldn't be able to guess.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">security</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-052-hashlib-hmac.html">
-        <span class="day-no">Day 052 &middot; Standard library</span>
-        <h3>hashlib + hmac: hashing and signatures done right</h3>
-        <p class="excerpt">
-          hashlib for content fingerprints. hmac for verified signatures. compare_digest to defeat timing attacks.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">security</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-051-zoneinfo.html">
-        <span class="day-no">Day 051 &middot; Standard library</span>
-        <h3>zoneinfo: timezones in the stdlib (and pendulum)</h3>
-        <p class="excerpt">
-          IANA timezones in the standard library since 3.9. You can finally retire pytz. pendulum still wins for date arithmetic.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">datetime</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-050-typer.html">
-        <span class="day-no">Day 050 &middot; Third-party</span>
-        <h3>typer: argparse without the boilerplate</h3>
-        <p class="excerpt">
-          Type-annotated functions become rich CLIs. Sub-commands, validation, shell completion, colored help — all from the function signature.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">cli</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-049-functools.html">
-        <span class="day-no">Day 049 &middot; Standard library</span>
-        <h3>functools: partial, reduce, and friends</h3>
-        <p class="excerpt">
-          partial bakes in arguments. reduce folds a sequence. wraps preserves metadata on decorators. Three small tools that pay compound interest.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-048-itertools.html">
-        <span class="day-no">Day 048 &middot; Standard library</span>
-        <h3>itertools: chain, takewhile, groupby</h3>
-        <p class="excerpt">
-          Three itertools functions that earn their keep: chain to flatten, takewhile/dropwhile for streaming filters, groupby for run-length grouping.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">iterators</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-047-deque.html">
-        <span class="day-no">Day 047 &middot; Standard library</span>
-        <h3>deque: lists with fast left-side ops</h3>
-        <p class="excerpt">
-          O(1) appends and pops on both ends. A maxlen for bounded ring buffers. The right choice for queues and rolling windows.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">data-structures</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-046-bisect.html">
-        <span class="day-no">Day 046 &middot; Standard library</span>
-        <h3>bisect: binary search on sorted lists</h3>
-        <p class="excerpt">
-          insort keeps a list sorted as you add. bisect_left finds insertion points in O(log n). The right answer for keep-this-sorted patterns.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">algorithms</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-045-heapq.html">
-        <span class="day-no">Day 045 &middot; Standard library</span>
-        <h3>heapq: priority queues in the stdlib</h3>
-        <p class="excerpt">
-          Turn any list into a min-heap. nlargest and nsmallest find top-N in O(n log k) without sorting the whole list.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">algorithms</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-044-weakref.html">
-        <span class="day-no">Day 044 &middot; Standard library</span>
-        <h3>weakref: caches that don't leak</h3>
-        <p class="excerpt">
-          Reference an object without keeping it alive. WeakValueDictionary is the cache that auto-evicts as soon as the rest is done with the value.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">memory</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-043-slots.html">
-        <span class="day-no">Day 043 &middot; Syntax</span>
-        <h3>__slots__: free memory savings</h3>
-        <p class="excerpt">
-          One class attribute drops per-instance memory by 50%+ on small classes. The cost is no dynamic attribute assignment.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">memory</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-042-mypy.html">
-        <span class="day-no">Day 042 &middot; Tooling</span>
-        <h3>mypy: turn type hints into a real check</h3>
-        <p class="excerpt">
-          Type hints are documentation until a checker enforces them. mypy is the original. Adopt one module at a time.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">tooling</span>
-            <span class="tag">types</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-041-ruff.html">
-        <span class="day-no">Day 041 &middot; Tooling</span>
-        <h3>ruff: the linter that ate the ecosystem</h3>
-        <p class="excerpt">
-          Replaces flake8, isort, pyupgrade, autoflake, and most of pylint — running 10–100× faster. Plus a built-in formatter.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">tooling</span>
-            <span class="tag">linting</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-040-exception-groups.html">
-        <span class="day-no">Day 040 &middot; Syntax</span>
-        <h3>Exception groups: many failures, one raise</h3>
-        <p class="excerpt">
-          ExceptionGroup and except* let concurrent code raise multiple exceptions at once. The 3.11 feature that makes async error handling work.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">errors</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-039-asyncio-gather.html">
-        <span class="day-no">Day 039 &middot; Standard library</span>
-        <h3>asyncio.gather and the patterns that scale</h3>
-        <p class="excerpt">
-          gather is the fan-out, TaskGroup is the safer 3.11+ replacement, Semaphore caps concurrency. Three primitives you actually need.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">async</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-038-concurrent-futures.html">
-        <span class="day-no">Day 038 &middot; Standard library</span>
-        <h3>concurrent.futures: parallelism without the threads tax</h3>
-        <p class="excerpt">
-          ThreadPoolExecutor for I/O, ProcessPoolExecutor for CPU. The same map and submit API. The right starting point for parallel work.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">concurrency</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-037-sqlite.html">
-        <span class="day-no">Day 037 &middot; Standard library</span>
-        <h3>sqlite3: the database in your stdlib</h3>
-        <p class="excerpt">
-          SQLite ships with Python. It handles a million rows easily, supports JSON, and replaces a dozen flat-file caches.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">database</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-036-csv.html">
-        <span class="day-no">Day 036 &middot; Standard library</span>
-        <h3>csv module: the gotchas they don't tell you</h3>
-        <p class="excerpt">
-          The csv module gets the basics right but has three traps: newlines, dialects, and DictReader assumptions. Three lines of setup avoid all of them.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">data</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-035-cprofile.html">
-        <span class="day-no">Day 035 &middot; Standard library</span>
-        <h3>cProfile: find the slow line</h3>
-        <p class="excerpt">
-          Profile first, optimize second. cProfile is in the standard library; snakeviz turns its output into a flame graph you can read.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">performance</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-034-structlog.html">
-        <span class="day-no">Day 034 &middot; Third-party</span>
-        <h3>structlog for JSON logs you can grep</h3>
-        <p class="excerpt">
-          Logs as key-value events, not pre-formatted strings. Bind context once, ship JSON to Loki/ELK/Splunk.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">logging</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-033-tenacity.html">
-        <span class="day-no">Day 033 &middot; Third-party</span>
-        <h3>tenacity: retries done right</h3>
-        <p class="excerpt">
-          Exponential backoff, jitter, retry-on-exception filters, max attempts — all declarative, all in one decorator.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-032-pydantic.html">
-        <span class="day-no">Day 032 &middot; Third-party</span>
-        <h3>pydantic: config validation that pays off</h3>
-        <p class="excerpt">
-          Turn dicts into validated models with type coercion, defaults, and clear errors. The right tool for every place data enters your program.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">validation</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-031-rich.html">
-        <span class="day-no">Day 031 &middot; Third-party</span>
-        <h3>rich: terminal output that doesn't suck</h3>
-        <p class="excerpt">
-          Tables, colors, progress bars, and JSON pretty-printing in one library. The closest Python has to a make-my-CLI-look-real button.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">tooling</span>
-            <span class="tag">cli</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-030-netconf.html">
-        <span class="day-no">Day 030 &middot; Networking</span>
-        <h3>NETCONF with ncclient: real config management</h3>
-        <p class="excerpt">
-          NETCONF is SSH-based, transactional, and structured. ncclient is the Python client. Use it for any device that supports it.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">config</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-029-pyats-genie.html">
-        <span class="day-no">Day 029 &middot; Networking</span>
-        <h3>pyATS + Genie: Cisco's automation gift</h3>
-        <p class="excerpt">
-          pyATS connects, Genie parses. Together they turn 'show' command output into typed Python objects you can assert on.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">testing</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-028-textfsm.html">
-        <span class="day-no">Day 028 &middot; Networking</span>
-        <h3>TextFSM: parse 'show' output without regex</h3>
-        <p class="excerpt">
-          TextFSM templates are the network-engineer's parser. Built-in templates exist for hundreds of commands.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">parsing</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-027-scapy.html">
-        <span class="day-no">Day 027 &middot; Networking</span>
-        <h3>Scapy: build packets from Python</h3>
-        <p class="excerpt">
-          Craft, send, sniff, and dissect packets in one library. Useful for testing, learning, and the occasional bit of mischief.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">packets</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-026-jinja2.html">
-        <span class="day-no">Day 026 &middot; Third-party</span>
-        <h3>Jinja2 for config rendering</h3>
-        <p class="excerpt">
-          Templated config files, one-liner integration. The standard tool for generating per-device configs from a data model.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">templating</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-025-asyncssh.html">
-        <span class="day-no">Day 025 &middot; Third-party</span>
-        <h3>asyncssh: SSH at fleet scale</h3>
-        <p class="excerpt">
-          Connect to hundreds of devices concurrently with a single event loop. Where paramiko stops, asyncssh keeps going.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">async</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-024-paramiko-netmiko.html">
-        <span class="day-no">Day 024 &middot; Networking</span>
-        <h3>paramiko + netmiko: SSH the right way</h3>
-        <p class="excerpt">
-          paramiko is the protocol. netmiko adds device-specific behaviors. Use netmiko first, drop to paramiko only when needed.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">networking</span>
-            <span class="tag">ssh</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-023-socket.html">
-        <span class="day-no">Day 023 &middot; Standard library</span>
-        <h3>socket: when you need the raw protocol</h3>
-        <p class="excerpt">
-          TCP, UDP, hostname resolution — all in the stdlib. Useful for protocol-level tools and one-off probes.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">networking</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-022-ipaddress.html">
-        <span class="day-no">Day 022 &middot; Standard library</span>
-        <h3>ipaddress: subnets without the math</h3>
-        <p class="excerpt">
-          IPv4 and IPv6 networks as first-class Python objects. Membership tests, supernet/subnet operations, hostmasks — all built in.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">networking</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-021-comprehensions.html">
-        <span class="day-no">Day 021 &middot; Syntax</span>
-        <h3>Comprehensions: list, dict, set, gen</h3>
-        <p class="excerpt">
-          Four flavors, one syntax. The default tool for transforming collections. When to use them and when to prefer a loop.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-020-generators.html">
-        <span class="day-no">Day 020 &middot; Syntax</span>
-        <h3>Generators and yield: lazy by default</h3>
-        <p class="excerpt">
-          Generators produce values one at a time, holding only one in memory. Essential for streaming, pipelines, and large data.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">iterators</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-019-uv.html">
-        <span class="day-no">Day 019 &middot; Tooling</span>
-        <h3>uv: pip and venv replaced</h3>
-        <p class="excerpt">
-          uv is the Rust-based Python package manager. 10–100× faster than pip, with built-in lockfiles and project management.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">tooling</span>
-            <span class="tag">packaging</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-018-pytest.html">
-        <span class="day-no">Day 018 &middot; Third-party</span>
-        <h3>pytest: tests that don't get in your way</h3>
-        <p class="excerpt">
-          Plain functions become tests. Fixtures replace setUp boilerplate. Parametrize replaces three near-identical test methods.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">testing</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-017-requests.html">
-        <span class="day-no">Day 017 &middot; Third-party</span>
-        <h3>httpx: requests, but better</h3>
-        <p class="excerpt">
-          Drop-in for requests with HTTP/2, async support, and connection pools. The modern default for HTTP work.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">third-party</span>
-            <span class="tag">http</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-016-logging.html">
-        <span class="day-no">Day 016 &middot; Standard library</span>
-        <h3>logging: the boilerplate-free setup</h3>
-        <p class="excerpt">
-          Stop writing print(). Five lines of logging.basicConfig give you levels, formatting, and rotation for free.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">logging</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-015-json-yaml.html">
-        <span class="day-no">Day 015 &middot; Standard library</span>
-        <h3>JSON and YAML: the data exchange basics</h3>
-        <p class="excerpt">
-          json is in the stdlib, yaml needs PyYAML. Both have gotchas — encoding, ordering, and the duplicate-key surprise.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">data</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-014-argparse.html">
-        <span class="day-no">Day 014 &middot; Standard library</span>
-        <h3>argparse: stdlib CLIs done right</h3>
-        <p class="excerpt">
-          Sub-commands, mutually-exclusive flags, and rich help — all from the standard library. Good enough for a lot of tools.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">cli</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-013-subprocess.html">
-        <span class="day-no">Day 013 &middot; Standard library</span>
-        <h3>subprocess.run: shelling out, safely</h3>
-        <p class="excerpt">
-          Pass args as a list, capture output, set timeouts, raise on error. The right way to call external commands in 2026.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">system</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-012-type-hints.html">
-        <span class="day-no">Day 012 &middot; Syntax</span>
-        <h3>Type hints: documentation that runs</h3>
-        <p class="excerpt">
-          Annotate function signatures with types. Editors get smarter. Bugs get caught earlier. Adopt incrementally.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">types</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-011-match.html">
-        <span class="day-no">Day 011 &middot; Syntax</span>
-        <h3>match: structural pattern matching</h3>
-        <p class="excerpt">
-          Python 3.10's match isn't switch — it destructures. Match dicts, lists, classes, and bind variables in one expression.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-010-contextmanager.html">
-        <span class="day-no">Day 010 &middot; Standard library</span>
-        <h3>contextlib.contextmanager: the @decorator that prints</h3>
-        <p class="excerpt">
-          Turn a generator into a context manager with one decorator. Cleaner than __enter__/__exit__ for one-off cases.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-009-batched.html">
-        <span class="day-no">Day 009 &middot; Standard library</span>
-        <h3>itertools.batched: chunks in 3.12</h3>
-        <p class="excerpt">
-          Split any iterable into N-size chunks. The 3.12 addition that ended a decade of recipe copy-pasting.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">iterators</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-008-cache.html">
-        <span class="day-no">Day 008 &middot; Standard library</span>
-        <h3>@cache and @lru_cache: memoize anything</h3>
-        <p class="excerpt">
-          Add one decorator to skip recomputation. Especially powerful for recursive functions and expensive lookups.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">performance</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-007-dataclasses.html">
-        <span class="day-no">Day 007 &middot; Standard library</span>
-        <h3>dataclasses: classes without the boilerplate</h3>
-        <p class="excerpt">
-          Auto-generated __init__, __repr__, __eq__. Type-annotated fields. The right default for value objects.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-006-walrus.html">
-        <span class="day-no">Day 006 &middot; Syntax</span>
-        <h3>The walrus operator (:=)</h3>
-        <p class="excerpt">
-          Assignment expressions let you bind a value while testing it. Best for while-read loops and comprehension conditions.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-005-enumerate.html">
-        <span class="day-no">Day 005 &middot; Syntax</span>
-        <h3>enumerate: loops with the index</h3>
-        <p class="excerpt">
-          Stop writing for i in range(len(...)). enumerate gives you (index, value) pairs cleanly. start= for 1-based.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-004-dict-get.html">
-        <span class="day-no">Day 004 &middot; Standard library</span>
-        <h3>dict.get and setdefault: defensive lookups</h3>
-        <p class="excerpt">
-          get returns None (or your default) for missing keys. setdefault creates the entry on first access. Two patterns, many uses.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">patterns</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-003-counter.html">
-        <span class="day-no">Day 003 &middot; Standard library</span>
-        <h3>collections.Counter: bag-of-things in one line</h3>
-        <p class="excerpt">
-          Counter counts. most_common ranks. Subtract finds differences. The standard library's hash-bag.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">data-structures</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-002-pathlib.html">
-        <span class="day-no">Day 002 &middot; Standard library</span>
-        <h3>pathlib: paths as objects</h3>
-        <p class="excerpt">
-          Path / 'subdir' joins. read_text reads. .stem strips suffixes. The OO file path API that should have been default since day one.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">stdlib</span>
-            <span class="tag">filesystem</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-      <a class="post-card" href="posts/day-001-f-strings.html">
-        <span class="day-no">Day 001 &middot; Syntax</span>
-        <h3>f-strings: format with intent</h3>
-        <p class="excerpt">
-          f-strings interpolate, format, and self-document with =. The default string formatting choice since 3.6.
-        </p>
-        <div class="meta">
-          <div class="tags">
-            <span class="tag">syntax</span>
-          </div>
-          <span class="arrow" aria-hidden="true">↗</span>
-        </div>
-      </a>
-
-    </div>
-  </section>
+  </main>
 
   <footer class="footer">
     Made by <a href="/">Pradeep Gadde</a> &middot;
-    <a href="https://github.com/pradeepgadde">GitHub</a> &middot;
-    Rendered with care, no trackers
+    <a href="/blog/">Blog</a>
   </footer>
 
   <script>
-    // Auto-update the post counter from the actual list
-    (function () {
-      const list = document.getElementById('post-list');
-      if (!list) return;
-      const cards = list.querySelectorAll('.post-card');
-      const n = cards.length;
-      const padded = String(n).padStart(3, '0');
-      const countEl = document.getElementById('stat-count');
-      const labelEl = document.getElementById('count-label');
-      if (countEl) countEl.textContent = padded;
-      if (labelEl) labelEl.textContent = padded + (n === 1 ? ' entry' : ' entries');
-    })();
+    const cards = document.querySelectorAll('.card');
+    const label = document.getElementById('count-label');
+    label.textContent = cards.length + ' entries';
   </script>
 
 </body>

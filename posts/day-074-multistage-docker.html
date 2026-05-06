@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 074 · Multi-stage Dockerfiles: the build/runtime split — Learn with Pradeep</title>
+  <meta name="description" content="Build heavy in one stage; copy the result into a slim runtime stage. Cuts image size, speeds up pulls, removes the C compiler from production.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 074 &middot; Tooling &middot; Intermediate</div>
+      <h1>Multi-stage Dockerfiles: the build/runtime split</h1>
+      <p class="subtitle">
+        Build heavy in one stage; copy the result into a
+        slim runtime stage. Smaller images, faster pulls,
+        no C compiler in production.
+      </p>
+      <div class="article-meta">
+        <span>15 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>FROM ... AS builder</code> for the
+        compile-heavy stage (gcc, build deps,
+        <code>pip install</code>). Use a fresh
+        <code>FROM python:slim</code> for runtime.
+        <code>COPY --from=builder</code> brings only the
+        installed site-packages and your code across. The
+        runtime image has no compilers, no build
+        artifacts, no surprises.</p>
+      </div>
+
+      <p>
+        Production images should ship the smallest
+        attack surface possible. The build tooling
+        (gcc, make, dev headers, pip cache) is
+        irrelevant once installation is done. Multi-
+        stage builds let you discard all of it.
+      </p>
+
+      <h2>The pattern</h2>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-c"># ============================================================
+# STAGE 1: builder — has compilers, builds wheels
+# ============================================================</span>
+<span class="tok-k">FROM</span> python:3.12.7-slim-bookworm <span class="tok-k">AS</span> builder
+
+<span class="tok-k">ENV</span> PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+<span class="tok-c"># Build-time system deps (compilers, headers)</span>
+<span class="tok-k">RUN</span> apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">COPY</span> requirements.txt .
+
+<span class="tok-c"># Install into a virtualenv so we can copy a clean tree</span>
+<span class="tok-k">RUN</span> python -m venv /opt/venv
+<span class="tok-k">ENV</span> PATH=/opt/venv/bin:$PATH
+<span class="tok-k">RUN</span> pip install -r requirements.txt
+
+<span class="tok-c"># ============================================================
+# STAGE 2: runtime — slim, no compilers
+# ============================================================</span>
+<span class="tok-k">FROM</span> python:3.12.7-slim-bookworm <span class="tok-k">AS</span> runtime
+
+<span class="tok-k">ENV</span> PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/opt/venv/bin:$PATH
+
+<span class="tok-c"># Only the runtime libs — not -dev versions</span>
+<span class="tok-k">RUN</span> apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+<span class="tok-k">RUN</span> useradd --create-home --shell /bin/bash app
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">USER</span> app
+
+<span class="tok-c"># Copy the built virtualenv from the builder stage</span>
+<span class="tok-k">COPY</span> --from=builder /opt/venv /opt/venv
+
+<span class="tok-k">COPY</span> --chown=app:app . .
+
+<span class="tok-k">CMD</span> [<span class="tok-s">"uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>]</code></pre>
+
+      <p>
+        The runtime image has the compiled site-packages
+        but none of the tools used to compile them. For
+        a typical FastAPI app this is the difference
+        between a 500MB image and a 180MB one.
+      </p>
+
+      <h2>The virtualenv trick</h2>
+
+      <p>
+        Why install into a venv if we're already in a
+        container? Because <code>COPY --from</code>
+        works at the filesystem level &mdash; it's much
+        cleaner to copy <code>/opt/venv</code> as a
+        single directory than to track down site-packages
+        + scripts + data files spread across the system
+        Python install.
+      </p>
+
+      <h2>uv version</h2>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-c"># Builder</span>
+<span class="tok-k">FROM</span> ghcr.io/astral-sh/uv:python3.12-bookworm-slim <span class="tok-k">AS</span> builder
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">COPY</span> pyproject.toml uv.lock ./
+<span class="tok-k">RUN</span> uv sync --frozen --no-install-project --no-dev
+<span class="tok-k">COPY</span> . .
+<span class="tok-k">RUN</span> uv sync --frozen --no-dev
+
+<span class="tok-c"># Runtime</span>
+<span class="tok-k">FROM</span> python:3.12-slim
+<span class="tok-k">COPY</span> --from=builder --chown=app:app /app /app
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">ENV</span> PATH=/app/.venv/bin:$PATH
+<span class="tok-k">CMD</span> [<span class="tok-s">"uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>]</code></pre>
+
+      <p>
+        uv keeps its venv at <code>.venv/</code> in the
+        project, so you copy the whole project. The
+        <code>--no-dev</code> flag skips dev-only
+        packages (pytest, ruff, mypy) that have no
+        place in production.
+      </p>
+
+      <h2>BuildKit cache mounts</h2>
+
+      <p>
+        Docker BuildKit (default in modern Docker)
+        supports cache mounts that persist between
+        builds. For pip and uv this is huge.
+      </p>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-c"># syntax=docker/dockerfile:1.6</span>
+
+<span class="tok-k">FROM</span> python:3.12-slim <span class="tok-k">AS</span> builder
+<span class="tok-k">RUN</span> --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt</code></pre>
+
+      <p>
+        Re-running the build hits the warm cache instead
+        of re-downloading wheels. CI builds often go
+        from 90 seconds to 15.
+      </p>
+
+      <h2>Distroless for the truly small</h2>
+
+      <p>
+        For the smallest production image, copy your
+        venv into a distroless base. No shell, no apt,
+        no curl &mdash; just enough Python to run.
+      </p>
+
+<pre class="code"><span class="code-label">dockerfile</span><code><span class="tok-k">FROM</span> python:3.12-slim <span class="tok-k">AS</span> builder
+<span class="tok-c"># ...build virtualenv...</span>
+
+<span class="tok-k">FROM</span> gcr.io/distroless/python3-debian12
+<span class="tok-k">COPY</span> --from=builder /opt/venv /opt/venv
+<span class="tok-k">COPY</span> . /app
+<span class="tok-k">WORKDIR</span> /app
+<span class="tok-k">ENV</span> PATH=/opt/venv/bin:$PATH PYTHONPATH=/opt/venv/lib/python3.12/site-packages
+<span class="tok-k">CMD</span> [<span class="tok-s">"/opt/venv/bin/uvicorn"</span>, <span class="tok-s">"app:app"</span>, <span class="tok-s">"--host"</span>, <span class="tok-s">"0.0.0.0"</span>]</code></pre>
+
+      <p>
+        Pros: ~80MB total, minimal CVE surface.
+        Cons: no shell to debug. <code>kubectl exec</code>
+        and <code>docker exec</code> won't get you a
+        shell &mdash; debugging means rebuilding with the
+        slim base. Worth it for clearly-defined services
+        you don't poke at.
+      </p>
+
+      <h2>Image scanning</h2>
+
+      <p>
+        Once you've shrunk the image, scan it for known
+        CVEs. <code>trivy image myapp:tag</code> takes a
+        few seconds and surfaces vulnerable packages.
+        Wire it into your build pipeline (Day 075).
+        Smaller image = fewer CVEs by simple counting.
+      </p>
+
+      <div class="callout">
+        <p>
+          For local development, you may want a single-
+          stage image with the build tools included
+          (faster iteration, easier debugging). Use a
+          <code>--target builder</code> flag to stop the
+          multi-stage build at the builder stage:
+          <code>docker build --target builder -t
+          myapp:dev .</code>
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a working single-stage Dockerfile,
+          convert to two stages. Compare image sizes
+          with <code>docker images</code>. For a typical
+          FastAPI app the cut is dramatic. Then run
+          <code>trivy</code> against both &mdash; the
+          slim version usually has half the
+          vulnerabilities just because it's smaller.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-073-docker.html">
+        <span class="label">← Previous</span>
+        <span class="title">Docker for Python apps: the right base image</span>
+      </a>
+      <a class="next" href="day-075-github-actions.html">
+        <span class="label">Next →</span>
+        <span class="title">GitHub Actions for Python CI</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

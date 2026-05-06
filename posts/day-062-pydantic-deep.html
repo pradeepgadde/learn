@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 062 · Pydantic v2 deep cuts: validators, serializers, computed fields — Learn with Pradeep</title>
+  <meta name="description" content="field_validator and model_validator for custom logic. computed_field for derived attributes. field_serializer for output transforms. The pydantic v2 features beyond the basics.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 062 &middot; Third-party &middot; Intermediate</div>
+      <h1>Pydantic v2 deep cuts: validators, serializers, computed fields</h1>
+      <p class="subtitle">
+        <code>field_validator</code> and
+        <code>model_validator</code> for custom logic.
+        <code>computed_field</code> for derived attributes.
+        <code>field_serializer</code> for output transforms.
+      </p>
+      <div class="article-meta">
+        <span>03 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>@field_validator("name")</code> to
+        validate or transform a single field. Use
+        <code>@model_validator(mode="after")</code> for
+        cross-field rules. Use <code>@computed_field</code>
+        to expose a derived attribute as if it were stored.
+        Use <code>@field_serializer("name")</code> to
+        customize how a field shows up in
+        <code>model_dump</code>.</p>
+      </div>
+
+      <p>
+        Day 032 covered the pydantic basics &mdash; declare
+        a model, get validation. The next layer is
+        custom logic: validators that normalize input,
+        cross-field rules, derived fields, and output
+        transforms. Once you've used these you stop
+        thinking of pydantic as "just" a validator.
+      </p>
+
+      <h2>field_validator: per-field rules</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">field_validator</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Device</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">hostname</span>: <span class="tok-n">str</span>
+    <span class="tok-n">role</span>:     <span class="tok-n">str</span>
+
+    <span class="tok-o">@</span><span class="tok-f">field_validator</span>(<span class="tok-s">"hostname"</span>)
+    <span class="tok-o">@</span><span class="tok-n">classmethod</span>
+    <span class="tok-k">def</span> <span class="tok-f">_lowercase</span>(<span class="tok-n">cls</span>, <span class="tok-n">v</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">str</span>:
+        <span class="tok-k">if</span> <span class="tok-k">not</span> <span class="tok-n">v</span>.<span class="tok-f">replace</span>(<span class="tok-s">"-"</span>, <span class="tok-s">""</span>).<span class="tok-f">isalnum</span>():
+            <span class="tok-k">raise</span> <span class="tok-n">ValueError</span>(<span class="tok-s">"hostname must be alnum + hyphens"</span>)
+        <span class="tok-k">return</span> <span class="tok-n">v</span>.<span class="tok-f">lower</span>()</code></pre>
+
+      <p>
+        The validator runs after the type coerces
+        successfully. It can return a transformed value
+        (the lowercased hostname here) or raise to reject.
+        Notice <code>@classmethod</code> &mdash; pydantic
+        validators are class methods.
+      </p>
+
+      <h2>mode="before": run before type coercion</h2>
+
+      <p>
+        For inputs in the wrong shape that you want to
+        normalize <em>before</em> type validation, use
+        <code>mode="before"</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">Tags</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">labels</span>: <span class="tok-n">list</span>[<span class="tok-n">str</span>]
+
+    <span class="tok-o">@</span><span class="tok-f">field_validator</span>(<span class="tok-s">"labels"</span>, <span class="tok-n">mode</span>=<span class="tok-s">"before"</span>)
+    <span class="tok-o">@</span><span class="tok-n">classmethod</span>
+    <span class="tok-k">def</span> <span class="tok-f">_split</span>(<span class="tok-n">cls</span>, <span class="tok-n">v</span>):
+        <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">v</span>, <span class="tok-n">str</span>):
+            <span class="tok-k">return</span> [<span class="tok-n">s</span>.<span class="tok-f">strip</span>() <span class="tok-k">for</span> <span class="tok-n">s</span> <span class="tok-k">in</span> <span class="tok-n">v</span>.<span class="tok-f">split</span>(<span class="tok-s">","</span>)]
+        <span class="tok-k">return</span> <span class="tok-n">v</span>
+
+<span class="tok-f">Tags</span>(<span class="tok-n">labels</span>=<span class="tok-s">"alpha, beta, gamma"</span>).<span class="tok-n">labels</span>
+<span class="tok-c"># ['alpha', 'beta', 'gamma']</span></code></pre>
+
+      <h2>model_validator: cross-field rules</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">model_validator</span>
+<span class="tok-k">from</span> <span class="tok-n">datetime</span> <span class="tok-k">import</span> <span class="tok-n">date</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Maintenance</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">start</span>: <span class="tok-n">date</span>
+    <span class="tok-n">end</span>:   <span class="tok-n">date</span>
+
+    <span class="tok-o">@</span><span class="tok-f">model_validator</span>(<span class="tok-n">mode</span>=<span class="tok-s">"after"</span>)
+    <span class="tok-k">def</span> <span class="tok-f">_check_order</span>(<span class="tok-n">self</span>):
+        <span class="tok-k">if</span> <span class="tok-n">self</span>.<span class="tok-n">end</span> &lt; <span class="tok-n">self</span>.<span class="tok-n">start</span>:
+            <span class="tok-k">raise</span> <span class="tok-n">ValueError</span>(<span class="tok-s">"end must be on or after start"</span>)
+        <span class="tok-k">return</span> <span class="tok-n">self</span></code></pre>
+
+      <p>
+        <code>mode="after"</code> runs after all fields
+        validated &mdash; you get a fully-built
+        <code>self</code> to inspect. Always
+        <code>return self</code> at the end.
+      </p>
+
+      <h2>computed_field: derived attributes in dumps</h2>
+
+      <p>
+        For a value that's a function of other fields and
+        you want it included in <code>model_dump</code>
+        and the OpenAPI schema:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">computed_field</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Probe</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">success</span>: <span class="tok-n">int</span>
+    <span class="tok-n">failure</span>: <span class="tok-n">int</span>
+
+    <span class="tok-o">@</span><span class="tok-n">computed_field</span>
+    <span class="tok-o">@</span><span class="tok-n">property</span>
+    <span class="tok-k">def</span> <span class="tok-f">success_rate</span>(<span class="tok-n">self</span>) -&gt; <span class="tok-n">float</span>:
+        <span class="tok-n">total</span> = <span class="tok-n">self</span>.<span class="tok-n">success</span> + <span class="tok-n">self</span>.<span class="tok-n">failure</span>
+        <span class="tok-k">return</span> <span class="tok-n">self</span>.<span class="tok-n">success</span> / <span class="tok-n">total</span> <span class="tok-k">if</span> <span class="tok-n">total</span> <span class="tok-k">else</span> <span class="tok-n">0.0</span>
+
+<span class="tok-f">Probe</span>(<span class="tok-n">success</span>=<span class="tok-n">9</span>, <span class="tok-n">failure</span>=<span class="tok-n">1</span>).<span class="tok-f">model_dump</span>()
+<span class="tok-c"># {'success': 9, 'failure': 1, 'success_rate': 0.9}</span></code></pre>
+
+      <p>
+        Without <code>@computed_field</code>, plain
+        <code>@property</code> works for attribute access
+        but is invisible to <code>model_dump</code> and
+        the OpenAPI schema. The decorator wires both up.
+      </p>
+
+      <h2>field_serializer: control the output shape</h2>
+
+      <p>
+        Want a <code>SecretStr</code> to never leak in
+        logs, or a datetime in epoch seconds, or a
+        complex object as a string? Override the per-field
+        serialization.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">SecretStr</span>, <span class="tok-n">field_serializer</span>
+
+<span class="tok-k">class</span> <span class="tok-f">User</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">name</span>:  <span class="tok-n">str</span>
+    <span class="tok-n">token</span>: <span class="tok-n">SecretStr</span>
+
+    <span class="tok-o">@</span><span class="tok-f">field_serializer</span>(<span class="tok-s">"token"</span>, <span class="tok-n">when_used</span>=<span class="tok-s">"json"</span>)
+    <span class="tok-k">def</span> <span class="tok-f">_redact</span>(<span class="tok-n">self</span>, <span class="tok-n">v</span>: <span class="tok-n">SecretStr</span>):
+        <span class="tok-k">return</span> <span class="tok-s">"***"</span>
+
+<span class="tok-f">User</span>(<span class="tok-n">name</span>=<span class="tok-s">"pradeep"</span>, <span class="tok-n">token</span>=<span class="tok-s">"super-secret"</span>).<span class="tok-f">model_dump_json</span>()
+<span class="tok-c"># '{"name":"pradeep","token":"***"}'</span></code></pre>
+
+      <p>
+        <code>when_used="json"</code> means the redaction
+        applies only to JSON dumps; <code>model_dump()</code>
+        still returns the real value if you need it
+        in-process.
+      </p>
+
+      <h2>Strict mode</h2>
+
+      <p>
+        Pydantic v2 coerces by default ("22" → 22).
+        Sometimes you want exact types. Per-field, per-model,
+        or per-call:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>, <span class="tok-n">Field</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Strict</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">port</span>: <span class="tok-n">int</span> = <span class="tok-f">Field</span>(<span class="tok-n">strict</span>=<span class="tok-k">True</span>)
+
+<span class="tok-f">Strict</span>(<span class="tok-n">port</span>=<span class="tok-s">"22"</span>)
+<span class="tok-c"># ValidationError — string not accepted</span>
+
+<span class="tok-c"># Or per-call:</span>
+<span class="tok-f">Strict</span>.<span class="tok-f">model_validate</span>({<span class="tok-s">"port"</span>: <span class="tok-s">"22"</span>}, <span class="tok-n">strict</span>=<span class="tok-k">True</span>)</code></pre>
+
+      <p>
+        Strict mode pairs well with parsing data from
+        other code (where types should already be right);
+        permissive mode pairs better with parsing JSON
+        from clients.
+      </p>
+
+      <div class="callout">
+        <p>
+          For very high-throughput parsing where every
+          microsecond counts, look at
+          <code>TypeAdapter</code> &mdash; pydantic's
+          stand-alone validator for non-class types
+          (raw <code>list[Device]</code>,
+          <code>dict[str, int]</code>). It's the same
+          fast Rust core without the BaseModel overhead.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take a model in your code that has an
+          <code>__init__</code> doing manual normalization
+          ("uppercase this", "default that to today").
+          Move that logic into a
+          <code>field_validator</code>. The model now
+          works the same when constructed positionally,
+          via <code>model_validate</code>, or via
+          <code>model_validate_json</code> &mdash; one
+          place to maintain.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-061-uvicorn.html">
+        <span class="label">← Previous</span>
+        <span class="title">uvicorn and ASGI: serving Python in production</span>
+      </a>
+      <a class="next" href="day-063-sqlalchemy.html">
+        <span class="label">Next →</span>
+        <span class="title">SQLAlchemy 2.0: the modern Python ORM</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

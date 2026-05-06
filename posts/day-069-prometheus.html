@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 069 · prometheus_client: metrics for the python process — Learn with Pradeep</title>
+  <meta name="description" content="Counter, Gauge, Histogram, Summary — the four metric types and when to use each. Plus the multiprocess gotcha for gunicorn workers.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 069 &middot; Tooling &middot; Intermediate</div>
+      <h1>prometheus_client: metrics for the python process</h1>
+      <p class="subtitle">
+        Counter, Gauge, Histogram, Summary &mdash; the four
+        metric types and when to use each. Plus the
+        multiprocess gotcha for gunicorn workers.
+      </p>
+      <div class="article-meta">
+        <span>10 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>Counter</code> for things that only
+        go up (requests, errors), <code>Gauge</code> for
+        values that change up and down (queue depth,
+        memory), <code>Histogram</code> for distributions
+        (latency, payload size). Expose
+        <code>/metrics</code> and let Prometheus scrape.
+        For multi-process workers, use the
+        <code>PROMETHEUS_MULTIPROC_DIR</code> mode.</p>
+      </div>
+
+      <p>
+        OpenTelemetry (Day 068) is the modern, vendor-
+        neutral path. <code>prometheus_client</code> is
+        the older, simpler one &mdash; and Prometheus is
+        still the most-deployed metrics backend on
+        Kubernetes. Knowing both is worth it.
+      </p>
+
+      <h2>The four metric types</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">prometheus_client</span> <span class="tok-k">import</span> <span class="tok-n">Counter</span>, <span class="tok-n">Gauge</span>, <span class="tok-n">Histogram</span>
+
+<span class="tok-c"># Counter — monotonically increasing</span>
+<span class="tok-n">requests_total</span> = <span class="tok-f">Counter</span>(
+    <span class="tok-s">"http_requests_total"</span>,
+    <span class="tok-s">"Total HTTP requests"</span>,
+    [<span class="tok-s">"method"</span>, <span class="tok-s">"status"</span>],
+)
+<span class="tok-n">requests_total</span>.<span class="tok-f">labels</span>(<span class="tok-n">method</span>=<span class="tok-s">"GET"</span>, <span class="tok-n">status</span>=<span class="tok-s">"200"</span>).<span class="tok-f">inc</span>()
+
+<span class="tok-c"># Gauge — value that goes up and down</span>
+<span class="tok-n">queue_depth</span> = <span class="tok-f">Gauge</span>(<span class="tok-s">"queue_depth"</span>, <span class="tok-s">"Items waiting"</span>)
+<span class="tok-n">queue_depth</span>.<span class="tok-f">set</span>(<span class="tok-n">42</span>)
+
+<span class="tok-c"># Histogram — distribution of values, with quantile rollups</span>
+<span class="tok-n">latency</span> = <span class="tok-f">Histogram</span>(
+    <span class="tok-s">"http_request_duration_seconds"</span>,
+    <span class="tok-s">"Request latency"</span>,
+    [<span class="tok-s">"endpoint"</span>],
+    <span class="tok-n">buckets</span>=(<span class="tok-n">0.005</span>, <span class="tok-n">0.01</span>, <span class="tok-n">0.025</span>, <span class="tok-n">0.05</span>, <span class="tok-n">0.1</span>, <span class="tok-n">0.25</span>,
+             <span class="tok-n">0.5</span>, <span class="tok-n">1</span>, <span class="tok-n">2.5</span>, <span class="tok-n">5</span>, <span class="tok-n">10</span>),
+)
+<span class="tok-n">latency</span>.<span class="tok-f">labels</span>(<span class="tok-n">endpoint</span>=<span class="tok-s">"/devices"</span>).<span class="tok-f">observe</span>(<span class="tok-n">0.042</span>)</code></pre>
+
+      <p>
+        Histograms with custom buckets are nearly always
+        better than the default ones &mdash; pick buckets
+        that match your actual SLOs. The defaults
+        (powers of 2 over a few seconds) often miss
+        meaningful resolution.
+      </p>
+
+      <h2>The naming conventions</h2>
+
+      <ul>
+        <li><strong>Counters end in <code>_total</code></strong> &mdash; <code>requests_total</code>, not just <code>requests</code>.</li>
+        <li><strong>Histograms include the unit</strong> &mdash; <code>_seconds</code>, <code>_bytes</code>. Helps PromQL stay readable.</li>
+        <li><strong>Labels for dimensions, not for values</strong> &mdash; <code>method=GET</code> good (low cardinality), <code>user_id=12345</code> bad (cardinality explosion).</li>
+      </ul>
+
+      <h2>Exposing /metrics</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">prometheus_client</span> <span class="tok-k">import</span> <span class="tok-n">make_asgi_app</span>
+
+<span class="tok-c"># Mount /metrics on a FastAPI app</span>
+<span class="tok-n">metrics_app</span> = <span class="tok-f">make_asgi_app</span>()
+<span class="tok-n">app</span>.<span class="tok-f">mount</span>(<span class="tok-s">"/metrics"</span>, <span class="tok-n">metrics_app</span>)</code></pre>
+
+      <p>
+        Configure Prometheus to scrape
+        <code>http://app:8000/metrics</code> on the
+        default 15s interval. That's the whole pipeline.
+      </p>
+
+      <h2>The multiprocess gotcha</h2>
+
+      <p>
+        Each worker process has its own metric counters.
+        With <code>--workers 4</code>, hitting
+        <code>/metrics</code> only shows the metrics for
+        whichever worker handled <em>that</em> request.
+        Numbers jump around as you refresh.
+      </p>
+
+      <p>
+        The fix: multiprocess mode, which writes metrics
+        to a shared directory and aggregates on read.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>export PROMETHEUS_MULTIPROC_DIR=/tmp/prom_metrics
+mkdir -p $PROMETHEUS_MULTIPROC_DIR
+gunicorn -k uvicorn.workers.UvicornWorker --workers 4 app:app</code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">prometheus_client</span> <span class="tok-k">import</span> <span class="tok-n">CollectorRegistry</span>, <span class="tok-n">multiprocess</span>, <span class="tok-n">make_asgi_app</span>
+
+<span class="tok-k">def</span> <span class="tok-f">metrics_endpoint</span>():
+    <span class="tok-n">registry</span> = <span class="tok-f">CollectorRegistry</span>()
+    <span class="tok-n">multiprocess</span>.<span class="tok-f">MultiProcessCollector</span>(<span class="tok-n">registry</span>)
+    <span class="tok-k">return</span> <span class="tok-f">make_asgi_app</span>(<span class="tok-n">registry</span>=<span class="tok-n">registry</span>)
+
+<span class="tok-n">app</span>.<span class="tok-f">mount</span>(<span class="tok-s">"/metrics"</span>, <span class="tok-f">metrics_endpoint</span>())</code></pre>
+
+      <p>
+        With multiprocess mode, <code>Gauge</code>
+        behavior changes &mdash; check the docs for which
+        modes (<code>min</code>, <code>max</code>,
+        <code>livesum</code>, <code>all</code>) make sense
+        for each of your gauges.
+      </p>
+
+      <h2>Decorators for the common cases</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Time a function</span>
+<span class="tok-o">@</span><span class="tok-n">latency</span>.<span class="tok-f">labels</span>(<span class="tok-n">endpoint</span>=<span class="tok-s">"/devices"</span>).<span class="tok-n">time</span>()
+<span class="tok-k">def</span> <span class="tok-f">list_devices</span>(): <span class="tok-c">...</span>
+
+<span class="tok-c"># Count exceptions</span>
+<span class="tok-o">@</span><span class="tok-n">errors_total</span>.<span class="tok-f">labels</span>(<span class="tok-n">op</span>=<span class="tok-s">"sync"</span>).<span class="tok-n">count_exceptions</span>()
+<span class="tok-k">def</span> <span class="tok-f">sync</span>(): <span class="tok-c">...</span>
+
+<span class="tok-c"># Track in-progress (auto inc/dec)</span>
+<span class="tok-o">@</span><span class="tok-n">in_progress</span>.<span class="tok-n">track_inprogress</span>()
+<span class="tok-k">def</span> <span class="tok-f">job</span>(): <span class="tok-c">...</span></code></pre>
+
+      <h2>Stay away from Summary</h2>
+
+      <p>
+        Prometheus has a fourth type, <code>Summary</code>,
+        which computes quantiles client-side. The
+        per-process quantiles can't be aggregated across
+        workers correctly, which makes them misleading
+        in any multi-instance deployment. Use
+        <code>Histogram</code> with
+        <code>histogram_quantile</code> in PromQL
+        instead &mdash; aggregates correctly.
+      </p>
+
+      <div class="callout">
+        <p>
+          For network-engineering use, a
+          <code>Counter</code> for poll attempts and a
+          <code>Histogram</code> for poll latency,
+          labelled by device role, gives you everything
+          you need for "p99 SSH latency by site type"
+          dashboards in Grafana.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add three metrics to a service: a
+          <code>Counter</code> for requests-by-status, a
+          <code>Histogram</code> for end-to-end latency,
+          and a <code>Gauge</code> for whatever counts
+          you have in flight. Expose <code>/metrics</code>.
+          Curl it. The output is dense but readable;
+          you're now a Grafana dashboard away from
+          observability.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-068-opentelemetry.html">
+        <span class="label">← Previous</span>
+        <span class="title">OpenTelemetry: traces, metrics, logs in one SDK</span>
+      </a>
+      <a class="next" href="day-070-sentry.html">
+        <span class="label">Next →</span>
+        <span class="title">Sentry: errors with context</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

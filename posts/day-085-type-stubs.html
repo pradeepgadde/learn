@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 085 · Type stubs and py.typed: ship type info with your package — Learn with Pradeep</title>
+  <meta name="description" content="A py.typed marker tells type checkers your package is ready for them. .pyi stub files type third-party code you don't own. The conventions and the gotchas.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 085 &middot; Patterns &middot; Advanced</div>
+      <h1>Type stubs and py.typed: ship type info with your package</h1>
+      <p class="subtitle">
+        A <code>py.typed</code> marker tells type
+        checkers your package is ready. <code>.pyi</code>
+        stubs type third-party code you don't own.
+        Conventions and gotchas.
+      </p>
+      <div class="article-meta">
+        <span>26 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.7+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>If your package has type hints, drop an empty
+        <code>py.typed</code> file in the package root
+        (PEP 561) and include it in the wheel.
+        Otherwise mypy ignores your types when imported
+        from outside. For libraries you don't own that
+        lack types, write <code>.pyi</code> stubs &mdash;
+        they shadow the real module for type-checking
+        purposes only.</p>
+      </div>
+
+      <p>
+        You annotated your library beautifully (Day 012,
+        Day 042). You publish it. Someone installs it,
+        runs mypy, and sees... no type information.
+        Why? Because you forgot the marker.
+      </p>
+
+      <h2>The PEP 561 marker</h2>
+
+<pre class="code"><span class="code-label">text</span><code>src/my_tool/
+├── __init__.py
+├── core.py
+├── cli.py
+└── py.typed              <span class="tok-c"># empty file — its existence is the signal</span></code></pre>
+
+      <p>
+        Just create the file. Empty. Its mere presence
+        tells mypy, pyright, pytype, and friends:
+        "this package's <code>.py</code> files contain
+        canonical type information &mdash; trust them."
+      </p>
+
+      <p>
+        Without it, every type checker treats your
+        package as opaque (any imported symbol becomes
+        <code>Any</code>). Adding annotations to your
+        code without adding <code>py.typed</code> is
+        invisible to consumers.
+      </p>
+
+      <h2>Include it in the wheel</h2>
+
+      <p>
+        The catch: build backends don't always include
+        non-<code>.py</code> files automatically. With
+        hatchling (Day 083) it usually works, but
+        verify:
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>hatch build
+unzip -l dist/my_tool-*.whl | grep py.typed
+<span class="tok-c"># my_tool/py.typed   should appear</span></code></pre>
+
+      <p>
+        If it's missing, force inclusion in
+        <code>pyproject.toml</code>:
+      </p>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c">[tool.hatch.build.targets.wheel]</span>
+packages = [<span class="tok-s">"src/my_tool"</span>]
+
+<span class="tok-c">[tool.hatch.build.targets.wheel.force-include]</span>
+<span class="tok-s">"src/my_tool/py.typed"</span> = <span class="tok-s">"my_tool/py.typed"</span></code></pre>
+
+      <p>
+        For setuptools, add <code>py.typed</code> to
+        <code>package_data</code>. For poetry, set
+        <code>include = ["my_tool/py.typed"]</code>.
+      </p>
+
+      <h2>Stub files (.pyi): types without code</h2>
+
+      <p>
+        A <code>.pyi</code> file mirrors a module's
+        public surface with signatures only. Type
+        checkers prefer it over the matching
+        <code>.py</code> when both exist.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># networking.py — runtime code</span>
+<span class="tok-k">def</span> <span class="tok-f">parse_cidr</span>(<span class="tok-n">s</span>):
+    <span class="tok-k">return</span> <span class="tok-f">_complicated_logic</span>(<span class="tok-n">s</span>)</code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># networking.pyi — types only, no implementation</span>
+<span class="tok-k">from</span> <span class="tok-n">ipaddress</span> <span class="tok-k">import</span> <span class="tok-n">IPv4Network</span>
+
+<span class="tok-k">def</span> <span class="tok-f">parse_cidr</span>(<span class="tok-n">s</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">IPv4Network</span>: <span class="tok-c">...</span></code></pre>
+
+      <p>
+        Three uses of <code>.pyi</code>:
+      </p>
+
+      <ul>
+        <li><strong>Inline a type override</strong> when the runtime form is too dynamic to annotate clearly.</li>
+        <li><strong>Type a C extension</strong> &mdash; the <code>.so</code> file has no Python source, so the <code>.pyi</code> is the only annotation source.</li>
+        <li><strong>Type a third-party library</strong> that lacks types &mdash; ship stubs separately (see below).</li>
+      </ul>
+
+      <h2>Stub-only packages</h2>
+
+      <p>
+        For libraries you don't own, you can publish a
+        stub package alongside. The convention:
+        <code>types-FOO</code> shadows
+        <code>FOO</code>'s types. Many examples:
+        <code>types-requests</code>,
+        <code>types-PyYAML</code>,
+        <code>types-paramiko</code>.
+      </p>
+
+<pre class="code"><span class="code-label">text</span><code>types-mylib/
+├── pyproject.toml
+└── mylib-stubs/             <span class="tok-c"># note the -stubs suffix</span>
+    ├── __init__.pyi
+    └── client.pyi</code></pre>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c">[project]</span>
+name = <span class="tok-s">"types-mylib"</span>
+
+<span class="tok-c">[tool.hatch.build.targets.wheel]</span>
+packages = [<span class="tok-s">"mylib-stubs"</span>]</code></pre>
+
+      <p>
+        Type checkers find the <code>FOO-stubs</code>
+        directory automatically; runtime imports of
+        <code>FOO</code> still go to the real package.
+        The stubs are a parallel, type-only mirror.
+      </p>
+
+      <h2>Generating stubs automatically</h2>
+
+      <p>
+        For a library that <em>does</em> have type
+        hints, you can generate <code>.pyi</code>
+        files mechanically with
+        <code>stubgen</code> (ships with mypy):
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>stubgen -p my_tool -o stubs/
+<span class="tok-c"># Outputs stubs/my_tool/*.pyi mirroring the public surface</span></code></pre>
+
+      <p>
+        Useful when you want stubs separate from the
+        runtime package, or when you're starting a
+        <code>types-FOO</code> stub for someone else's
+        library.
+      </p>
+
+      <h2>partial vs complete</h2>
+
+      <p>
+        Some files in your package may be fully
+        annotated; others not. mypy's default is
+        all-or-nothing per package. To opt in to
+        partial typing, add a marker:
+      </p>
+
+<pre class="code"><span class="code-label">text</span><code>my_tool/
+├── py.typed                 <span class="tok-c"># with content "partial\n"</span></code></pre>
+
+      <p>
+        With <code>partial</code>, type checkers fall
+        back to typeshed stubs (or <code>Any</code>)
+        for unannotated bits, instead of refusing the
+        whole package. Useful as you migrate large
+        codebases.
+      </p>
+
+      <h2>Verify it works end-to-end</h2>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># In a fresh venv:</span>
+pip install ./my-tool
+pip install mypy
+echo <span class="tok-s">"from my_tool import parse_cidr; reveal_type(parse_cidr('10/24'))"</span> &gt; t.py
+mypy t.py
+<span class="tok-c"># note: Revealed type is "ipaddress.IPv4Network"</span></code></pre>
+
+      <p>
+        If <code>reveal_type</code> shows the actual
+        return type instead of <code>Any</code>, the
+        py.typed marker is doing its job.
+      </p>
+
+      <div class="callout">
+        <p>
+          One thing to remember: type stubs lie. The
+          <code>.pyi</code> says one thing, runtime
+          does another, and nobody catches the drift.
+          Whenever possible, annotate the real
+          <code>.py</code> file directly &mdash; the
+          types stay honest because they live next to
+          the code they describe.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick one of your published packages (or any
+          local one). Verify <code>py.typed</code> is
+          included in the wheel. Install in a clean
+          venv, run <code>mypy</code> against a small
+          file that imports from it. If the symbols
+          come back typed: you're done. If not:
+          fix one of the build-config gotchas
+          above and ship a patch release.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-084-pypi-publishing.html">
+        <span class="label">← Previous</span>
+        <span class="title">Publishing to PyPI: trusted publishing from CI</span>
+      </a>
+      <a class="next" href="day-086-dunders.html">
+        <span class="label">Next →</span>
+        <span class="title">Dunders worth knowing: __call__, __getattr__, __init_subclass__</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

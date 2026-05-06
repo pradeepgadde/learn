@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 076 · Pre-commit beyond ruff: the hooks worth wiring up — Learn with Pradeep</title>
+  <meta name="description" content="Catch trailing whitespace, accidental secrets, broken YAML, and merge conflict markers before the commit goes out. The five extra hooks every Python repo deserves.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 076 &middot; Tooling &middot; Beginner</div>
+      <h1>Pre-commit beyond ruff: the hooks worth wiring up</h1>
+      <p class="subtitle">
+        Catch trailing whitespace, accidental secrets,
+        broken YAML, and merge conflict markers before
+        the commit goes out.
+      </p>
+      <div class="article-meta">
+        <span>17 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Beyond ruff and ruff-format: add
+        <code>pre-commit-hooks</code> for
+        whitespace/EOL/YAML basics,
+        <code>detect-secrets</code> for credential
+        leak prevention, <code>shellcheck</code> for
+        any shell scripts, and <code>actionlint</code>
+        for GitHub Actions YAML. All driven from one
+        <code>.pre-commit-config.yaml</code>.</p>
+      </div>
+
+      <p>
+        Ruff (Day 041) covers the Python-specific
+        cleanup &mdash; lint and format. Pre-commit
+        wraps a lot more than that: file hygiene,
+        secret detection, config-file validation,
+        cross-language linters. Set up once, runs on
+        every <code>git commit</code>.
+      </p>
+
+      <h2>The starter config</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-c"># .pre-commit-config.yaml</span>
+<span class="tok-n">repos</span>:
+  - <span class="tok-n">repo</span>: https://github.com/pre-commit/pre-commit-hooks
+    <span class="tok-n">rev</span>: v5.0.0
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: trailing-whitespace
+      - <span class="tok-n">id</span>: end-of-file-fixer
+      - <span class="tok-n">id</span>: check-yaml
+      - <span class="tok-n">id</span>: check-toml
+      - <span class="tok-n">id</span>: check-json
+      - <span class="tok-n">id</span>: check-merge-conflict
+      - <span class="tok-n">id</span>: check-added-large-files
+        <span class="tok-n">args</span>: [<span class="tok-s">'--maxkb=500'</span>]
+      - <span class="tok-n">id</span>: check-case-conflict
+      - <span class="tok-n">id</span>: mixed-line-ending
+      - <span class="tok-n">id</span>: detect-private-key
+
+  - <span class="tok-n">repo</span>: https://github.com/astral-sh/ruff-pre-commit
+    <span class="tok-n">rev</span>: v0.7.4
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: ruff
+        <span class="tok-n">args</span>: [--fix]
+      - <span class="tok-n">id</span>: ruff-format
+
+  - <span class="tok-n">repo</span>: https://github.com/Yelp/detect-secrets
+    <span class="tok-n">rev</span>: v1.5.0
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: detect-secrets
+        <span class="tok-n">args</span>: [<span class="tok-s">'--baseline'</span>, <span class="tok-s">'.secrets.baseline'</span>]
+
+  - <span class="tok-n">repo</span>: https://github.com/rhysd/actionlint
+    <span class="tok-n">rev</span>: v1.7.4
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: actionlint</code></pre>
+
+      <p>
+        Install once, then it runs automatically:
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add --dev pre-commit
+uv run pre-commit install                     <span class="tok-c"># installs git hook</span>
+uv run pre-commit run --all-files             <span class="tok-c"># run on the whole repo first time</span></code></pre>
+
+      <h2>What each one catches</h2>
+
+      <ul>
+        <li><strong><code>trailing-whitespace</code></strong> &mdash; the most pointless source of "fix whitespace" commits in history.</li>
+        <li><strong><code>end-of-file-fixer</code></strong> &mdash; ensures files end in a newline. Some tools complain when they don't.</li>
+        <li><strong><code>check-yaml/json/toml</code></strong> &mdash; parses the file. Catches the typo that breaks CI before you push.</li>
+        <li><strong><code>check-merge-conflict</code></strong> &mdash; rejects files with <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> markers in them. You'd be surprised.</li>
+        <li><strong><code>check-added-large-files</code></strong> &mdash; stops you committing the 200MB tarball you forgot to <code>.gitignore</code>.</li>
+        <li><strong><code>check-case-conflict</code></strong> &mdash; <code>README</code> and <code>readme</code> on the same branch breaks Windows and macOS clones.</li>
+        <li><strong><code>detect-private-key</code></strong> &mdash; catches accidental SSH/PGP key commits.</li>
+        <li><strong><code>detect-secrets</code></strong> &mdash; the more thorough version. AWS keys, API tokens, high-entropy strings.</li>
+        <li><strong><code>actionlint</code></strong> &mdash; validates your GitHub Actions YAML. Catches typos that would fail CI.</li>
+      </ul>
+
+      <h2>detect-secrets baseline</h2>
+
+      <p>
+        First run scans your existing repo and writes a
+        baseline of "known false positives" so that
+        legitimate strings (like example API keys in
+        documentation) don't trigger every commit.
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>uv run detect-secrets scan &gt; .secrets.baseline
+git add .secrets.baseline</code></pre>
+
+      <p>
+        New high-entropy strings outside the baseline
+        block the commit until you audit and either fix
+        the leak or update the baseline.
+      </p>
+
+      <h2>For repos with shell scripts</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code>  - <span class="tok-n">repo</span>: https://github.com/koalaman/shellcheck-precommit
+    <span class="tok-n">rev</span>: v0.10.0
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: shellcheck</code></pre>
+
+      <p>
+        ShellCheck flags common bash mistakes &mdash;
+        unquoted variables, broken globbing,
+        non-portable syntax. Catches a lot of
+        Saturday-morning incidents.
+      </p>
+
+      <h2>For repos with Dockerfiles</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code>  - <span class="tok-n">repo</span>: https://github.com/hadolint/hadolint
+    <span class="tok-n">rev</span>: v2.13.1-beta
+    <span class="tok-n">hooks</span>:
+      - <span class="tok-n">id</span>: hadolint-docker</code></pre>
+
+      <p>
+        Hadolint catches the Dockerfile anti-patterns
+        from Days 073 and 074: shell-form
+        <code>CMD</code>, missing version pins,
+        <code>apt-get update</code> without cleanup, etc.
+      </p>
+
+      <h2>Run pre-commit in CI too</h2>
+
+      <p>
+        Hooks installed locally are easy to bypass with
+        <code>git commit --no-verify</code>. Run the same
+        suite in CI as a backstop:
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-c"># In your GitHub Actions workflow</span>
+- <span class="tok-n">uses</span>: pre-commit/action@v3.0.1</code></pre>
+
+      <p>
+        Now there's no escape. Local pre-commit makes
+        the loop fast; CI pre-commit makes it
+        non-negotiable.
+      </p>
+
+      <h2>Updating hook versions</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uv run pre-commit autoupdate</code></pre>
+
+      <p>
+        Updates all the <code>rev:</code> pins to the
+        latest tags. Run monthly, commit, watch CI to
+        verify nothing broke.
+      </p>
+
+      <div class="callout">
+        <p>
+          One nuance: pre-commit hooks only run on
+          staged files by default. If you ever need to
+          re-run on everything (after adding a new hook,
+          or after a big refactor): <code>pre-commit run
+          --all-files</code>.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Drop the config above into a repo, run
+          <code>pre-commit install</code>, then
+          <code>pre-commit run --all-files</code>. Watch
+          how much it cleans up on first run. The
+          friction of catching small problems is much
+          smaller than the friction of getting them
+          fixed in code review three days later.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-075-github-actions.html">
+        <span class="label">← Previous</span>
+        <span class="title">GitHub Actions for Python CI</span>
+      </a>
+      <a class="next" href="day-077-pytest-fixtures.html">
+        <span class="label">Next →</span>
+        <span class="title">pytest fixtures: scope, factories, and yield</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

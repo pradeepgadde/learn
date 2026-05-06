@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 065 · HTTP middleware: cross-cutting concerns the right way — Learn with Pradeep</title>
+  <meta name="description" content="Middleware wraps every request. Use it for request IDs, timing, CORS, and trusted-host enforcement — but not for auth (use dependencies for that).">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 065 &middot; Third-party &middot; Intermediate</div>
+      <h1>HTTP middleware: cross-cutting concerns the right way</h1>
+      <p class="subtitle">
+        Middleware wraps every request. Use it for request
+        IDs, timing, CORS, and trusted hosts &mdash; but
+        not auth (dependencies handle that better).
+      </p>
+      <div class="article-meta">
+        <span>06 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Add middleware with
+        <code>@app.middleware("http")</code> on a
+        function that calls
+        <code>response = await call_next(request)</code>.
+        Use built-in middleware for CORS, gzip, trusted
+        hosts. For per-request auth, prefer FastAPI
+        dependencies &mdash; they integrate with the OpenAPI
+        schema and run after path matching.</p>
+      </div>
+
+      <p>
+        Middleware in ASGI runs once per request, wrapping
+        the entire downstream stack. It's the right tool
+        for things that should apply uniformly &mdash;
+        request IDs, timing, security headers &mdash; and
+        the wrong tool for things that should differ per
+        endpoint.
+      </p>
+
+      <h2>The shape of FastAPI middleware</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span> <span class="tok-k">import</span> <span class="tok-n">FastAPI</span>, <span class="tok-n">Request</span>
+<span class="tok-k">from</span> <span class="tok-n">time</span> <span class="tok-k">import</span> <span class="tok-n">perf_counter</span>
+<span class="tok-k">import</span> <span class="tok-n">uuid</span>
+
+<span class="tok-n">app</span> = <span class="tok-f">FastAPI</span>()
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">middleware</span>(<span class="tok-s">"http"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">add_request_id</span>(<span class="tok-n">request</span>: <span class="tok-n">Request</span>, <span class="tok-n">call_next</span>):
+    <span class="tok-n">request</span>.<span class="tok-n">state</span>.<span class="tok-n">request_id</span> = <span class="tok-n">request</span>.<span class="tok-n">headers</span>.<span class="tok-f">get</span>(
+        <span class="tok-s">"X-Request-ID"</span>, <span class="tok-n">uuid</span>.<span class="tok-f">uuid4</span>().<span class="tok-n">hex</span>
+    )
+    <span class="tok-n">t0</span>       = <span class="tok-f">perf_counter</span>()
+    <span class="tok-n">response</span> = <span class="tok-k">await</span> <span class="tok-f">call_next</span>(<span class="tok-n">request</span>)
+    <span class="tok-n">response</span>.<span class="tok-n">headers</span>[<span class="tok-s">"X-Request-ID"</span>]   = <span class="tok-n">request</span>.<span class="tok-n">state</span>.<span class="tok-n">request_id</span>
+    <span class="tok-n">response</span>.<span class="tok-n">headers</span>[<span class="tok-s">"X-Process-Time"</span>] = <span class="tok-s">f"{(perf_counter() - t0) * 1000:.1f}ms"</span>
+    <span class="tok-k">return</span> <span class="tok-n">response</span></code></pre>
+
+      <p>
+        Three things to note. The function is
+        <code>async def</code>; <code>request.state</code>
+        is the per-request scratch space (use it instead of
+        globals); <code>call_next</code> is what triggers
+        downstream processing.
+      </p>
+
+      <h2>Built-in middleware worth turning on</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">fastapi</span>.<span class="tok-n">middleware</span>.<span class="tok-n">cors</span>            <span class="tok-k">import</span> <span class="tok-n">CORSMiddleware</span>
+<span class="tok-k">from</span> <span class="tok-n">fastapi</span>.<span class="tok-n">middleware</span>.<span class="tok-n">gzip</span>            <span class="tok-k">import</span> <span class="tok-n">GZipMiddleware</span>
+<span class="tok-k">from</span> <span class="tok-n">starlette</span>.<span class="tok-n">middleware</span>.<span class="tok-n">trustedhost</span>    <span class="tok-k">import</span> <span class="tok-n">TrustedHostMiddleware</span>
+<span class="tok-k">from</span> <span class="tok-n">starlette</span>.<span class="tok-n">middleware</span>.<span class="tok-n">httpsredirect</span>  <span class="tok-k">import</span> <span class="tok-n">HTTPSRedirectMiddleware</span>
+
+<span class="tok-n">app</span>.<span class="tok-f">add_middleware</span>(
+    <span class="tok-n">CORSMiddleware</span>,
+    <span class="tok-n">allow_origins</span>=[<span class="tok-s">"https://app.example.com"</span>],
+    <span class="tok-n">allow_credentials</span>=<span class="tok-k">True</span>,
+    <span class="tok-n">allow_methods</span>=[<span class="tok-s">"*"</span>],
+    <span class="tok-n">allow_headers</span>=[<span class="tok-s">"*"</span>],
+)
+
+<span class="tok-n">app</span>.<span class="tok-f">add_middleware</span>(<span class="tok-n">GZipMiddleware</span>, <span class="tok-n">minimum_size</span>=<span class="tok-n">1000</span>)
+
+<span class="tok-n">app</span>.<span class="tok-f">add_middleware</span>(
+    <span class="tok-n">TrustedHostMiddleware</span>,
+    <span class="tok-n">allowed_hosts</span>=[<span class="tok-s">"api.example.com"</span>, <span class="tok-s">"*.internal"</span>],
+)</code></pre>
+
+      <p>
+        <code>TrustedHostMiddleware</code> rejects requests
+        with unexpected <code>Host</code> headers &mdash; a
+        cheap defense against host-header injection.
+      </p>
+
+      <h2>Order matters</h2>
+
+      <p>
+        Middleware runs in the reverse of registration
+        order on the way in, then in registration order on
+        the way out. Add the outermost behavior first.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Outermost (runs first incoming, last outgoing)</span>
+<span class="tok-n">app</span>.<span class="tok-f">add_middleware</span>(<span class="tok-n">CORSMiddleware</span>, <span class="tok-c">...</span>)
+
+<span class="tok-c"># Then trusted host check</span>
+<span class="tok-n">app</span>.<span class="tok-f">add_middleware</span>(<span class="tok-n">TrustedHostMiddleware</span>, <span class="tok-c">...</span>)
+
+<span class="tok-c"># Innermost — closest to the path function</span>
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">middleware</span>(<span class="tok-s">"http"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">add_request_id</span>(<span class="tok-n">request</span>, <span class="tok-n">call_next</span>):
+    <span class="tok-c">...</span></code></pre>
+
+      <h2>Why dependencies, not middleware, for auth</h2>
+
+      <p>
+        Middleware runs before path matching, so it
+        applies to <em>every</em> request &mdash; including
+        OPTIONS preflights, health checks, the docs page.
+        Per-endpoint auth via
+        <code>Depends(require_user)</code> shows up in the
+        OpenAPI schema, runs only on relevant routes, and
+        is testable per-endpoint.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Use dependencies for auth</span>
+<span class="tok-k">def</span> <span class="tok-f">require_user</span>(<span class="tok-n">authorization</span>: <span class="tok-n">str</span> = <span class="tok-f">Header</span>(...)):
+    <span class="tok-c">...validate, return user...</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">get</span>(<span class="tok-s">"/me"</span>)
+<span class="tok-k">def</span> <span class="tok-f">me</span>(<span class="tok-n">user</span> = <span class="tok-f">Depends</span>(<span class="tok-n">require_user</span>)):
+    <span class="tok-k">return</span> <span class="tok-n">user</span></code></pre>
+
+      <h2>Logging context: bind the request ID</h2>
+
+      <p>
+        Pair the request-ID middleware with structlog
+        (Day 034) so every log line in the request
+        carries the ID automatically.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">structlog</span>.<span class="tok-n">contextvars</span> <span class="tok-k">import</span> <span class="tok-n">bind_contextvars</span>, <span class="tok-n">clear_contextvars</span>
+
+<span class="tok-o">@</span><span class="tok-n">app</span>.<span class="tok-f">middleware</span>(<span class="tok-s">"http"</span>)
+<span class="tok-k">async</span> <span class="tok-k">def</span> <span class="tok-f">log_context</span>(<span class="tok-n">request</span>, <span class="tok-n">call_next</span>):
+    <span class="tok-f">clear_contextvars</span>()
+    <span class="tok-f">bind_contextvars</span>(
+        <span class="tok-n">request_id</span>=<span class="tok-n">request</span>.<span class="tok-n">state</span>.<span class="tok-n">request_id</span>,
+        <span class="tok-n">path</span>=<span class="tok-n">request</span>.<span class="tok-n">url</span>.<span class="tok-n">path</span>,
+        <span class="tok-n">method</span>=<span class="tok-n">request</span>.<span class="tok-n">method</span>,
+    )
+    <span class="tok-k">return</span> <span class="tok-k">await</span> <span class="tok-f">call_next</span>(<span class="tok-n">request</span>)</code></pre>
+
+      <p>
+        Now every <code>log.info(...)</code> in any
+        downstream code automatically includes the
+        request ID without threading it through.
+      </p>
+
+      <div class="callout warn">
+        <p>
+          <strong>Don't read the body in middleware</strong>
+          unless you also re-set it. Reading drains the
+          stream and the path function gets nothing. If
+          you need the body for logging or signing,
+          buffer and re-stream &mdash; and pay the
+          memory cost.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add the request-ID + timing middleware above
+          to a FastAPI service. Tail the logs while
+          you hit it. Every line should now include
+          a request ID; you should be able to filter
+          for one specific request through the whole
+          stack with one grep.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-064-alembic.html">
+        <span class="label">← Previous</span>
+        <span class="title">Alembic: schema migrations that work</span>
+      </a>
+      <a class="next" href="day-066-websockets.html">
+        <span class="label">Next →</span>
+        <span class="title">WebSockets with FastAPI</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

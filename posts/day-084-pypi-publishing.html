@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 084 · Publishing to PyPI: trusted publishing from CI — Learn with Pradeep</title>
+  <meta name="description" content="Long-lived API tokens are out. Trusted publishing via OIDC from GitHub Actions is in. Plus TestPyPI for dry runs and the version-tag workflow.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 084 &middot; Tooling &middot; Intermediate</div>
+      <h1>Publishing to PyPI: trusted publishing from CI</h1>
+      <p class="subtitle">
+        API tokens are out. Trusted publishing via OIDC
+        from GitHub Actions is in. Plus TestPyPI for
+        dry runs and the version-tag workflow.
+      </p>
+      <div class="article-meta">
+        <span>25 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Configure trusted publishing on PyPI &mdash; tell
+        it which GitHub repo and workflow can publish.
+        From CI, use
+        <code>pypa/gh-action-pypi-publish@release/v1</code>
+        with no token argument; OIDC handles auth.
+        Test on TestPyPI first. Trigger publishes from
+        version tags so you don't ship every push to
+        main.</p>
+      </div>
+
+      <p>
+        Long-lived API tokens leak. Stolen ones get
+        used to push malicious updates to popular
+        packages. Trusted publishing fixes this by
+        using GitHub's OIDC tokens &mdash; PyPI verifies
+        the token came from the specific workflow you
+        whitelisted, no secret stored anywhere.
+      </p>
+
+      <h2>One-time PyPI setup</h2>
+
+      <p>
+        On <a href="https://pypi.org/manage/account/publishing/">pypi.org</a>:
+      </p>
+
+      <ol>
+        <li>For an existing project: go to "Publishing", add a new "Trusted publisher".</li>
+        <li>For a new project: add a "Pending trusted publisher" with the project name. The first publish creates the project.</li>
+        <li>Fill in: GitHub owner, repo, workflow filename, optional environment name. PyPI matches these against the OIDC token claims.</li>
+      </ol>
+
+      <p>
+        After this, no API tokens, no
+        <code>~/.pypirc</code>, no secrets in CI.
+      </p>
+
+      <h2>The release workflow</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-c"># .github/workflows/publish.yml</span>
+<span class="tok-n">name</span>: publish
+
+<span class="tok-n">on</span>:
+  <span class="tok-n">push</span>:
+    <span class="tok-n">tags</span>: [<span class="tok-s">"v*"</span>]              <span class="tok-c"># trigger only on version tags</span>
+
+<span class="tok-n">jobs</span>:
+  <span class="tok-n">build</span>:
+    <span class="tok-n">runs-on</span>: ubuntu-latest
+    <span class="tok-n">steps</span>:
+      - <span class="tok-n">uses</span>: actions/checkout@v4
+      - <span class="tok-n">uses</span>: astral-sh/setup-uv@v3
+      - <span class="tok-n">run</span>: uv tool install hatch
+      - <span class="tok-n">run</span>: hatch build
+      - <span class="tok-n">uses</span>: actions/upload-artifact@v4
+        <span class="tok-n">with</span>:
+          <span class="tok-n">name</span>: dist
+          <span class="tok-n">path</span>: dist/
+
+  <span class="tok-n">publish</span>:
+    <span class="tok-n">needs</span>: build
+    <span class="tok-n">runs-on</span>: ubuntu-latest
+    <span class="tok-n">environment</span>:
+      <span class="tok-n">name</span>: pypi
+      <span class="tok-n">url</span>: https://pypi.org/p/my-tool
+    <span class="tok-n">permissions</span>:
+      <span class="tok-n">id-token</span>: write           <span class="tok-c"># required for trusted publishing</span>
+    <span class="tok-n">steps</span>:
+      - <span class="tok-n">uses</span>: actions/download-artifact@v4
+        <span class="tok-n">with</span>:
+          <span class="tok-n">name</span>: dist
+          <span class="tok-n">path</span>: dist/
+      - <span class="tok-n">uses</span>: pypa/gh-action-pypi-publish@release/v1</code></pre>
+
+      <p>
+        Three things make this work: the
+        <code>id-token: write</code> permission (lets
+        GitHub mint an OIDC token), the
+        <code>environment: pypi</code> declaration
+        (matches what you set on PyPI), and the
+        official action that handles the upload. No
+        secrets, no tokens.
+      </p>
+
+      <h2>The release flow, step by step</h2>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># 1. Bump version</span>
+hatch version minor
+
+<span class="tok-c"># 2. Commit and tag</span>
+git commit -am <span class="tok-s">"release v0.2.0"</span>
+git tag v0.2.0
+git push && git push --tags
+
+<span class="tok-c"># 3. Workflow runs automatically:
+#    build -&gt; publish to PyPI</span></code></pre>
+
+      <p>
+        Tag-driven releases mean no accidental
+        publishes. Pushing to main does normal CI;
+        pushing a <code>v*</code> tag publishes.
+      </p>
+
+      <h2>TestPyPI: dry-run your packaging</h2>
+
+      <p>
+        TestPyPI is a separate index for testing the
+        publish workflow without affecting real users.
+        Same trusted-publishing setup; different
+        action input.
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code>      - <span class="tok-n">uses</span>: pypa/gh-action-pypi-publish@release/v1
+        <span class="tok-n">with</span>:
+          <span class="tok-n">repository-url</span>: https://test.pypi.org/legacy/</code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code><span class="tok-c"># Verify the test publish works as expected</span>
+pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            my-tool</code></pre>
+
+      <p>
+        Once a TestPyPI publish round-trips correctly
+        (build, upload, install, import), you've
+        derisked the real publish.
+      </p>
+
+      <h2>Manual fallback: API tokens</h2>
+
+      <p>
+        If you can't use trusted publishing for some
+        reason &mdash; private CI without OIDC, or a
+        registry that doesn't support it &mdash; create
+        a project-scoped API token on PyPI, store it as
+        a GitHub secret (<code>PYPI_TOKEN</code>),
+        and pass it to the action:
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code>      - <span class="tok-n">uses</span>: pypa/gh-action-pypi-publish@release/v1
+        <span class="tok-n">with</span>:
+          <span class="tok-n">password</span>: ${{ secrets.PYPI_TOKEN }}</code></pre>
+
+      <p>
+        Less safe than trusted publishing &mdash; the
+        token is a secret that could leak &mdash; but
+        the workflow shape is the same.
+      </p>
+
+      <h2>Verify the package after publishing</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>pip install my-tool
+my-tool --help                  <span class="tok-c"># console script works</span>
+python -c <span class="tok-s">"import my_tool; print(my_tool.__version__)"</span>
+
+<span class="tok-c"># Inspect the wheel before relying on it</span>
+python -m wheel unpack dist/my_tool-0.2.0-py3-none-any.whl
+ls my_tool-0.2.0/my_tool/        <span class="tok-c"># verify file list looks right</span></code></pre>
+
+      <h2>Common publish failures</h2>
+
+      <ul>
+        <li><strong><code>HTTP 403: not authorized</code></strong> &mdash; trusted publishing config doesn't match (workflow filename, environment name, etc.). Check both sides exactly.</li>
+        <li><strong><code>Filename has already been used</code></strong> &mdash; PyPI doesn't allow re-uploading the same version. Bump and retry.</li>
+        <li><strong><code>Invalid distribution metadata</code></strong> &mdash; broken README rendering. Run <code>twine check dist/*</code> locally before tagging.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          For private packages, the same flow works
+          against private PyPI servers (devpi,
+          Cloudsmith, AWS CodeArtifact, etc.). Many
+          support OIDC trusted publishing too. For
+          internal-only packages, this is much safer
+          than long-lived deploy tokens.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick a small library you've written, set up
+          trusted publishing for a fresh PyPI project
+          name, run the workflow against TestPyPI.
+          Once the round-trip works, do the real
+          publish. Then watch <code>pip install
+          your-package</code> succeed from a clean
+          environment. The first one is a milestone.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-083-hatch.html">
+        <span class="label">← Previous</span>
+        <span class="title">hatch: building Python packages without setup.py</span>
+      </a>
+      <a class="next" href="day-085-type-stubs.html">
+        <span class="label">Next →</span>
+        <span class="title">Type stubs and py.typed: ship type info with your package</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

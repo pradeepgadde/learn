@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 082 · testcontainers: real services for integration tests — Learn with Pradeep</title>
+  <meta name="description" content="Spin up a real Postgres, Redis, or Kafka in Docker for the duration of a test. Better than mocks for the integration boundary, faster than docker-compose for one-off tests.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 082 &middot; Third-party &middot; Advanced</div>
+      <h1>testcontainers: real services for integration tests</h1>
+      <p class="subtitle">
+        Spin up a real Postgres, Redis, or Kafka in
+        Docker for one test. Better than mocks at the
+        integration boundary; faster than docker-compose.
+      </p>
+      <div class="article-meta">
+        <span>23 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>PostgresContainer("postgres:16")</code>
+        starts a fresh Postgres in Docker, gives you the
+        connection string, and stops it after the test.
+        Use a session-scoped fixture so the container
+        starts once for the whole test run, with each
+        test wrapped in a transaction.</p>
+      </div>
+
+      <p>
+        Mocks are great for unit tests; for the layer
+        between your code and the database, fake
+        databases (sqlite, mocks of psycopg) miss real
+        bugs &mdash; type quirks, locking, JSON
+        operators, dialect differences. testcontainers
+        gives you the real thing, ephemerally.
+      </p>
+
+      <h2>Postgres in three lines</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">postgres</span> <span class="tok-k">import</span> <span class="tok-n">PostgresContainer</span>
+
+<span class="tok-k">with</span> <span class="tok-f">PostgresContainer</span>(<span class="tok-s">"postgres:16"</span>) <span class="tok-k">as</span> <span class="tok-n">pg</span>:
+    <span class="tok-n">conn_str</span> = <span class="tok-n">pg</span>.<span class="tok-f">get_connection_url</span>()
+    <span class="tok-c"># conn_str: postgresql+psycopg2://test:test@localhost:32787/test
+    # ...run your code against it...</span></code></pre>
+
+      <p>
+        Container starts, exposes a random port,
+        you connect, you do your thing, the container
+        stops. Total cost: ~2 seconds per test session
+        for Postgres. Good return on the seconds spent.
+      </p>
+
+      <h2>The pytest fixture pattern</h2>
+
+      <p>
+        For real test suites, hoist the container into
+        a session-scoped fixture (Day 077). Each test
+        gets a transaction-wrapped session that rolls
+        back at the end &mdash; isolation without a
+        full restart.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># conftest.py</span>
+<span class="tok-k">import</span> <span class="tok-n">pytest</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">postgres</span> <span class="tok-k">import</span> <span class="tok-n">PostgresContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">sqlalchemy</span> <span class="tok-k">import</span> <span class="tok-n">create_engine</span>
+<span class="tok-k">from</span> <span class="tok-n">myapp</span>.<span class="tok-n">models</span> <span class="tok-k">import</span> <span class="tok-n">Base</span>
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-f">fixture</span>(<span class="tok-n">scope</span>=<span class="tok-s">"session"</span>)
+<span class="tok-k">def</span> <span class="tok-f">pg_engine</span>():
+    <span class="tok-k">with</span> <span class="tok-f">PostgresContainer</span>(<span class="tok-s">"postgres:16"</span>) <span class="tok-k">as</span> <span class="tok-n">pg</span>:
+        <span class="tok-n">engine</span> = <span class="tok-f">create_engine</span>(<span class="tok-n">pg</span>.<span class="tok-f">get_connection_url</span>())
+        <span class="tok-n">Base</span>.<span class="tok-n">metadata</span>.<span class="tok-f">create_all</span>(<span class="tok-n">engine</span>)
+        <span class="tok-k">yield</span> <span class="tok-n">engine</span>
+        <span class="tok-n">engine</span>.<span class="tok-f">dispose</span>()
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">db_session</span>(<span class="tok-n">pg_engine</span>):
+    <span class="tok-n">conn</span>    = <span class="tok-n">pg_engine</span>.<span class="tok-f">connect</span>()
+    <span class="tok-n">trans</span>   = <span class="tok-n">conn</span>.<span class="tok-f">begin</span>()
+    <span class="tok-n">session</span> = <span class="tok-f">Session</span>(<span class="tok-n">bind</span>=<span class="tok-n">conn</span>)
+    <span class="tok-k">yield</span> <span class="tok-n">session</span>
+    <span class="tok-n">session</span>.<span class="tok-f">close</span>()
+    <span class="tok-n">trans</span>.<span class="tok-f">rollback</span>()
+    <span class="tok-n">conn</span>.<span class="tok-f">close</span>()</code></pre>
+
+      <h2>Redis, Kafka, and friends</h2>
+
+      <p>
+        testcontainers has officially-supported modules
+        for many services:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">redis</span>     <span class="tok-k">import</span> <span class="tok-n">RedisContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">mongodb</span>   <span class="tok-k">import</span> <span class="tok-n">MongoDbContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">kafka</span>     <span class="tok-k">import</span> <span class="tok-n">KafkaContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">mysql</span>     <span class="tok-k">import</span> <span class="tok-n">MySqlContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">localstack</span> <span class="tok-k">import</span> <span class="tok-n">LocalStackContainer</span>   <span class="tok-c"># AWS</span>
+
+<span class="tok-k">with</span> <span class="tok-f">RedisContainer</span>() <span class="tok-k">as</span> <span class="tok-n">r</span>:
+    <span class="tok-n">redis_url</span> = <span class="tok-s">f"redis://{r.get_container_host_ip()}:{r.get_exposed_port(6379)}"</span></code></pre>
+
+      <h2>Generic containers</h2>
+
+      <p>
+        For services without a dedicated module, the
+        generic <code>DockerContainer</code> base class
+        works for anything in Docker.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">core</span>.<span class="tok-n">container</span> <span class="tok-k">import</span> <span class="tok-n">DockerContainer</span>
+<span class="tok-k">from</span> <span class="tok-n">testcontainers</span>.<span class="tok-n">core</span>.<span class="tok-n">waiting_utils</span> <span class="tok-k">import</span> <span class="tok-n">wait_for_logs</span>
+
+<span class="tok-n">container</span> = (
+    <span class="tok-f">DockerContainer</span>(<span class="tok-s">"hashicorp/vault:latest"</span>)
+    .<span class="tok-f">with_exposed_ports</span>(<span class="tok-n">8200</span>)
+    .<span class="tok-f">with_env</span>(<span class="tok-s">"VAULT_DEV_ROOT_TOKEN_ID"</span>, <span class="tok-s">"root"</span>)
+)
+<span class="tok-k">with</span> <span class="tok-n">container</span> <span class="tok-k">as</span> <span class="tok-n">vault</span>:
+    <span class="tok-f">wait_for_logs</span>(<span class="tok-n">vault</span>, <span class="tok-s">"Vault server started"</span>)
+    <span class="tok-n">port</span> = <span class="tok-n">vault</span>.<span class="tok-f">get_exposed_port</span>(<span class="tok-n">8200</span>)
+    <span class="tok-c"># test against http://localhost:port</span></code></pre>
+
+      <h2>Speed: don't restart per test</h2>
+
+      <p>
+        Container start is the expensive part &mdash;
+        seconds, not ms. Three patterns to keep tests
+        fast:
+      </p>
+
+      <ul>
+        <li><strong>Session-scoped container fixture.</strong> Start once, use everywhere.</li>
+        <li><strong>Transactions for isolation.</strong> Each test in a transaction that rolls back.</li>
+        <li><strong>Reusable containers</strong> across local test runs &mdash; <code>testcontainers</code> supports this with the <code>TESTCONTAINERS_REUSE_ENABLE=true</code> env var. Container survives the Python process exit; next run reuses it. Saves the start cost on every iteration.</li>
+      </ul>
+
+      <h2>CI considerations</h2>
+
+      <p>
+        On GitHub Actions and most CI providers,
+        Docker is available out of the box.
+        testcontainers Just Works. Two gotchas:
+      </p>
+
+      <ul>
+        <li>Your CI runner needs enough RAM &mdash; Postgres + Redis + your app together can hit 1GB easily.</li>
+        <li>Pull a specific image tag, not <code>latest</code>. Otherwise the test suite changes behavior whenever upstream pushes.</li>
+      </ul>
+
+      <h2>When NOT to use testcontainers</h2>
+
+      <ul>
+        <li><strong>Pure unit tests.</strong> Mock the database call, don't spin up a database.</li>
+        <li><strong>Multi-service workflows</strong> where the orchestration matters &mdash; use <code>docker-compose</code> for the suite, run tests against the running stack.</li>
+        <li><strong>Embedded environments without Docker.</strong> Some CI systems and dev VMs don't have it; sqlite-in-memory is the Postgres-compatible-enough fallback.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          The big win is shifting your "integration"
+          tests left &mdash; closer to unit tests in
+          terms of speed and reliability, but with the
+          real database in the loop. Bugs you'd otherwise
+          only catch in staging now show up on the
+          developer's laptop in three seconds.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          For one of your repository or DAO classes
+          that talks to Postgres: write an integration
+          test against a testcontainers Postgres.
+          Compare confidence with your previous "mock
+          the cursor" tests &mdash; testcontainers
+          catches the SQL syntax errors and JSONB
+          operators that mocks happily ignored.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-081-respx.html">
+        <span class="label">← Previous</span>
+        <span class="title">respx: mocking httpx without breaking httpx</span>
+      </a>
+      <a class="next" href="day-083-hatch.html">
+        <span class="label">Next →</span>
+        <span class="title">hatch: building Python packages without setup.py</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

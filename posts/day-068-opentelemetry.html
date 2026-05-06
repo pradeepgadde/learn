@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 068 · OpenTelemetry: traces, metrics, logs in one SDK — Learn with Pradeep</title>
+  <meta name="description" content="OpenTelemetry is the vendor-neutral observability standard. Auto-instrument FastAPI, requests, and DB calls in five minutes. Then bolt on custom spans where they matter.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 068 &middot; Tooling &middot; Intermediate</div>
+      <h1>OpenTelemetry: traces, metrics, logs in one SDK</h1>
+      <p class="subtitle">
+        The vendor-neutral observability standard.
+        Auto-instrument FastAPI, requests, and DB calls in
+        five minutes. Bolt on custom spans where they
+        matter.
+      </p>
+      <div class="article-meta">
+        <span>09 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Install <code>opentelemetry-distro</code> and the
+        instrumentations you need
+        (<code>opentelemetry-instrumentation-fastapi</code>,
+        <code>...-sqlalchemy</code>, etc.). Run with
+        <code>opentelemetry-instrument python -m
+        uvicorn</code>. Configure the OTLP exporter via
+        env vars to ship to your backend (Tempo, Jaeger,
+        Honeycomb, Grafana, Datadog).</p>
+      </div>
+
+      <p>
+        OpenTelemetry (OTel) is the standard
+        observability pipeline &mdash; one SDK, one wire
+        protocol (OTLP), every backend you'd want. The
+        days of Datadog SDK + New Relic agent + custom
+        StatsD client are gone.
+      </p>
+
+      <h2>Auto-instrumentation: the easy mode</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uv add opentelemetry-distro \
+       opentelemetry-exporter-otlp \
+       opentelemetry-instrumentation-fastapi \
+       opentelemetry-instrumentation-sqlalchemy \
+       opentelemetry-instrumentation-httpx
+
+opentelemetry-bootstrap -a install   <span class="tok-c"># auto-detects more</span></code></pre>
+
+      <p>
+        Then run your app under
+        <code>opentelemetry-instrument</code>:
+      </p>
+
+<pre class="code"><span class="code-label">bash</span><code>export OTEL_SERVICE_NAME=my-api
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+opentelemetry-instrument uvicorn app:app --host 0.0.0.0</code></pre>
+
+      <p>
+        Every HTTP request, every DB query, every
+        outbound HTTP call now generates a span with
+        timing and metadata. Open your backend; the
+        traces show up.
+      </p>
+
+      <h2>Custom spans for business operations</h2>
+
+      <p>
+        Auto-instrumentation tells you "request took 800ms";
+        custom spans tell you which 200ms was your
+        config-rendering loop versus the database call.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">opentelemetry</span> <span class="tok-k">import</span> <span class="tok-n">trace</span>
+
+<span class="tok-n">tracer</span> = <span class="tok-n">trace</span>.<span class="tok-f">get_tracer</span>(<span class="tok-n">__name__</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">render_configs</span>(<span class="tok-n">devices</span>):
+    <span class="tok-k">with</span> <span class="tok-n">tracer</span>.<span class="tok-f">start_as_current_span</span>(<span class="tok-s">"render_configs"</span>) <span class="tok-k">as</span> <span class="tok-n">span</span>:
+        <span class="tok-n">span</span>.<span class="tok-f">set_attribute</span>(<span class="tok-s">"device_count"</span>, <span class="tok-f">len</span>(<span class="tok-n">devices</span>))
+        <span class="tok-k">for</span> <span class="tok-n">d</span> <span class="tok-k">in</span> <span class="tok-n">devices</span>:
+            <span class="tok-k">with</span> <span class="tok-n">tracer</span>.<span class="tok-f">start_as_current_span</span>(<span class="tok-s">"render_one"</span>) <span class="tok-k">as</span> <span class="tok-n">child</span>:
+                <span class="tok-n">child</span>.<span class="tok-f">set_attribute</span>(<span class="tok-s">"hostname"</span>, <span class="tok-n">d</span>.<span class="tok-n">hostname</span>)
+                <span class="tok-f">render</span>(<span class="tok-n">d</span>)</code></pre>
+
+      <p>
+        Spans nest naturally. The trace view in your
+        backend now shows render_configs as a parent
+        with one child per device, each timed.
+      </p>
+
+      <h2>Recording errors on a span</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">opentelemetry</span>.<span class="tok-n">trace</span> <span class="tok-k">import</span> <span class="tok-n">Status</span>, <span class="tok-n">StatusCode</span>
+
+<span class="tok-k">with</span> <span class="tok-n">tracer</span>.<span class="tok-f">start_as_current_span</span>(<span class="tok-s">"push_config"</span>) <span class="tok-k">as</span> <span class="tok-n">span</span>:
+    <span class="tok-k">try</span>:
+        <span class="tok-f">push</span>(<span class="tok-n">device</span>)
+    <span class="tok-k">except</span> <span class="tok-n">Exception</span> <span class="tok-k">as</span> <span class="tok-n">e</span>:
+        <span class="tok-n">span</span>.<span class="tok-f">record_exception</span>(<span class="tok-n">e</span>)
+        <span class="tok-n">span</span>.<span class="tok-f">set_status</span>(<span class="tok-f">Status</span>(<span class="tok-n">StatusCode</span>.<span class="tok-n">ERROR</span>, <span class="tok-f">str</span>(<span class="tok-n">e</span>)))
+        <span class="tok-k">raise</span></code></pre>
+
+      <h2>Metrics, briefly</h2>
+
+      <p>
+        OTel metrics are similar in shape to traces.
+        Counters for things you increment (requests,
+        errors), histograms for distributions
+        (latency), up-down counters for gauges
+        (queue depth).
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">opentelemetry</span> <span class="tok-k">import</span> <span class="tok-n">metrics</span>
+
+<span class="tok-n">meter</span>     = <span class="tok-n">metrics</span>.<span class="tok-f">get_meter</span>(<span class="tok-n">__name__</span>)
+<span class="tok-n">requests</span>  = <span class="tok-n">meter</span>.<span class="tok-f">create_counter</span>(<span class="tok-s">"requests"</span>, <span class="tok-n">unit</span>=<span class="tok-s">"1"</span>)
+<span class="tok-n">latency</span>   = <span class="tok-n">meter</span>.<span class="tok-f">create_histogram</span>(<span class="tok-s">"latency"</span>, <span class="tok-n">unit</span>=<span class="tok-s">"ms"</span>)
+
+<span class="tok-n">requests</span>.<span class="tok-f">add</span>(<span class="tok-n">1</span>, {<span class="tok-s">"method"</span>: <span class="tok-s">"GET"</span>, <span class="tok-s">"status"</span>: <span class="tok-s">"200"</span>})
+<span class="tok-n">latency</span>.<span class="tok-f">record</span>(<span class="tok-n">42.5</span>, {<span class="tok-s">"endpoint"</span>: <span class="tok-s">"/devices"</span>})</code></pre>
+
+      <h2>Trace propagation across services</h2>
+
+      <p>
+        OTel auto-injects a <code>traceparent</code>
+        header on outbound requests when httpx is
+        instrumented. Other OTel-instrumented services
+        pick it up &mdash; one trace ID across the whole
+        call chain. This is what makes distributed
+        tracing actually useful.
+      </p>
+
+      <h2>Where the data goes</h2>
+
+      <p>
+        The standard pattern: ship to an
+        <strong>OpenTelemetry Collector</strong>
+        sidecar, which routes to your actual backends.
+        Decouples the app from the vendor &mdash; switch
+        backends by editing the collector config, not
+        the app.
+      </p>
+
+      <div class="callout">
+        <p>
+          For local development, run Jaeger in Docker
+          with one command:
+          <code>docker run -p 16686:16686 -p 4317:4317
+          jaegertracing/all-in-one</code>. Set
+          <code>OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317</code>
+          and traces show up at
+          <code>http://localhost:16686</code>. Five
+          minutes from zero to a real trace view.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          On any FastAPI service: install the OTel distro,
+          add the FastAPI and httpx instrumentations,
+          point at a local Jaeger. Make a request that
+          triggers an outbound call. Watch the parent and
+          child spans show up in Jaeger with the same
+          trace ID. The "ah-ha" moment is real.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-067-background-tasks.html">
+        <span class="label">← Previous</span>
+        <span class="title">Background tasks: FastAPI vs Celery vs RQ</span>
+      </a>
+      <a class="next" href="day-069-prometheus.html">
+        <span class="label">Next →</span>
+        <span class="title">prometheus_client: metrics for the python process</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

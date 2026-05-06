@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 075 · GitHub Actions for Python CI — Learn with Pradeep</title>
+  <meta name="description" content="A solid Python CI pipeline in 30 lines: matrix testing, uv caching, ruff, mypy, pytest with coverage. Plus the patterns for building and pushing Docker images.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 075 &middot; Tooling &middot; Intermediate</div>
+      <h1>GitHub Actions for Python CI</h1>
+      <p class="subtitle">
+        A solid Python CI pipeline in 30 lines: matrix
+        testing, uv caching, ruff, mypy, pytest. Plus
+        the patterns for building and pushing Docker
+        images.
+      </p>
+      <div class="article-meta">
+        <span>16 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>actions/setup-python</code> with
+        caching (or the official <code>astral-sh/setup-uv</code>
+        for uv). Matrix-test across the Python versions
+        you support. Run ruff, mypy, pytest as separate
+        steps so failures are obvious. Build and push
+        Docker images with
+        <code>docker/build-push-action</code> on tags or
+        main.</p>
+      </div>
+
+      <p>
+        Boring CI is good CI. It runs the same things you
+        run locally, with the same tools, on every push.
+        No magic. Here's a pipeline that covers the
+        essentials.
+      </p>
+
+      <h2>The pipeline</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-c"># .github/workflows/ci.yml</span>
+<span class="tok-n">name</span>: ci
+
+<span class="tok-n">on</span>:
+  <span class="tok-n">push</span>:
+    <span class="tok-n">branches</span>: [main]
+  <span class="tok-n">pull_request</span>:
+
+<span class="tok-n">jobs</span>:
+  <span class="tok-n">test</span>:
+    <span class="tok-n">runs-on</span>: ubuntu-latest
+    <span class="tok-n">strategy</span>:
+      <span class="tok-n">fail-fast</span>: false
+      <span class="tok-n">matrix</span>:
+        <span class="tok-n">python-version</span>: [<span class="tok-s">"3.11"</span>, <span class="tok-s">"3.12"</span>, <span class="tok-s">"3.13"</span>]
+    <span class="tok-n">steps</span>:
+      - <span class="tok-n">uses</span>: actions/checkout@v4
+
+      - <span class="tok-n">name</span>: Install uv
+        <span class="tok-n">uses</span>: astral-sh/setup-uv@v3
+        <span class="tok-n">with</span>:
+          <span class="tok-n">enable-cache</span>: <span class="tok-k">true</span>
+
+      - <span class="tok-n">name</span>: Set up Python
+        <span class="tok-n">run</span>: uv python install ${{ matrix.python-version }}
+
+      - <span class="tok-n">name</span>: Install dependencies
+        <span class="tok-n">run</span>: uv sync --frozen
+
+      - <span class="tok-n">name</span>: Lint (ruff)
+        <span class="tok-n">run</span>: uv run ruff check .
+
+      - <span class="tok-n">name</span>: Format check (ruff)
+        <span class="tok-n">run</span>: uv run ruff format --check .
+
+      - <span class="tok-n">name</span>: Type check (mypy)
+        <span class="tok-n">run</span>: uv run mypy src
+
+      - <span class="tok-n">name</span>: Test
+        <span class="tok-n">run</span>: uv run pytest --cov=src --cov-report=xml
+
+      - <span class="tok-n">name</span>: Upload coverage
+        <span class="tok-n">if</span>: matrix.python-version == <span class="tok-s">'3.12'</span>
+        <span class="tok-n">uses</span>: codecov/codecov-action@v4
+        <span class="tok-n">with</span>:
+          <span class="tok-n">files</span>: ./coverage.xml</code></pre>
+
+      <p>
+        Notes worth taking:
+      </p>
+
+      <ul>
+        <li><strong><code>fail-fast: false</code></strong> &mdash; one Python version failing shouldn't cancel the others. You want to see all the failures at once, not whack-a-mole.</li>
+        <li><strong>Each tool is a separate step</strong> &mdash; the GitHub UI shows red ✗ on the specific failure, not buried in a "lint and test" megastep.</li>
+        <li><strong>Coverage uploaded once</strong> &mdash; only from one matrix entry, otherwise codecov merges multiple reports awkwardly.</li>
+        <li><strong>Pin action versions to majors</strong> (<code>@v4</code>) for security and stability. Pin to SHAs (<code>@a1b2c3d</code>) for stricter supply-chain control.</li>
+      </ul>
+
+      <h2>The pip/Poetry version</h2>
+
+      <p>
+        If you're not on uv yet, the pip version is just
+        a few lines different:
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code>      - <span class="tok-n">uses</span>: actions/setup-python@v5
+        <span class="tok-n">with</span>:
+          <span class="tok-n">python-version</span>: ${{ matrix.python-version }}
+          <span class="tok-n">cache</span>: <span class="tok-s">'pip'</span>
+
+      - <span class="tok-n">run</span>: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt</code></pre>
+
+      <p>
+        The <code>cache: pip</code> shortcut handles
+        wheel caching out of the box. Builds drop from
+        ~60 seconds to ~10 once warm.
+      </p>
+
+      <h2>Concurrency: cancel old runs</h2>
+
+      <p>
+        When someone pushes three commits in two minutes,
+        you don't need three CI runs. Cancel earlier
+        runs of the same workflow on the same branch.
+      </p>
+
+<pre class="code"><span class="code-label">yaml</span><code><span class="tok-n">concurrency</span>:
+  <span class="tok-n">group</span>: ci-${{ github.ref }}
+  <span class="tok-n">cancel-in-progress</span>: <span class="tok-k">true</span></code></pre>
+
+      <h2>Building and pushing the Docker image</h2>
+
+<pre class="code"><span class="code-label">yaml</span><code>  <span class="tok-n">build-image</span>:
+    <span class="tok-n">needs</span>: test
+    <span class="tok-n">if</span>: github.event_name == <span class="tok-s">'push'</span> && github.ref == <span class="tok-s">'refs/heads/main'</span>
+    <span class="tok-n">runs-on</span>: ubuntu-latest
+    <span class="tok-n">permissions</span>:
+      <span class="tok-n">contents</span>: read
+      <span class="tok-n">packages</span>: write
+    <span class="tok-n">steps</span>:
+      - <span class="tok-n">uses</span>: actions/checkout@v4
+
+      - <span class="tok-n">uses</span>: docker/setup-buildx-action@v3
+
+      - <span class="tok-n">uses</span>: docker/login-action@v3
+        <span class="tok-n">with</span>:
+          <span class="tok-n">registry</span>: ghcr.io
+          <span class="tok-n">username</span>: ${{ github.actor }}
+          <span class="tok-n">password</span>: ${{ secrets.GITHUB_TOKEN }}
+
+      - <span class="tok-n">uses</span>: docker/metadata-action@v5
+        <span class="tok-n">id</span>: meta
+        <span class="tok-n">with</span>:
+          <span class="tok-n">images</span>: ghcr.io/${{ github.repository }}
+          <span class="tok-n">tags</span>: |
+            type=sha
+            type=raw,value=latest
+
+      - <span class="tok-n">uses</span>: docker/build-push-action@v6
+        <span class="tok-n">with</span>:
+          <span class="tok-n">push</span>: <span class="tok-k">true</span>
+          <span class="tok-n">tags</span>: ${{ steps.meta.outputs.tags }}
+          <span class="tok-n">cache-from</span>: type=gha
+          <span class="tok-n">cache-to</span>: type=gha,mode=max</code></pre>
+
+      <p>
+        <code>cache-from: type=gha</code> + <code>cache-
+        to</code> persists the BuildKit layer cache in
+        GitHub's actions cache. Image rebuilds on small
+        changes are fast.
+      </p>
+
+      <h2>Secrets and OIDC</h2>
+
+      <p>
+        Don't paste long-lived AWS keys into Actions
+        secrets. Use OIDC trust between GitHub and your
+        cloud, request short-lived credentials at runtime
+        with <code>aws-actions/configure-aws-credentials</code>
+        or the GCP/Azure equivalents. The setup is a
+        bit fiddly the first time and the result is
+        much safer.
+      </p>
+
+      <h2>Branch protection</h2>
+
+      <p>
+        CI is only as useful as the rules around it.
+        In repo Settings → Branches: require the test
+        job to pass before merge to main, require PR
+        review, optionally require linear history. CI
+        becomes the gate, not a suggestion.
+      </p>
+
+      <div class="callout">
+        <p>
+          For periodic jobs (daily dependency updates,
+          weekly security scans), use
+          <code>schedule:</code> triggers. Pair with
+          <a href="https://github.com/dependabot">Dependabot</a>
+          for automatic dependency PRs &mdash; let it
+          open them, let CI test them, you only have to
+          look when something breaks.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Drop the workflow above into
+          <code>.github/workflows/ci.yml</code> on a
+          test repo. Push something. Watch it run.
+          Then break a test on purpose, push again, and
+          watch the red ✗ light up. Once green-on-main
+          is normal in your repo, every PR has a
+          built-in second pair of eyes.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-074-multistage-docker.html">
+        <span class="label">← Previous</span>
+        <span class="title">Multi-stage Dockerfiles: the build/runtime split</span>
+      </a>
+      <a class="next" href="day-076-pre-commit.html">
+        <span class="label">Next →</span>
+        <span class="title">Pre-commit beyond ruff: the hooks worth wiring up</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

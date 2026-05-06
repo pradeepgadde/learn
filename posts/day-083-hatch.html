@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 083 · hatch: building Python packages without setup.py — Learn with Pradeep</title>
+  <meta name="description" content="hatch builds modern Python packages from a single pyproject.toml. No setup.py, no MANIFEST.in. Plus environments, scripts, and version bumping in the same tool.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 083 &middot; Tooling &middot; Intermediate</div>
+      <h1>hatch: building Python packages without setup.py</h1>
+      <p class="subtitle">
+        Build modern packages from a single
+        <code>pyproject.toml</code>. No <code>setup.py</code>,
+        no <code>MANIFEST.in</code>. Environments,
+        scripts, and version bumps in one tool.
+      </p>
+      <div class="article-meta">
+        <span>24 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>hatch new myproject</code> scaffolds a
+        modern, src-layout package. Edit
+        <code>pyproject.toml</code> for metadata.
+        <code>hatch build</code> produces wheel + sdist;
+        <code>hatch publish</code> uploads to PyPI.
+        <code>hatch version patch</code> bumps the
+        version. Drop-in replacement for
+        setuptools+twine for new projects.</p>
+      </div>
+
+      <p>
+        The Python packaging story has been confused for
+        a decade. As of 2026, <code>pyproject.toml</code>
+        + a PEP 517 build backend is the consensus.
+        hatch is one of the cleanest of those
+        backends, and includes a CLI for the rest of
+        the workflow.
+      </p>
+
+      <h2>Start a new project</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>uv tool install hatch
+hatch new my-tool
+cd my-tool</code></pre>
+
+<pre class="code"><span class="code-label">text</span><code>my-tool/
+├── src/
+│   └── my_tool/
+│       ├── __init__.py
+│       └── __about__.py     # __version__ = "0.0.1"
+├── tests/
+│   └── __init__.py
+├── pyproject.toml
+├── README.md
+└── LICENSE.txt</code></pre>
+
+      <p>
+        Note the src-layout (Python package inside
+        <code>src/</code>). It prevents a class of bug
+        where <code>import my_tool</code> picks up the
+        local source folder instead of the installed
+        version &mdash; tests pass when they shouldn't.
+        src-layout is the modern best practice.
+      </p>
+
+      <h2>The pyproject.toml in full</h2>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c">[build-system]</span>
+requires      = [<span class="tok-s">"hatchling"</span>]
+build-backend = <span class="tok-s">"hatchling.build"</span>
+
+<span class="tok-c">[project]</span>
+name            = <span class="tok-s">"my-tool"</span>
+description     = <span class="tok-s">"A small useful tool"</span>
+readme          = <span class="tok-s">"README.md"</span>
+requires-python = <span class="tok-s">"&gt;=3.10"</span>
+license         = <span class="tok-s">"MIT"</span>
+authors         = [{ name = <span class="tok-s">"Pradeep Gadde"</span> }]
+keywords        = [<span class="tok-s">"networking"</span>, <span class="tok-s">"automation"</span>]
+classifiers     = [
+    <span class="tok-s">"Development Status :: 3 - Alpha"</span>,
+    <span class="tok-s">"Programming Language :: Python :: 3"</span>,
+]
+dependencies    = [
+    <span class="tok-s">"httpx&gt;=0.27"</span>,
+    <span class="tok-s">"pydantic&gt;=2"</span>,
+]
+dynamic = [<span class="tok-s">"version"</span>]    <span class="tok-c"># pulled from __about__.py</span>
+
+<span class="tok-c">[project.urls]</span>
+Homepage   = <span class="tok-s">"https://github.com/pradeepgadde/my-tool"</span>
+Issues     = <span class="tok-s">"https://github.com/pradeepgadde/my-tool/issues"</span>
+
+<span class="tok-c">[project.scripts]</span>
+my-tool = <span class="tok-s">"my_tool.cli:main"</span>     <span class="tok-c"># installs the `my-tool` console command</span>
+
+<span class="tok-c">[project.optional-dependencies]</span>
+dev = [<span class="tok-s">"pytest"</span>, <span class="tok-s">"ruff"</span>, <span class="tok-s">"mypy"</span>]
+
+<span class="tok-c">[tool.hatch.version]</span>
+path = <span class="tok-s">"src/my_tool/__about__.py"</span></code></pre>
+
+      <p>
+        Single file. Replaces <code>setup.py</code>,
+        <code>setup.cfg</code>, <code>MANIFEST.in</code>,
+        <code>versioneer</code> &mdash; the whole pile
+        of legacy artifacts.
+      </p>
+
+      <h2>Build and inspect</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>hatch build
+ls dist/
+<span class="tok-c"># my_tool-0.1.0-py3-none-any.whl
+# my_tool-0.1.0.tar.gz</span></code></pre>
+
+      <p>
+        Both built &mdash; the wheel for end users
+        (<code>pip install</code>), the sdist as a
+        fallback. Inspect them with <code>unzip
+        -l</code> for the wheel, <code>tar tzf</code>
+        for the sdist; verify only the files you wanted
+        ended up included.
+      </p>
+
+      <h2>Version management</h2>
+
+<pre class="code"><span class="code-label">bash</span><code>hatch version              <span class="tok-c"># show current</span>
+hatch version patch        <span class="tok-c"># 0.1.0 -&gt; 0.1.1</span>
+hatch version minor        <span class="tok-c"># 0.1.1 -&gt; 0.2.0</span>
+hatch version major        <span class="tok-c"># 0.2.0 -&gt; 1.0.0</span>
+hatch version 1.2.3        <span class="tok-c"># set explicitly</span></code></pre>
+
+      <p>
+        Edits the <code>__version__</code> in
+        <code>__about__.py</code>. The
+        <code>dynamic</code> entry in pyproject means the
+        package version is sourced from there &mdash;
+        one place to change.
+      </p>
+
+      <h2>Hatch environments (optional)</h2>
+
+      <p>
+        Hatch can also manage virtual environments and
+        scripts &mdash; an alternative to using uv for
+        the same job. If you're already on uv, ignore
+        these. If not:
+      </p>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c">[tool.hatch.envs.default]</span>
+dependencies = [<span class="tok-s">"pytest"</span>, <span class="tok-s">"pytest-cov"</span>]
+
+<span class="tok-c">[tool.hatch.envs.default.scripts]</span>
+test     = <span class="tok-s">"pytest {args:tests}"</span>
+test-cov = <span class="tok-s">"pytest --cov=src {args:tests}"</span>
+lint     = <span class="tok-s">"ruff check ."</span>
+fmt      = <span class="tok-s">"ruff format ."</span></code></pre>
+
+<pre class="code"><span class="code-label">bash</span><code>hatch run test
+hatch run lint</code></pre>
+
+      <h2>The competitors, briefly</h2>
+
+      <ul>
+        <li><strong>setuptools + setup.py</strong> &mdash; the legacy. Still works, still ubiquitous, still has too many configuration files. New projects shouldn't pick this.</li>
+        <li><strong>poetry</strong> &mdash; older, opinionated, has its own dependency resolver. Many people use it; some find it slow and prefer different conventions.</li>
+        <li><strong>pdm</strong> &mdash; PEP 582 / PEP 621 focused, fast, full-featured.</li>
+        <li><strong>flit</strong> &mdash; minimalist; great for pure-Python single-package projects.</li>
+        <li><strong>uv</strong> &mdash; the fast newcomer (Day 019). Handles dependency management; pairs with hatch (or any PEP 517 backend) for the build step.</li>
+      </ul>
+
+      <p>
+        For most projects in 2026, the natural pairing
+        is <strong>uv for environment + dependency
+        management</strong> and <strong>hatchling for
+        the build backend</strong>. Both small, both
+        modern, both stick to the standards.
+      </p>
+
+      <div class="callout">
+        <p>
+          Tomorrow: actually publishing the result to
+          PyPI &mdash; trusted publishing, API tokens,
+          and the workflow that runs from CI.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take any small Python script you've been
+          meaning to clean up. Run <code>hatch new
+          my-script-name</code>, move the code in,
+          edit <code>pyproject.toml</code>. Then
+          <code>hatch build</code>. The full
+          "package-shaped" version of your script in
+          ten minutes. Whether you publish it or not,
+          it's now installable, importable, and
+          version-able.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-082-testcontainers.html">
+        <span class="label">← Previous</span>
+        <span class="title">testcontainers: real services for integration tests</span>
+      </a>
+      <a class="next" href="day-084-pypi-publishing.html">
+        <span class="label">Next →</span>
+        <span class="title">Publishing to PyPI: trusted publishing from CI</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>

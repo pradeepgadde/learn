@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 078 · pytest parametrize: tables of test cases — Learn with Pradeep</title>
+  <meta name="description" content="One test function, many test cases. Use parametrize for input/output tables, ids for readable failures, indirect for fixture parameters, and stacked decorators for combinations.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+
+    <header class="article-header">
+      <div class="day-marker">Day 078 &middot; Third-party &middot; Intermediate</div>
+      <h1>pytest parametrize: tables of test cases</h1>
+      <p class="subtitle">
+        One test function, many test cases. Tables of
+        input/output, readable failure IDs, and stacked
+        decorators for combinatorial coverage.
+      </p>
+      <div class="article-meta">
+        <span>19 Mar 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>@pytest.mark.parametrize</code> to
+        replace 4 nearly-identical test functions with
+        one test and a table of inputs. Provide
+        <code>ids=</code> for readable test names. Stack
+        two decorators to get the cartesian product. Use
+        <code>pytest.param(..., marks=...)</code> to skip
+        or xfail a single row.</p>
+      </div>
+
+      <p>
+        The boilerplate trap with tests: writing
+        <code>test_subnet_24_handles_x</code>,
+        <code>test_subnet_16_handles_x</code>,
+        <code>test_subnet_8_handles_x</code> as three
+        functions when they only differ in a couple of
+        values. Parametrize collapses these to one.
+      </p>
+
+      <h2>Basic parametrize</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">pytest</span>
+<span class="tok-k">from</span> <span class="tok-n">ipaddress</span> <span class="tok-k">import</span> <span class="tok-n">ip_network</span>
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"cidr, expected_hosts"</span>, [
+    (<span class="tok-s">"10.0.0.0/24"</span>, <span class="tok-n">254</span>),
+    (<span class="tok-s">"10.0.0.0/30"</span>, <span class="tok-n">2</span>),
+    (<span class="tok-s">"10.0.0.0/31"</span>, <span class="tok-n">2</span>),    <span class="tok-c"># point-to-point — special-case</span>
+    (<span class="tok-s">"10.0.0.0/32"</span>, <span class="tok-n">1</span>),    <span class="tok-c"># single host</span>
+])
+<span class="tok-k">def</span> <span class="tok-f">test_usable_hosts</span>(<span class="tok-n">cidr</span>, <span class="tok-n">expected_hosts</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">usable_hosts</span>(<span class="tok-f">ip_network</span>(<span class="tok-n">cidr</span>)) == <span class="tok-n">expected_hosts</span></code></pre>
+
+      <p>
+        One function, four tests, four lines of test
+        cases. When the third row fails, pytest reports
+        <code>test_usable_hosts[10.0.0.0/31-2]</code>
+        &mdash; the inputs are baked into the test ID.
+      </p>
+
+      <h2>Custom ids for readable failure messages</h2>
+
+      <p>
+        For complex parameters (objects, dicts, large
+        strings) the auto-generated IDs get ugly. Spell
+        them out:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(
+    <span class="tok-s">"config, valid"</span>,
+    [
+        ({<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>}, <span class="tok-k">True</span>),
+        ({<span class="tok-s">"hostname"</span>: <span class="tok-s">""</span>,      <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>}, <span class="tok-k">False</span>),
+        ({<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"???"</span>},    <span class="tok-k">False</span>),
+    ],
+    <span class="tok-n">ids</span>=[<span class="tok-s">"happy_path"</span>, <span class="tok-s">"empty_hostname"</span>, <span class="tok-s">"unknown_role"</span>],
+)
+<span class="tok-k">def</span> <span class="tok-f">test_validate</span>(<span class="tok-n">config</span>, <span class="tok-n">valid</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">validate</span>(<span class="tok-n">config</span>) <span class="tok-k">is</span> <span class="tok-n">valid</span></code></pre>
+
+      <p>
+        Now failures look like
+        <code>test_validate[unknown_role]</code>
+        &mdash; immediately useful.
+      </p>
+
+      <h2>Stacked parametrize: cartesian product</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"vendor"</span>,  [<span class="tok-s">"cisco"</span>, <span class="tok-s">"arista"</span>, <span class="tok-s">"juniper"</span>])
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"command"</span>, [<span class="tok-s">"show version"</span>, <span class="tok-s">"show interfaces"</span>])
+<span class="tok-k">def</span> <span class="tok-f">test_command_supported</span>(<span class="tok-n">vendor</span>, <span class="tok-n">command</span>):
+    <span class="tok-k">assert</span> <span class="tok-f">supports</span>(<span class="tok-n">vendor</span>, <span class="tok-n">command</span>)</code></pre>
+
+      <p>
+        That's 3 vendors &times; 2 commands = 6 tests
+        from one function. Useful when you want
+        coverage of every combination; less useful (and
+        slow) when many combinations don't make sense.
+      </p>
+
+      <h2>Skipping or xfailing single rows</h2>
+
+      <p>
+        Sometimes one row of the table is broken on
+        purpose, or only valid on certain Python
+        versions. Wrap it in <code>pytest.param</code>:
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"cidr, count"</span>, [
+    (<span class="tok-s">"10.0.0.0/24"</span>, <span class="tok-n">254</span>),
+    <span class="tok-n">pytest</span>.<span class="tok-f">param</span>(<span class="tok-s">"::/64"</span>, <span class="tok-n">2</span><span class="tok-o">**</span><span class="tok-n">64</span>,
+                 <span class="tok-n">marks</span>=<span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">skip</span>(<span class="tok-n">reason</span>=<span class="tok-s">"v6 not yet supported"</span>)),
+    <span class="tok-n">pytest</span>.<span class="tok-f">param</span>(<span class="tok-s">"10.0.0.0/31"</span>, <span class="tok-n">2</span>,
+                 <span class="tok-n">marks</span>=<span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">xfail</span>(<span class="tok-n">reason</span>=<span class="tok-s">"RFC 3021 edge case"</span>)),
+])
+<span class="tok-k">def</span> <span class="tok-f">test_count</span>(<span class="tok-n">cidr</span>, <span class="tok-n">count</span>): ...</code></pre>
+
+      <p>
+        <code>skip</code> doesn't run the test;
+        <code>xfail</code> runs it and expects failure
+        &mdash; if it unexpectedly passes you get
+        <code>XPASS</code>, a signal you can remove the
+        marker.
+      </p>
+
+      <h2>indirect: parametrize fixtures, not just args</h2>
+
+      <p>
+        When the parameter needs to feed into a fixture
+        (so the fixture sets things up differently
+        based on the row), use
+        <code>indirect=True</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">fixture</span>
+<span class="tok-k">def</span> <span class="tok-f">device_role</span>(<span class="tok-n">request</span>):
+    <span class="tok-c"># request.param is the value passed in via parametrize</span>
+    <span class="tok-k">return</span> <span class="tok-f">make_device</span>(<span class="tok-n">role</span>=<span class="tok-n">request</span>.<span class="tok-n">param</span>)
+
+<span class="tok-o">@</span><span class="tok-n">pytest</span>.<span class="tok-n">mark</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"device_role"</span>,
+                          [<span class="tok-s">"access"</span>, <span class="tok-s">"distribution"</span>, <span class="tok-s">"core"</span>],
+                          <span class="tok-n">indirect</span>=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">test_uplinks</span>(<span class="tok-n">device_role</span>):
+    <span class="tok-c"># device_role here is a Device object, not the string</span>
+    <span class="tok-k">assert</span> <span class="tok-n">device_role</span>.<span class="tok-n">uplinks</span> &gt; <span class="tok-n">0</span></code></pre>
+
+      <p>
+        Combines parametrize with the factory pattern
+        from yesterday &mdash; one function name, three
+        fully-different setups.
+      </p>
+
+      <h2>Big tables from external data</h2>
+
+      <p>
+        For really big tables, generate the param list
+        in <code>conftest.py</code> from a JSON or CSV.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># conftest.py</span>
+<span class="tok-k">import</span> <span class="tok-n">json</span>, <span class="tok-n">pathlib</span>, <span class="tok-n">pytest</span>
+
+<span class="tok-n">_cases</span> = <span class="tok-n">json</span>.<span class="tok-f">loads</span>(<span class="tok-f">pathlib</span>.<span class="tok-f">Path</span>(<span class="tok-s">"tests/cases.json"</span>).<span class="tok-f">read_text</span>())
+
+<span class="tok-k">def</span> <span class="tok-f">pytest_generate_tests</span>(<span class="tok-n">metafunc</span>):
+    <span class="tok-k">if</span> <span class="tok-s">"case"</span> <span class="tok-k">in</span> <span class="tok-n">metafunc</span>.<span class="tok-n">fixturenames</span>:
+        <span class="tok-n">metafunc</span>.<span class="tok-f">parametrize</span>(<span class="tok-s">"case"</span>, <span class="tok-n">_cases</span>,
+                              <span class="tok-n">ids</span>=[<span class="tok-n">c</span>[<span class="tok-s">"name"</span>] <span class="tok-k">for</span> <span class="tok-n">c</span> <span class="tok-k">in</span> <span class="tok-n">_cases</span>])</code></pre>
+
+      <p>
+        Now any test taking a <code>case</code>
+        argument runs over the entire JSON. Common
+        pattern for golden-output tests.
+      </p>
+
+      <div class="callout">
+        <p>
+          Resist the urge to put <em>too much</em> in
+          one parametrized test. If you have 50 rows
+          and they all assert the same thing about
+          slightly different inputs, that's perfect.
+          If they branch into "for this row check A,
+          for that row check B" &mdash; split into
+          separate tests.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a test file with three or more
+          <code>test_X_does_Y</code> functions that
+          differ only in their inputs. Collapse to one
+          parametrized test. The diff will likely be
+          satisfying &mdash; and the next test case
+          becomes one row, not one new function.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-077-pytest-fixtures.html">
+        <span class="label">← Previous</span>
+        <span class="title">pytest fixtures: scope, factories, and yield</span>
+      </a>
+      <a class="next" href="day-079-hypothesis.html">
+        <span class="label">Next →</span>
+        <span class="title">hypothesis: property tests find what you didn't think of</span>
+      </a>
+    </nav>
+
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+
+</body>
+</html>
