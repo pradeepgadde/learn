@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 091 · tomllib: TOML config in the stdlib — Learn with Pradeep</title>
+  <meta name="description" content="Python 3.11 added tomllib for reading TOML. No PyYAML, no configparser — just clean typed config files with comments and multiline strings.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 091 &middot; Standard library &middot; Beginner</div>
+      <h1>tomllib: TOML config in the stdlib</h1>
+      <p class="subtitle">
+        Python 3.11 added <code>tomllib</code> for reading
+        TOML. Clean typed config with comments and multiline
+        strings &mdash; no extra dependencies.
+      </p>
+      <div class="article-meta">
+        <span>1 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.11+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>import tomllib</code> (3.11+) or
+        <code>pip install tomli</code> for older Pythons.
+        Open in binary mode, call
+        <code>tomllib.load(f)</code>. Get back a plain
+        dict. TOML is the format of <code>pyproject.toml</code>
+        and a clean alternative to YAML for config files.</p>
+      </div>
+
+      <p>
+        TOML (Tom's Obvious Minimal Language) is what
+        <code>pyproject.toml</code>, Cargo, and many modern
+        tools use for configuration. It's human-readable,
+        strongly typed, and has no YAML-style indentation
+        ambiguity. Since 3.11 it's in the standard library.
+      </p>
+
+      <h2>Reading a TOML file</h2>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c"># config.toml</span>
+<span class="tok-c">[app]</span>
+<span class="tok-n">name</span>    = <span class="tok-s">"poller"</span>
+<span class="tok-n">version</span> = <span class="tok-s">"1.2.0"</span>
+<span class="tok-n">debug</span>   = <span class="tok-k">false</span>
+
+<span class="tok-c">[database]</span>
+<span class="tok-n">host</span>     = <span class="tok-s">"db.internal"</span>
+<span class="tok-n">port</span>     = <span class="tok-n">5432</span>
+<span class="tok-n">timeout</span>  = <span class="tok-n">30.0</span>
+
+<span class="tok-c">[devices]</span>
+<span class="tok-n">roles</span>  = [<span class="tok-s">"access"</span>, <span class="tok-s">"core"</span>, <span class="tok-s">"distribution"</span>]
+<span class="tok-n">prefix</span> = <span class="tok-s">"10.0.0.0/8"</span></code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">tomllib</span>
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"config.toml"</span>, <span class="tok-s">"rb"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:   <span class="tok-c"># binary mode required</span>
+    <span class="tok-n">cfg</span> = <span class="tok-n">tomllib</span>.<span class="tok-f">load</span>(<span class="tok-n">f</span>)
+
+<span class="tok-n">cfg</span>[<span class="tok-s">"app"</span>][<span class="tok-s">"name"</span>]        <span class="tok-c"># 'poller'   (str)</span>
+<span class="tok-n">cfg</span>[<span class="tok-s">"database"</span>][<span class="tok-s">"port"</span>]    <span class="tok-c"># 5432       (int)</span>
+<span class="tok-n">cfg</span>[<span class="tok-s">"database"</span>][<span class="tok-s">"timeout"</span>] <span class="tok-c"># 30.0      (float)</span>
+<span class="tok-n">cfg</span>[<span class="tok-s">"app"</span>][<span class="tok-s">"debug"</span>]        <span class="tok-c"># False     (bool)</span>
+<span class="tok-n">cfg</span>[<span class="tok-s">"devices"</span>][<span class="tok-s">"roles"</span>]    <span class="tok-c"># ['access', 'core', 'distribution'] (list)</span></code></pre>
+
+      <p>
+        Types come back exactly as written. No
+        <code>"5432"</code> string that you forget to cast;
+        no boolean-as-string traps.
+      </p>
+
+      <h2>From a string (for tests)</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">raw</span> = <span class="tok-s">b"""
+[server]
+host = "localhost"
+port = 8080
+"""</span>
+<span class="tok-n">cfg</span> = <span class="tok-n">tomllib</span>.<span class="tok-f">loads</span>(<span class="tok-n">raw</span>.<span class="tok-f">decode</span>())      <span class="tok-c"># loads() takes str, not bytes</span></code></pre>
+
+      <h2>Pair with pydantic for validated config</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">pydantic</span> <span class="tok-k">import</span> <span class="tok-n">BaseModel</span>
+<span class="tok-k">import</span> <span class="tok-n">tomllib</span>
+
+<span class="tok-k">class</span> <span class="tok-f">DBConfig</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">host</span>:    <span class="tok-n">str</span>
+    <span class="tok-n">port</span>:    <span class="tok-n">int</span> = <span class="tok-n">5432</span>
+    <span class="tok-n">timeout</span>: <span class="tok-n">float</span> = <span class="tok-n">30.0</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Config</span>(<span class="tok-n">BaseModel</span>):
+    <span class="tok-n">database</span>: <span class="tok-n">DBConfig</span>
+
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"config.toml"</span>, <span class="tok-s">"rb"</span>) <span class="tok-k">as</span> <span class="tok-n">f</span>:
+    <span class="tok-n">cfg</span> = <span class="tok-f">Config</span>.<span class="tok-f">model_validate</span>(<span class="tok-n">tomllib</span>.<span class="tok-f">load</span>(<span class="tok-n">f</span>))</code></pre>
+
+      <h2>TOML vs YAML vs JSON for config</h2>
+
+      <ul>
+        <li><strong>TOML</strong> &mdash; typed, comments, multiline strings, arrays of tables. Best for human-edited config files with hierarchy. The standard for Python tooling.</li>
+        <li><strong>YAML</strong> &mdash; more expressive but infamous for surprise: <code>no</code> becomes <code>False</code>, <code>1e3</code> becomes <code>1000.0</code>. Good for k8s manifests because the ecosystem already uses it.</li>
+        <li><strong>JSON</strong> &mdash; no comments, no trailing commas. Fine for machine-generated config; poor for human-edited.</li>
+      </ul>
+
+      <h2>Python &lt; 3.11: tomli</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">try</span>:
+    <span class="tok-k">import</span> <span class="tok-n">tomllib</span>
+<span class="tok-k">except</span> <span class="tok-n">ImportError</span>:
+    <span class="tok-k">import</span> <span class="tok-n">tomli</span> <span class="tok-k">as</span> <span class="tok-n">tomllib</span>   <span class="tok-c"># pip install tomli</span></code></pre>
+
+      <p>
+        <code>tomli</code> is the backport; identical API,
+        same binary-mode requirement.
+      </p>
+
+      <div class="callout">
+        <p>
+          <code>tomllib</code> is read-only by design.
+          For writing TOML, use
+          <code>tomli-w</code> (<code>pip install
+          tomli-w</code>). Keeping read and write
+          separate keeps the stdlib module small
+          and dependency-free.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Replace one JSON or YAML config file in a
+          project with TOML. Move your
+          <code>json.load</code> to
+          <code>tomllib.load</code>. Enjoy the comments
+          you can now write in the config, and the
+          integers that stop being strings.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-090-ipython.html">
+        <span class="label">← Previous</span>
+        <span class="title">IPython and the REPL toolkit: March finale</span>
+      </a>
+      <a class="next" href="day-092-ast.html">
+        <span class="label">Next →</span>
+        <span class="title">ast: parse and inspect Python source</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

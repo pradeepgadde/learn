@@ -1,15 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Learn — Daily Python Skills · Pradeep Gadde</title>
-    <meta name="description" content="A daily Python skill, distilled. One small, useful idea every day from Pradeep Gadde.">
-    <meta property="og:title" content="Learn — Daily Python Skills">
-    <meta property="og:description" content="A daily Python skill, distilled. One small, useful idea every day.">
-    <meta property="og:type" content="website">
-    <link rel="stylesheet" href="assets/learn.css">
-  </head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learn with Pradeep &mdash; 100 Days of Python</title>
+  <meta name="description" content="100 daily Python skill posts: networking, FastAPI, testing, Docker, packaging, and more. One concept per day, always with code.">
+  <link rel="stylesheet" href="assets/learn.css">
+</head>
 <body>
 
   <header class="topbar">
@@ -29,13 +26,13 @@
         One small, sharp Python idea every day &mdash; the kind of thing
         you wish someone had shown you earlier. No fluff, no framework
         evangelism. Just the move, the why, and a snippet you can paste
-        into a REPL right now.
+        into a REPL right now. 100 days, 100 skills, and a map of the Python landscape to build with.
       </p>
 
       <div class="hero-meta">
         <div class="stat">
           Skills published
-          <strong id="stat-count">090</strong>
+          <strong id="stat-count">100</strong>
         </div>
         <div class="stat">
           Reading time each
@@ -51,11 +48,164 @@
 
   <section class="posts-section">
     <div class="section-label">
-      <span class="count" id="count-label">090 entries</span>
+      <h2>Explore the skills</h2>
+      <p>
+        Browse the catalog of 100 Python skills. Each post is a self-contained
+        nugget of Python knowledge, with copy-paste code and a clear explanation.
+      </p>
     </div>
     <div class="posts" id="post-list">
 
-      <a class="post-card featured" href="posts/day-090-ipython.html">
+      <a class="post-card featured" href="posts/day-100-finale.html">
+        <span class="day-no">Day 100 &middot; Milestone</span>
+        <h3>Day 100: one hundred days of Python</h3>
+        <p class="excerpt">
+          100 days, 100 ideas. From f-strings to bytecode. A map of the ground covered and what to build with it.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">milestone</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-099-dis.html">
+        <span class="day-no">Day 099 &middot; Standard library</span>
+        <h3>dis: peek at Python bytecode</h3>
+        <p class="excerpt">
+          dis.dis() shows the bytecode CPython compiles to. Explains why LOAD_FAST beats LOAD_GLOBAL in tight loops.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">performance</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-098-textwrap-difflib.html">
+        <span class="day-no">Day 098 &middot; Standard library</span>
+        <h3>textwrap and difflib: text utilities you'll reach for</h3>
+        <p class="excerpt">
+          dedent() cleans heredocs. unified_diff() shows config changes. get_close_matches() finds fuzzy string matches.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">text</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-097-multiprocessing.html">
+        <span class="day-no">Day 097 &middot; Standard library</span>
+        <h3>multiprocessing: true parallelism for CPU-bound work</h3>
+        <p class="excerpt">
+          Sidestep the GIL with real OS processes. Pool, Queue, shared memory — and when to reach for each.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">concurrency</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-096-importlib.html">
+        <span class="day-no">Day 096 &middot; Standard library</span>
+        <h3>importlib: dynamic imports and plugin patterns</h3>
+        <p class="excerpt">
+          Load modules by string name. Entry points for discovered plugins. The approved alternative to __import__.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">patterns</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-095-inspect.html">
+        <span class="day-no">Day 095 &middot; Standard library</span>
+        <h3>inspect: introspect functions, classes, and frames</h3>
+        <p class="excerpt">
+          Read live Python objects: signatures, source code, call stacks. How FastAPI's dependency injection works.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">tooling</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-094-operator.html">
+        <span class="day-no">Day 094 &middot; Standard library</span>
+        <h3>operator: itemgetter, attrgetter, methodcaller</h3>
+        <p class="excerpt">
+          Faster, more composable alternatives to sort-key lambdas. Every Python operator as a first-class function.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">patterns</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-093-dataclasses-advanced.html">
+        <span class="day-no">Day 093 &middot; Syntax</span>
+        <h3>dataclasses advanced: field(), __post_init__, InitVar</h3>
+        <p class="excerpt">
+          Mutable defaults, derived fields, init-only args, frozen immutable objects — the full dataclass toolkit.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">syntax</span>
+            <span class="tag">oop</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-092-ast.html">
+        <span class="day-no">Day 092 &middot; Standard library</span>
+        <h3>ast: parse and inspect Python source</h3>
+        <p class="excerpt">
+          Turn Python source into a tree you can walk. Lint rules, code generators, safe eval — all start here.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">tooling</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-091-tomllib.html">
+        <span class="day-no">Day 091 &middot; Standard library</span>
+        <h3>tomllib: TOML config in the stdlib</h3>
+        <p class="excerpt">
+          python 3.11 added tomllib for reading TOML. Clean typed config with comments — no extra dependencies.
+        </p>
+        <div class="meta">
+          <div class="tags">
+            <span class="tag">stdlib</span>
+            <span class="tag">config</span>
+          </div>
+          <span class="arrow" aria-hidden="true">&#x2197;</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/day-090-ipython.html">
         <span class="day-no">Day 090 &middot; Tooling</span>
         <h3>IPython and the REPL toolkit: March finale</h3>
         <p class="excerpt">
@@ -1411,16 +1561,13 @@
   </footer>
 
   <script>
-    // Auto-update the post counter from the actual list
     (function () {
       const list = document.getElementById('post-list');
       if (!list) return;
       const cards = list.querySelectorAll('.post-card');
       const n = cards.length;
       const padded = String(n).padStart(3, '0');
-      const countEl = document.getElementById('stat-count');
       const labelEl = document.getElementById('count-label');
-      if (countEl) countEl.textContent = padded;
       if (labelEl) labelEl.textContent = padded + (n === 1 ? ' entry' : ' entries');
     })();
   </script>

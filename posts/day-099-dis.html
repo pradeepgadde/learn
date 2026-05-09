@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 099 · dis: peek at Python bytecode — Learn with Pradeep</title>
+  <meta name="description" content="dis.dis() shows you the bytecode CPython compiles to. Not for everyday use — but invaluable for understanding why one idiom is faster than another.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 099 &middot; Standard library &middot; Advanced</div>
+      <h1>dis: peek at Python bytecode</h1>
+      <p class="subtitle">
+        <code>dis.dis()</code> shows the bytecode
+        CPython compiles to. Not for everyday use
+        &mdash; but invaluable for understanding why
+        one idiom is faster than another.
+      </p>
+      <div class="article-meta">
+        <span>9 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>import dis; dis.dis(fn)</code> prints
+        the bytecode instructions CPython generates
+        for a function. Useful for understanding
+        performance differences, verifying that
+        constants are folded, and curiosity-driven
+        learning about how Python actually executes
+        your code.</p>
+      </div>
+
+      <p>
+        Python compiles your source to bytecode before
+        running it. CPython's bytecode is a simple
+        stack-based instruction set. <code>dis</code>
+        lets you read it.
+      </p>
+
+      <h2>Basic usage</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">dis</span>
+
+<span class="tok-k">def</span> <span class="tok-f">add</span>(<span class="tok-n">a</span>, <span class="tok-n">b</span>):
+    <span class="tok-k">return</span> <span class="tok-n">a</span> + <span class="tok-n">b</span>
+
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">add</span>)</code></pre>
+
+<pre class="code"><span class="code-label">text</span><code>  2           RESUME          0
+
+  3           LOAD_FAST           0 (a)
+              LOAD_FAST           1 (b)
+              BINARY_OP           0 (+)
+              RETURN_VALUE</code></pre>
+
+      <p>
+        Column 1 is the source line number. Then the
+        offset in bytes, the opcode name, and the
+        argument. The stack grows left-to-right as
+        values are pushed; operators pop their
+        arguments and push results.
+      </p>
+
+      <h2>Why one idiom is faster: local vs global</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">dis</span>
+
+<span class="tok-n">x</span> = <span class="tok-n">10</span>
+
+<span class="tok-k">def</span> <span class="tok-f">uses_global</span>():
+    <span class="tok-k">return</span> <span class="tok-n">x</span> + <span class="tok-n">1</span>
+
+<span class="tok-k">def</span> <span class="tok-f">uses_local</span>():
+    <span class="tok-n">y</span> = <span class="tok-n">10</span>
+    <span class="tok-k">return</span> <span class="tok-n">y</span> + <span class="tok-n">1</span>
+
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">uses_global</span>)
+<span class="tok-c"># LOAD_GLOBAL 0 (x)   &lt;— dict lookup</span>
+
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">uses_local</span>)
+<span class="tok-c"># LOAD_FAST 0 (y)     &lt;— array index lookup, faster</span></code></pre>
+
+      <p>
+        <code>LOAD_GLOBAL</code> does a dict lookup
+        in the module's namespace. <code>LOAD_FAST</code>
+        reads directly from a pre-allocated slot in
+        the frame's local variables. That's why "cache
+        globals as locals in tight loops" is a real
+        Python optimisation.
+      </p>
+
+      <h2>Constant folding</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">f</span>():
+    <span class="tok-k">return</span> <span class="tok-n">2</span> * <span class="tok-n">3</span> + <span class="tok-n">1</span>
+
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">f</span>)
+<span class="tok-c"># LOAD_CONST 7    ← CPython folded the whole expression at compile time</span>
+<span class="tok-c"># RETURN_VALUE</span></code></pre>
+
+      <p>
+        CPython folds constant arithmetic at compile
+        time. <code>2 * 3 + 1</code> never executes at
+        runtime; it becomes the literal <code>7</code>
+        in the bytecode.
+      </p>
+
+      <h2>List vs generator comprehension</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">def</span> <span class="tok-f">with_list</span>():
+    <span class="tok-k">return</span> [<span class="tok-n">x</span>*<span class="tok-n">2</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10</span>)]
+
+<span class="tok-k">def</span> <span class="tok-f">with_gen</span>():
+    <span class="tok-k">return</span> (<span class="tok-n">x</span>*<span class="tok-n">2</span> <span class="tok-k">for</span> <span class="tok-n">x</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10</span>))
+
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">with_list</span>)
+<span class="tok-c"># LIST_APPEND in a loop — builds list immediately
+
+</span><span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">with_gen</span>)
+<span class="tok-c"># RETURN_GENERATOR + a nested code object — lazy</span></code></pre>
+
+      <h2>dis on a class or module</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Disassemble an entire class (all methods)</span>
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-n">MyClass</span>)
+
+<span class="tok-c"># Disassemble a string of source</span>
+<span class="tok-n">dis</span>.<span class="tok-f">dis</span>(<span class="tok-s">"x = [i**2 for i in range(5)]"</span>)
+
+<span class="tok-c"># Get instruction objects programmatically</span>
+<span class="tok-n">instrs</span> = <span class="tok-f">list</span>(<span class="tok-n">dis</span>.<span class="tok-f">get_instructions</span>(<span class="tok-n">add</span>))
+<span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-n">instrs</span>:
+    <span class="tok-f">print</span>(<span class="tok-n">i</span>.<span class="tok-n">opname</span>, <span class="tok-n">i</span>.<span class="tok-n">argval</span>)</code></pre>
+
+      <h2>When does it actually matter?</h2>
+
+      <p>
+        Most code: it doesn't. Profile first (Day 035);
+        optimize later. But when you're in a tight
+        inner loop that runs millions of times,
+        understanding <code>LOAD_GLOBAL</code> vs
+        <code>LOAD_FAST</code>, or seeing that a
+        function call compiles to
+        <code>CALL_FUNCTION</code> + setup overhead,
+        explains why micro-optimisations sometimes
+        work. It also demystifies magic: comprehensions,
+        generators, <code>with</code> blocks, and
+        walrus operators all have visible bytecode.
+      </p>
+
+      <div class="callout">
+        <p>
+          The bytecode format changes across Python
+          versions. 3.12 introduced specialising
+          adaptive interpreter (COLD_CALL,
+          BINARY_OP_ADD_INT) that specialises opcodes
+          at runtime based on observed types. If you
+          see unfamiliar opcode names, check the
+          version-specific docs.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Pick any two equivalent ways to write the
+          same thing &mdash; a for loop vs a
+          comprehension, <code>dict(a=1)</code> vs
+          <code>{"a": 1}</code>, or appending to a
+          list vs concatenating. Run <code>dis.dis</code>
+          on both. Count the instructions. The one
+          with fewer instructions is usually (not
+          always) faster. Then verify with
+          <code>%timeit</code>.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-098-textwrap-difflib.html">
+        <span class="label">← Previous</span>
+        <span class="title">textwrap and difflib: text utilities you'll reach for</span>
+      </a>
+      <a class="next" href="day-100-finale.html">
+        <span class="label">Next →</span>
+        <span class="title">Day 100: one hundred days of Python</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

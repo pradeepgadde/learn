@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 093 · dataclasses advanced: field(), __post_init__, InitVar — Learn with Pradeep</title>
+  <meta name="description" content="Go beyond simple dataclasses. field() for defaults and metadata, __post_init__ for derived values, InitVar for init-only arguments, and frozen for immutability.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 093 &middot; Syntax &middot; Intermediate</div>
+      <h1>dataclasses advanced: field(), __post_init__, InitVar</h1>
+      <p class="subtitle">
+        Beyond the basics. <code>field()</code> for
+        defaults and metadata, <code>__post_init__</code>
+        for derived values, <code>InitVar</code> for
+        init-only arguments, <code>frozen=True</code> for
+        immutable value objects.
+      </p>
+      <div class="article-meta">
+        <span>3 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.10+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Use <code>field(default_factory=list)</code>
+        for mutable defaults. Use
+        <code>__post_init__</code> to derive fields or
+        validate after construction. Use
+        <code>InitVar[T]</code> for constructor arguments
+        that don't become fields. Use
+        <code>@dataclass(frozen=True)</code> for
+        hashable, immutable objects.</p>
+      </div>
+
+      <h2>field(): the right way for mutable defaults</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>, <span class="tok-n">field</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Site</span>:
+    <span class="tok-n">name</span>:    <span class="tok-n">str</span>
+    <span class="tok-n">devices</span>: <span class="tok-n">list</span>[<span class="tok-n">str</span>] = <span class="tok-f">field</span>(<span class="tok-n">default_factory</span>=<span class="tok-n">list</span>)
+    <span class="tok-n">tags</span>:    <span class="tok-n">dict</span>[<span class="tok-n">str</span>, <span class="tok-n">str</span>] = <span class="tok-f">field</span>(<span class="tok-n">default_factory</span>=<span class="tok-n">dict</span>)
+    <span class="tok-n">active</span>:  <span class="tok-n">bool</span> = <span class="tok-k">True</span>
+
+<span class="tok-c"># This is the WRONG way — all instances share one list:</span>
+<span class="tok-c"># devices: list[str] = []   # raises ValueError at class definition</span></code></pre>
+
+      <p>
+        Dataclasses catch the mutable-default mistake
+        at class-definition time and raise
+        <code>ValueError</code>. The fix is always
+        <code>field(default_factory=...)</code>.
+      </p>
+
+      <h2>field() options</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">field</span>
+
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">default</span>=<span class="tok-n">0</span>)
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">default_factory</span>=<span class="tok-n">int</span>)   <span class="tok-c"># same</span>
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">repr</span>=<span class="tok-k">False</span>)            <span class="tok-c"># hide from __repr__</span>
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">compare</span>=<span class="tok-k">False</span>)          <span class="tok-c"># exclude from __eq__/__lt__</span>
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">hash</span>=<span class="tok-k">False</span>)             <span class="tok-c"># exclude from __hash__</span>
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">init</span>=<span class="tok-k">False</span>)             <span class="tok-c"># set in __post_init__ only</span>
+<span class="tok-n">x</span>: <span class="tok-n">int</span> = <span class="tok-f">field</span>(<span class="tok-n">metadata</span>={<span class="tok-s">"unit"</span>: <span class="tok-s">"ms"</span>}) <span class="tok-c"># arbitrary metadata dict</span></code></pre>
+
+      <h2>__post_init__: derived values and validation</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">ipaddress</span> <span class="tok-k">import</span> <span class="tok-n">IPv4Network</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">Subnet</span>:
+    <span class="tok-n">cidr</span>:    <span class="tok-n">str</span>
+    <span class="tok-n">network</span>: <span class="tok-n">IPv4Network</span> = <span class="tok-f">field</span>(<span class="tok-n">init</span>=<span class="tok-k">False</span>, <span class="tok-n">repr</span>=<span class="tok-k">False</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">__post_init__</span>(<span class="tok-n">self</span>):
+        <span class="tok-c"># Runs after __init__, so all init fields are set</span>
+        <span class="tok-n">self</span>.<span class="tok-n">network</span> = <span class="tok-f">IPv4Network</span>(<span class="tok-n">self</span>.<span class="tok-n">cidr</span>, <span class="tok-n">strict</span>=<span class="tok-k">False</span>)
+        <span class="tok-k">if</span> <span class="tok-n">self</span>.<span class="tok-n">network</span>.<span class="tok-n">prefixlen</span> &lt; <span class="tok-n">8</span>:
+            <span class="tok-k">raise</span> <span class="tok-f">ValueError</span>(<span class="tok-s">f"Prefix too broad: {self.cidr}"</span>)
+
+<span class="tok-n">s</span> = <span class="tok-f">Subnet</span>(<span class="tok-s">"10.0.0.0/24"</span>)
+<span class="tok-n">s</span>.<span class="tok-n">network</span>.<span class="tok-n">num_addresses</span>   <span class="tok-c"># 256</span></code></pre>
+
+      <h2>InitVar: constructor-only arguments</h2>
+
+      <p>
+        Sometimes you want a parameter in
+        <code>__init__</code> that drives some logic
+        but shouldn't become a field.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">dataclass</span>, <span class="tok-n">field</span>, <span class="tok-n">InitVar</span>
+
+<span class="tok-o">@</span><span class="tok-n">dataclass</span>
+<span class="tok-k">class</span> <span class="tok-f">HashedSecret</span>:
+    <span class="tok-n">password</span>: <span class="tok-n">InitVar</span>[<span class="tok-n">str</span>]              <span class="tok-c"># in __init__ but not a field</span>
+    <span class="tok-n">salt</span>:     <span class="tok-n">str</span>
+    <span class="tok-n">digest</span>:   <span class="tok-n">str</span> = <span class="tok-f">field</span>(<span class="tok-n">init</span>=<span class="tok-k">False</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">__post_init__</span>(<span class="tok-n">self</span>, <span class="tok-n">password</span>: <span class="tok-n">str</span>):
+        <span class="tok-k">import</span> <span class="tok-n">hashlib</span>
+        <span class="tok-n">self</span>.<span class="tok-n">digest</span> = <span class="tok-n">hashlib</span>.<span class="tok-f">sha256</span>(
+            (<span class="tok-n">self</span>.<span class="tok-n">salt</span> + <span class="tok-n">password</span>).<span class="tok-f">encode</span>()
+        ).<span class="tok-f">hexdigest</span>()
+
+<span class="tok-n">s</span> = <span class="tok-f">HashedSecret</span>(<span class="tok-n">password</span>=<span class="tok-s">"secret"</span>, <span class="tok-n">salt</span>=<span class="tok-s">"abc"</span>)
+<span class="tok-c"># s has .salt and .digest — password is NOT stored</span></code></pre>
+
+      <h2>frozen=True: hashable, immutable</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-f">dataclass</span>(<span class="tok-n">frozen</span>=<span class="tok-k">True</span>)
+<span class="tok-k">class</span> <span class="tok-f">Point</span>:
+    <span class="tok-n">x</span>: <span class="tok-n">float</span>
+    <span class="tok-n">y</span>: <span class="tok-n">float</span>
+
+<span class="tok-n">p</span> = <span class="tok-f">Point</span>(<span class="tok-n">1.0</span>, <span class="tok-n">2.0</span>)
+<span class="tok-f">hash</span>(<span class="tok-n">p</span>)                  <span class="tok-c"># works — can use as dict key or set member</span>
+<span class="tok-n">p</span>.<span class="tok-n">x</span> = <span class="tok-n">3.0</span>                 <span class="tok-c"># FrozenInstanceError</span></code></pre>
+
+      <h2>order=True: sortable objects</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-o">@</span><span class="tok-f">dataclass</span>(<span class="tok-n">order</span>=<span class="tok-k">True</span>)
+<span class="tok-k">class</span> <span class="tok-f">Version</span>:
+    <span class="tok-n">major</span>: <span class="tok-n">int</span>
+    <span class="tok-n">minor</span>: <span class="tok-n">int</span>
+    <span class="tok-n">patch</span>: <span class="tok-n">int</span>
+
+<span class="tok-f">sorted</span>([<span class="tok-f">Version</span>(<span class="tok-n">1</span>,<span class="tok-n">10</span>,<span class="tok-n">0</span>), <span class="tok-f">Version</span>(<span class="tok-n">2</span>,<span class="tok-n">0</span>,<span class="tok-n">0</span>), <span class="tok-f">Version</span>(<span class="tok-n">1</span>,<span class="tok-n">9</span>,<span class="tok-n">5</span>)])
+<span class="tok-c"># [Version(1,9,5), Version(1,10,0), Version(2,0,0)]</span></code></pre>
+
+      <h2>dataclasses.replace(): immutable updates</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">dataclasses</span> <span class="tok-k">import</span> <span class="tok-n">replace</span>
+
+<span class="tok-n">v1</span> = <span class="tok-f">Version</span>(<span class="tok-n">1</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>)
+<span class="tok-n">v2</span> = <span class="tok-f">replace</span>(<span class="tok-n">v1</span>, <span class="tok-n">minor</span>=<span class="tok-n">1</span>)   <span class="tok-c"># Version(1, 1, 0) — v1 unchanged</span></code></pre>
+
+      <div class="callout">
+        <p>
+          For very complex data models, pydantic (Day 032,
+          Day 062) gives you all of this plus JSON
+          serialisation, custom validators, and strict
+          type coercion. Reach for plain dataclasses
+          when you want zero dependencies; reach for
+          pydantic when you need the full machinery.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a dataclass in your code that uses a list
+          or dict as a field default without
+          <code>field(default_factory=...)</code>. Fix
+          it. Then add a <code>__post_init__</code> that
+          validates one invariant &mdash; something like
+          "port must be between 1 and 65535". These two
+          changes alone prevent a class of subtle bugs.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-092-ast.html">
+        <span class="label">← Previous</span>
+        <span class="title">ast: parse and inspect Python source</span>
+      </a>
+      <a class="next" href="day-094-operator.html">
+        <span class="label">Next →</span>
+        <span class="title">operator: itemgetter, attrgetter, methodcaller</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

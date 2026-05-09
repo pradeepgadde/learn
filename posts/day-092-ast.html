@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 092 · ast: parse and inspect Python source — Learn with Pradeep</title>
+  <meta name="description" content="The ast module turns Python source into a tree you can walk. Lint rules, code generators, safe eval replacements — all start here.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 092 &middot; Standard library &middot; Advanced</div>
+      <h1>ast: parse and inspect Python source</h1>
+      <p class="subtitle">
+        Turn Python source into a tree you can walk.
+        Lint rules, code generators, safe eval replacements
+        &mdash; all start here.
+      </p>
+      <div class="article-meta">
+        <span>2 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>ast.parse(source)</code> returns a tree
+        of node objects. Walk it with
+        <code>ast.walk()</code> or subclass
+        <code>ast.NodeVisitor</code> for structured
+        traversal. Use <code>ast.literal_eval()</code>
+        as a safe replacement for <code>eval()</code>
+        on simple data literals.</p>
+      </div>
+
+      <p>
+        Everything Python tooling does — ruff, mypy,
+        black, coverage — starts by parsing source into
+        an AST. The <code>ast</code> module exposes that
+        same tree to you.
+      </p>
+
+      <h2>Parse and inspect</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">ast</span>
+
+<span class="tok-n">source</span> = <span class="tok-s">"""
+def greet(name: str) -> str:
+    return f"hello, {name}"
+"""</span>
+
+<span class="tok-n">tree</span> = <span class="tok-n">ast</span>.<span class="tok-f">parse</span>(<span class="tok-n">source</span>)
+<span class="tok-f">print</span>(<span class="tok-n">ast</span>.<span class="tok-f">dump</span>(<span class="tok-n">tree</span>, <span class="tok-n">indent</span>=<span class="tok-n">2</span>))</code></pre>
+
+      <p>
+        <code>ast.dump</code> pretty-prints the whole
+        tree. Each node has a type and fields; for
+        example a <code>FunctionDef</code> node has
+        <code>name</code>, <code>args</code>,
+        <code>body</code>, <code>decorator_list</code>,
+        and <code>returns</code>.
+      </p>
+
+      <h2>Walk the tree: find all function names</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">ast</span>, <span class="tok-n">pathlib</span>
+
+<span class="tok-n">source</span> = <span class="tok-n">pathlib</span>.<span class="tok-f">Path</span>(<span class="tok-s">"myapp/core.py"</span>).<span class="tok-f">read_text</span>()
+<span class="tok-n">tree</span>   = <span class="tok-n">ast</span>.<span class="tok-f">parse</span>(<span class="tok-n">source</span>)
+
+<span class="tok-n">functions</span> = [
+    <span class="tok-n">node</span>.<span class="tok-n">name</span>
+    <span class="tok-k">for</span> <span class="tok-n">node</span> <span class="tok-k">in</span> <span class="tok-n">ast</span>.<span class="tok-f">walk</span>(<span class="tok-n">tree</span>)
+    <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">node</span>, (<span class="tok-n">ast</span>.<span class="tok-n">FunctionDef</span>, <span class="tok-n">ast</span>.<span class="tok-n">AsyncFunctionDef</span>))
+]
+<span class="tok-f">print</span>(<span class="tok-n">functions</span>)</code></pre>
+
+      <h2>NodeVisitor: structured traversal</h2>
+
+      <p>
+        For anything more complex than a flat scan,
+        subclass <code>NodeVisitor</code>. Define
+        <code>visit_NodeType</code> methods for the
+        node types you care about.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">ImportFinder</span>(<span class="tok-n">ast</span>.<span class="tok-n">NodeVisitor</span>):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(<span class="tok-n">self</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">imports</span> = []
+
+    <span class="tok-k">def</span> <span class="tok-f">visit_Import</span>(<span class="tok-n">self</span>, <span class="tok-n">node</span>):
+        <span class="tok-k">for</span> <span class="tok-n">alias</span> <span class="tok-k">in</span> <span class="tok-n">node</span>.<span class="tok-n">names</span>:
+            <span class="tok-n">self</span>.<span class="tok-n">imports</span>.<span class="tok-f">append</span>(<span class="tok-n">alias</span>.<span class="tok-n">name</span>)
+        <span class="tok-n">self</span>.<span class="tok-f">generic_visit</span>(<span class="tok-n">node</span>)       <span class="tok-c"># recurse into children</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">visit_ImportFrom</span>(<span class="tok-n">self</span>, <span class="tok-n">node</span>):
+        <span class="tok-n">self</span>.<span class="tok-n">imports</span>.<span class="tok-f">append</span>(<span class="tok-n">node</span>.<span class="tok-n">module</span>)
+        <span class="tok-n">self</span>.<span class="tok-f">generic_visit</span>(<span class="tok-n">node</span>)
+
+<span class="tok-n">finder</span> = <span class="tok-f">ImportFinder</span>()
+<span class="tok-n">finder</span>.<span class="tok-f">visit</span>(<span class="tok-n">tree</span>)
+<span class="tok-f">print</span>(<span class="tok-n">finder</span>.<span class="tok-n">imports</span>)</code></pre>
+
+      <h2>ast.literal_eval: safe eval for data</h2>
+
+      <p>
+        Never use <code>eval()</code> on untrusted
+        input. <code>ast.literal_eval</code> parses
+        only Python literals &mdash; strings, numbers,
+        dicts, lists, tuples, booleans, None. Anything
+        else raises <code>ValueError</code>.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">ast</span>.<span class="tok-f">literal_eval</span>(<span class="tok-s">'{"host": "sw-01", "port": 22}'</span>)
+<span class="tok-c"># {'host': 'sw-01', 'port': 22}
+
+# Safe — raises ValueError, doesn't execute:</span>
+<span class="tok-n">ast</span>.<span class="tok-f">literal_eval</span>(<span class="tok-s">"__import__('os').system('rm -rf /')"</span>)
+<span class="tok-c"># ValueError: malformed node or string</span></code></pre>
+
+      <h2>NodeTransformer: rewrite the tree</h2>
+
+      <p>
+        <code>NodeTransformer</code> is like
+        <code>NodeVisitor</code> but can return a
+        modified node to replace the original. Use it
+        to build code generators or AST macros.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">DebugPrinter</span>(<span class="tok-n">ast</span>.<span class="tok-n">NodeTransformer</span>):
+    <span class="tok-s">"""Wrap every return statement in a print()."""</span>
+    <span class="tok-k">def</span> <span class="tok-f">visit_Return</span>(<span class="tok-n">self</span>, <span class="tok-n">node</span>):
+        <span class="tok-n">print_call</span> = <span class="tok-n">ast</span>.<span class="tok-f">Expr</span>(<span class="tok-n">value</span>=<span class="tok-n">ast</span>.<span class="tok-f">Call</span>(
+            <span class="tok-n">func</span>=<span class="tok-n">ast</span>.<span class="tok-f">Name</span>(<span class="tok-n">id</span>=<span class="tok-s">"print"</span>, <span class="tok-n">ctx</span>=<span class="tok-n">ast</span>.<span class="tok-f">Load</span>()),
+            <span class="tok-n">args</span>=[<span class="tok-n">node</span>.<span class="tok-n">value</span>], <span class="tok-n">keywords</span>=[],
+        ))
+        <span class="tok-n">ast</span>.<span class="tok-f">fix_missing_locations</span>(<span class="tok-n">print_call</span>)
+        <span class="tok-k">return</span> [<span class="tok-n">print_call</span>, <span class="tok-n">node</span>]   <span class="tok-c"># insert before return</span></code></pre>
+
+      <h2>Write a simple lint rule</h2>
+
+      <p>
+        Custom lint checks are just
+        <code>NodeVisitor</code>s. For example: flag
+        any <code>print()</code> calls left in a module.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">class</span> <span class="tok-f">NoPrintLint</span>(<span class="tok-n">ast</span>.<span class="tok-n">NodeVisitor</span>):
+    <span class="tok-k">def</span> <span class="tok-f">visit_Call</span>(<span class="tok-n">self</span>, <span class="tok-n">node</span>):
+        <span class="tok-k">if</span> <span class="tok-f">isinstance</span>(<span class="tok-n">node</span>.<span class="tok-n">func</span>, <span class="tok-n">ast</span>.<span class="tok-n">Name</span>) <span class="tok-k">and</span> <span class="tok-n">node</span>.<span class="tok-n">func</span>.<span class="tok-n">id</span> == <span class="tok-s">"print"</span>:
+            <span class="tok-f">print</span>(<span class="tok-s">f"Line {node.lineno}: print() found"</span>)
+        <span class="tok-n">self</span>.<span class="tok-f">generic_visit</span>(<span class="tok-n">node</span>)
+
+<span class="tok-n">NoPrintLint</span>().<span class="tok-f">visit</span>(<span class="tok-n">ast</span>.<span class="tok-f">parse</span>(<span class="tok-n">pathlib</span>.<span class="tok-f">Path</span>(<span class="tok-s">"app.py"</span>).<span class="tok-f">read_text</span>()))</code></pre>
+
+      <div class="callout">
+        <p>
+          If you're writing a custom ruff plugin or
+          flake8 extension, you're writing an
+          <code>ast.NodeVisitor</code>. Understanding
+          the AST is the prerequisite for any serious
+          Python tooling work.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Run <code>ast.dump(ast.parse(open("your_script.py").read()), indent=2)</code>
+          on one of your own files. Read the output.
+          Find a <code>FunctionDef</code>, look at its
+          children. Once the tree structure makes sense,
+          write a visitor that counts function definitions
+          per file across a directory.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-091-tomllib.html">
+        <span class="label">← Previous</span>
+        <span class="title">tomllib: TOML config in the stdlib</span>
+      </a>
+      <a class="next" href="day-093-dataclasses-advanced.html">
+        <span class="label">Next →</span>
+        <span class="title">dataclasses advanced: field(), __post_init__, InitVar</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

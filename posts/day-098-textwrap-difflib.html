@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 098 · textwrap and difflib: text utilities you'll reach for — Learn with Pradeep</title>
+  <meta name="description" content="textwrap.dedent() cleans heredocs. textwrap.wrap() formats CLI output. difflib finds what changed between two texts — the engine behind 'git diff'.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 098 &middot; Standard library &middot; Beginner</div>
+      <h1>textwrap and difflib: text utilities you'll reach for</h1>
+      <p class="subtitle">
+        <code>textwrap.dedent()</code> cleans heredocs.
+        <code>textwrap.wrap()</code> formats CLI output.
+        <code>difflib</code> finds what changed between
+        two texts &mdash; the engine behind
+        <code>git diff</code>.
+      </p>
+      <div class="article-meta">
+        <span>8 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>textwrap.dedent()</code> strips common
+        leading whitespace from triple-quoted strings.
+        <code>textwrap.shorten()</code> truncates with
+        an ellipsis. <code>difflib.unified_diff()</code>
+        produces a standard unified diff between two
+        texts. <code>difflib.get_close_matches()</code>
+        finds fuzzy matches in a list of strings.</p>
+      </div>
+
+      <h2>textwrap.dedent: clean heredoc strings</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">textwrap</span>
+
+<span class="tok-c"># Without dedent, the indentation is part of the string:</span>
+<span class="tok-n">query</span> = <span class="tok-s">"""
+    SELECT hostname, role
+    FROM devices
+    WHERE active = true
+"""</span>
+<span class="tok-c"># Has 4 leading spaces on every line</span>
+
+<span class="tok-n">query</span> = <span class="tok-n">textwrap</span>.<span class="tok-f">dedent</span>(<span class="tok-s">"""
+    SELECT hostname, role
+    FROM devices
+    WHERE active = true
+"""</span>).<span class="tok-f">strip</span>()
+<span class="tok-c"># No leading spaces, no leading/trailing blank lines</span></code></pre>
+
+      <h2>textwrap.wrap and shorten</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">long_desc</span> = <span class="tok-s">"This device handles traffic from the access layer and..."</span>
+
+<span class="tok-c"># Wrap to 40 chars, return list of lines</span>
+<span class="tok-n">lines</span> = <span class="tok-n">textwrap</span>.<span class="tok-f">wrap</span>(<span class="tok-n">long_desc</span>, <span class="tok-n">width</span>=<span class="tok-n">40</span>)
+
+<span class="tok-c"># Wrap and join (fill is wrap + join)</span>
+<span class="tok-f">print</span>(<span class="tok-n">textwrap</span>.<span class="tok-f">fill</span>(<span class="tok-n">long_desc</span>, <span class="tok-n">width</span>=<span class="tok-n">40</span>))
+
+<span class="tok-c"># Truncate to N chars with ellipsis</span>
+<span class="tok-n">textwrap</span>.<span class="tok-f">shorten</span>(<span class="tok-n">long_desc</span>, <span class="tok-n">width</span>=<span class="tok-n">30</span>, <span class="tok-n">placeholder</span>=<span class="tok-s">"..."</span>)
+<span class="tok-c"># 'This device handles traffic...'</span></code></pre>
+
+      <h2>textwrap.indent: add a prefix to lines</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">code</span> = <span class="tok-s">"line1\nline2\nline3"</span>
+<span class="tok-f">print</span>(<span class="tok-n">textwrap</span>.<span class="tok-f">indent</span>(<span class="tok-n">code</span>, <span class="tok-s">"    "</span>))    <span class="tok-c"># add 4 spaces to each line
+# Conditional: only indent non-blank lines:</span>
+<span class="tok-f">print</span>(<span class="tok-n">textwrap</span>.<span class="tok-f">indent</span>(<span class="tok-n">code</span>, <span class="tok-s">">>> "</span>, <span class="tok-k">lambda</span> <span class="tok-n">line</span>: <span class="tok-n">line</span>.<span class="tok-f">strip</span>()))</code></pre>
+
+      <h2>difflib.unified_diff: config change detection</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">difflib</span>
+
+<span class="tok-n">old_config</span> = <span class="tok-s">"""interface gi0
+ description uplink
+ ip address 10.0.0.1 255.255.255.0
+"""</span>.<span class="tok-f">splitlines</span>(<span class="tok-n">keepends</span>=<span class="tok-k">True</span>)
+
+<span class="tok-n">new_config</span> = <span class="tok-s">"""interface gi0
+ description core-uplink
+ ip address 10.0.0.1 255.255.255.0
+ shutdown
+"""</span>.<span class="tok-f">splitlines</span>(<span class="tok-n">keepends</span>=<span class="tok-k">True</span>)
+
+<span class="tok-n">diff</span> = <span class="tok-n">difflib</span>.<span class="tok-f">unified_diff</span>(
+    <span class="tok-n">old_config</span>, <span class="tok-n">new_config</span>,
+    <span class="tok-n">fromfile</span>=<span class="tok-s">"sw-01.before"</span>,
+    <span class="tok-n">tofile</span>=<span class="tok-s">"sw-01.after"</span>,
+    <span class="tok-n">n</span>=<span class="tok-n">2</span>,     <span class="tok-c"># context lines</span>
+)
+<span class="tok-f">print</span>(<span class="tok-s">""</span>.<span class="tok-f">join</span>(<span class="tok-n">diff</span>))</code></pre>
+
+      <p>
+        Output is standard unified-diff format, the
+        same format as <code>git diff</code>. Pipe it
+        to <code>rich.syntax.Syntax</code> for
+        coloured diffs in the terminal.
+      </p>
+
+      <h2>difflib.get_close_matches: fuzzy string lookup</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">vendors</span> = [<span class="tok-s">"cisco"</span>, <span class="tok-s">"arista"</span>, <span class="tok-s">"juniper"</span>, <span class="tok-s">"huawei"</span>]
+
+<span class="tok-n">difflib</span>.<span class="tok-f">get_close_matches</span>(<span class="tok-s">"csico"</span>, <span class="tok-n">vendors</span>)     <span class="tok-c"># typo</span>
+<span class="tok-c"># ['cisco']
+
+# n= max matches, cutoff= similarity threshold (0-1)</span>
+<span class="tok-n">difflib</span>.<span class="tok-f">get_close_matches</span>(<span class="tok-s">"arst"</span>, <span class="tok-n">vendors</span>, <span class="tok-n">n</span>=<span class="tok-n">2</span>, <span class="tok-n">cutoff</span>=<span class="tok-n">0.4</span>)
+<span class="tok-c"># ['arista']</span></code></pre>
+
+      <p>
+        Useful in CLIs: when a user typos a subcommand,
+        show "did you mean X?" using
+        <code>get_close_matches</code>.
+      </p>
+
+      <h2>SequenceMatcher: similarity ratio</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">matcher</span> = <span class="tok-n">difflib</span>.<span class="tok-f">SequenceMatcher</span>(<span class="tok-k">None</span>, <span class="tok-s">"cisco"</span>, <span class="tok-s">"csico"</span>)
+<span class="tok-n">matcher</span>.<span class="tok-f">ratio</span>()    <span class="tok-c"># 0.8 — 80% similar</span>
+
+<span class="tok-c"># Detect suspiciously similar config stanzas</span>
+<span class="tok-k">def</span> <span class="tok-f">similarity</span>(<span class="tok-n">a</span>: <span class="tok-n">str</span>, <span class="tok-n">b</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">float</span>:
+    <span class="tok-k">return</span> <span class="tok-n">difflib</span>.<span class="tok-f">SequenceMatcher</span>(<span class="tok-k">None</span>, <span class="tok-n">a</span>, <span class="tok-n">b</span>).<span class="tok-f">ratio</span>()</code></pre>
+
+      <div class="callout">
+        <p>
+          For network automation, <code>unified_diff</code>
+          is invaluable for config-drift reports: "here
+          is exactly what changed between the expected
+          config and the device's running config." Pair
+          with <code>rich</code>'s syntax highlighting
+          for a readable diff report in the terminal.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Take two versions of a network device config
+          (or any two text files). Run
+          <code>difflib.unified_diff</code> and print
+          the result. Then add rich coloring: lines
+          starting with <code>+</code> in green, lines
+          starting with <code>-</code> in red. You
+          now have a config-drift tool in twenty lines.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-097-multiprocessing.html">
+        <span class="label">← Previous</span>
+        <span class="title">multiprocessing: true parallelism for CPU-bound work</span>
+      </a>
+      <a class="next" href="day-099-dis.html">
+        <span class="label">Next →</span>
+        <span class="title">dis: peek at Python bytecode</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

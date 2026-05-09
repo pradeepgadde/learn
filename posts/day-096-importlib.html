@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 096 · importlib: dynamic imports and plugin patterns — Learn with Pradeep</title>
+  <meta name="description" content="importlib.import_module() loads modules by string name at runtime. The right way to build plugin systems, driver registries, and lazy loaders.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 096 &middot; Standard library &middot; Advanced</div>
+      <h1>importlib: dynamic imports and plugin patterns</h1>
+      <p class="subtitle">
+        Load modules by string name at runtime. The right
+        way to build plugin systems, driver registries,
+        and lazy loaders.
+      </p>
+      <div class="article-meta">
+        <span>6 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>importlib.import_module("pkg.mod")</code>
+        imports a module by string name. Use it for
+        plugin systems where the module name comes from
+        config. Use
+        <code>importlib.metadata.entry_points()</code>
+        to discover installed plugins from third-party
+        packages. Both are the approved alternatives
+        to <code>__import__</code> and dynamic
+        <code>exec</code>.</p>
+      </div>
+
+      <h2>import_module: the clean dynamic import</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">importlib</span>
+
+<span class="tok-c"># Equivalent to: from myapp.drivers import cisco</span>
+<span class="tok-n">mod</span> = <span class="tok-n">importlib</span>.<span class="tok-f">import_module</span>(<span class="tok-s">"myapp.drivers.cisco"</span>)
+
+<span class="tok-c"># Relative import within a package</span>
+<span class="tok-n">mod</span> = <span class="tok-n">importlib</span>.<span class="tok-f">import_module</span>(<span class="tok-s">".cisco"</span>, <span class="tok-n">package</span>=<span class="tok-s">"myapp.drivers"</span>)
+
+<span class="tok-c"># Load by name from config</span>
+<span class="tok-n">driver_name</span> = <span class="tok-s">"cisco"</span>                     <span class="tok-c"># could come from TOML/env</span>
+<span class="tok-n">mod</span> = <span class="tok-n">importlib</span>.<span class="tok-f">import_module</span>(<span class="tok-s">f"myapp.drivers.{driver_name}"</span>)
+<span class="tok-n">driver</span> = <span class="tok-f">getattr</span>(<span class="tok-n">mod</span>, <span class="tok-s">"CiscoDriver"</span>)()</code></pre>
+
+      <h2>Plugin registry from config</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># drivers/
+# ├── __init__.py
+# ├── cisco.py      → class CiscoDriver
+# ├── arista.py     → class AristaDriver
+# └── juniper.py    → class JuniperDriver</span>
+
+<span class="tok-k">def</span> <span class="tok-f">load_driver</span>(<span class="tok-n">vendor</span>: <span class="tok-n">str</span>):
+    <span class="tok-k">try</span>:
+        <span class="tok-n">mod</span> = <span class="tok-n">importlib</span>.<span class="tok-f">import_module</span>(<span class="tok-s">f".{vendor}"</span>, <span class="tok-s">"myapp.drivers"</span>)
+    <span class="tok-k">except</span> <span class="tok-n">ModuleNotFoundError</span>:
+        <span class="tok-k">raise</span> <span class="tok-f">ValueError</span>(<span class="tok-s">f"No driver for vendor '{vendor}'"</span>)
+    <span class="tok-n">class_name</span> = <span class="tok-s">f"{vendor.capitalize()}Driver"</span>
+    <span class="tok-k">return</span> <span class="tok-f">getattr</span>(<span class="tok-n">mod</span>, <span class="tok-n">class_name</span>)
+
+<span class="tok-n">DriverClass</span> = <span class="tok-f">load_driver</span>(<span class="tok-s">"cisco"</span>)
+<span class="tok-n">driver</span>      = <span class="tok-f">DriverClass</span>(<span class="tok-n">host</span>=<span class="tok-s">"10.0.0.1"</span>)</code></pre>
+
+      <h2>Entry points: discover installed plugins</h2>
+
+      <p>
+        The modern pattern for third-party plugins: the
+        plugin registers an entry point in its
+        <code>pyproject.toml</code>; your app discovers
+        them at runtime via
+        <code>importlib.metadata</code>.
+      </p>
+
+<pre class="code"><span class="code-label">toml</span><code><span class="tok-c"># In the plugin's pyproject.toml:</span>
+[project.entry-points."myapp.drivers"]
+vendor-x = "vendor_x_driver:XDriver"</code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">importlib</span>.<span class="tok-n">metadata</span> <span class="tok-k">import</span> <span class="tok-n">entry_points</span>
+
+<span class="tok-c"># Discover all installed drivers</span>
+<span class="tok-n">drivers</span> = {}
+<span class="tok-k">for</span> <span class="tok-n">ep</span> <span class="tok-k">in</span> <span class="tok-f">entry_points</span>(<span class="tok-n">group</span>=<span class="tok-s">"myapp.drivers"</span>):
+    <span class="tok-n">drivers</span>[<span class="tok-n">ep</span>.<span class="tok-n">name</span>] = <span class="tok-n">ep</span>.<span class="tok-f">load</span>()    <span class="tok-c"># imports and returns the class</span>
+
+<span class="tok-c"># Any package that declares the entry point is auto-discovered</span>
+<span class="tok-c"># — no config change required in the host app</span></code></pre>
+
+      <p>
+        This is how pytest discovers plugins, how
+        Celery finds task modules, how click finds
+        extensions. Install a package; it just works.
+      </p>
+
+      <h2>importlib.resources: read package data files</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">importlib</span>.<span class="tok-n">resources</span> <span class="tok-k">import</span> <span class="tok-n">files</span>
+
+<span class="tok-c"># Read a file bundled inside a package (works in wheels too)</span>
+<span class="tok-n">text</span> = (<span class="tok-f">files</span>(<span class="tok-s">"myapp"</span>) / <span class="tok-s">"data"</span> / <span class="tok-s">"templates.json"</span>).<span class="tok-f">read_text</span>()
+<span class="tok-c"># Replaces the old pkg_resources.resource_string() pattern</span></code></pre>
+
+      <h2>importlib.util: introspect and spec-load</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">importlib</span>.<span class="tok-n">util</span>
+
+<span class="tok-c"># Check if a module is available without importing it</span>
+<span class="tok-k">def</span> <span class="tok-f">is_installed</span>(<span class="tok-n">name</span>: <span class="tok-n">str</span>) -&gt; <span class="tok-n">bool</span>:
+    <span class="tok-k">return</span> <span class="tok-n">importlib</span>.<span class="tok-n">util</span>.<span class="tok-f">find_spec</span>(<span class="tok-n">name</span>) <span class="tok-k">is</span> <span class="tok-k">not</span> <span class="tok-k">None</span>
+
+<span class="tok-f">is_installed</span>(<span class="tok-s">"httpx"</span>)    <span class="tok-c"># True if httpx is installed</span>
+<span class="tok-f">is_installed</span>(<span class="tok-s">"numpy"</span>)    <span class="tok-c"># True or False</span></code></pre>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-c"># Load a .py file from an arbitrary path</span>
+<span class="tok-n">spec</span>   = <span class="tok-n">importlib</span>.<span class="tok-n">util</span>.<span class="tok-f">spec_from_file_location</span>(<span class="tok-s">"plugin"</span>, <span class="tok-s">"/tmp/myplugin.py"</span>)
+<span class="tok-n">module</span> = <span class="tok-n">importlib</span>.<span class="tok-n">util</span>.<span class="tok-f">module_from_spec</span>(<span class="tok-n">spec</span>)
+<span class="tok-n">spec</span>.<span class="tok-n">loader</span>.<span class="tok-f">exec_module</span>(<span class="tok-n">module</span>)</code></pre>
+
+      <div class="callout warn">
+        <p>
+          Loading arbitrary <code>.py</code> files from
+          disk with <code>spec_from_file_location</code>
+          executes them. Only do this for files you
+          trust. Plugin systems that load third-party
+          packages via entry points are safer &mdash;
+          the user consciously installed the package.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Add an entry point to a small package you
+          own. In the consuming app, use
+          <code>entry_points(group="your.group")</code>
+          to discover and load it. Install the package
+          in dev mode (<code>uv pip install -e .</code>),
+          verify discovery works, then uninstall it
+          and verify it disappears from the list.
+          That's the full plugin lifecycle in five
+          minutes.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-095-inspect.html">
+        <span class="label">← Previous</span>
+        <span class="title">inspect: introspect functions, classes, and frames</span>
+      </a>
+      <a class="next" href="day-097-multiprocessing.html">
+        <span class="label">Next →</span>
+        <span class="title">multiprocessing: true parallelism for CPU-bound work</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

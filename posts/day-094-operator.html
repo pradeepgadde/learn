@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 094 · operator: itemgetter, attrgetter, methodcaller — Learn with Pradeep</title>
+  <meta name="description" content="The operator module gives you function forms of Python operators. Use itemgetter and attrgetter as fast, readable sort keys instead of lambdas.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 094 &middot; Standard library &middot; Intermediate</div>
+      <h1>operator: itemgetter, attrgetter, methodcaller</h1>
+      <p class="subtitle">
+        Function forms of Python operators.
+        <code>itemgetter</code> and
+        <code>attrgetter</code> as fast, readable sort
+        keys instead of lambdas.
+      </p>
+      <div class="article-meta">
+        <span>4 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~2 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>operator.itemgetter("key")</code> is a
+        faster, more composable alternative to
+        <code>lambda x: x["key"]</code>. Same for
+        <code>attrgetter</code> (attribute access) and
+        <code>methodcaller</code> (method call).
+        Combine with <code>sorted()</code>,
+        <code>min()</code>, <code>max()</code>, and
+        <code>itertools.groupby()</code>.</p>
+      </div>
+
+      <h2>itemgetter: dict and sequence keys</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">operator</span> <span class="tok-k">import</span> <span class="tok-n">itemgetter</span>
+
+<span class="tok-n">devices</span> = [
+    {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-03"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"core"</span>,   <span class="tok-s">"uplinks"</span>: <span class="tok-n">4</span>},
+    {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-01"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>, <span class="tok-s">"uplinks"</span>: <span class="tok-n">2</span>},
+    {<span class="tok-s">"hostname"</span>: <span class="tok-s">"sw-02"</span>, <span class="tok-s">"role"</span>: <span class="tok-s">"access"</span>, <span class="tok-s">"uplinks"</span>: <span class="tok-n">2</span>},
+]
+
+<span class="tok-c"># Sort by role, then hostname</span>
+<span class="tok-f">sorted</span>(<span class="tok-n">devices</span>, <span class="tok-n">key</span>=<span class="tok-f">itemgetter</span>(<span class="tok-s">"role"</span>, <span class="tok-s">"hostname"</span>))
+
+<span class="tok-c"># Equivalent lambda (slower, less composable):</span>
+<span class="tok-f">sorted</span>(<span class="tok-n">devices</span>, <span class="tok-n">key</span>=<span class="tok-k">lambda</span> <span class="tok-n">d</span>: (<span class="tok-n">d</span>[<span class="tok-s">"role"</span>], <span class="tok-n">d</span>[<span class="tok-s">"hostname"</span>]))</code></pre>
+
+      <p>
+        When you pass multiple keys to
+        <code>itemgetter</code>, it returns a tuple.
+        Multi-key sorting in one call, no lambda.
+      </p>
+
+      <h2>attrgetter: object attributes</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">operator</span> <span class="tok-k">import</span> <span class="tok-n">attrgetter</span>
+
+<span class="tok-n">devices</span> = <span class="tok-f">get_device_objects</span>()
+
+<span class="tok-c"># Sort Device objects by .site.name then .hostname</span>
+<span class="tok-f">sorted</span>(<span class="tok-n">devices</span>, <span class="tok-n">key</span>=<span class="tok-f">attrgetter</span>(<span class="tok-s">"site.name"</span>, <span class="tok-s">"hostname"</span>))
+
+<span class="tok-c"># Dotted access works — reaches into nested attributes</span>
+<span class="tok-n">get_name</span> = <span class="tok-f">attrgetter</span>(<span class="tok-s">"site.name"</span>)
+<span class="tok-f">get_name</span>(<span class="tok-n">device</span>)   <span class="tok-c"># same as device.site.name</span></code></pre>
+
+      <h2>methodcaller: call a method on each item</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">operator</span> <span class="tok-k">import</span> <span class="tok-n">methodcaller</span>
+
+<span class="tok-n">names</span> = [<span class="tok-s">"sw-Core-01"</span>, <span class="tok-s">"sw-ACCESS-02"</span>, <span class="tok-s">"rtr-Edge-01"</span>]
+
+<span class="tok-c"># Lower-case all strings</span>
+<span class="tok-f">list</span>(<span class="tok-f">map</span>(<span class="tok-f">methodcaller</span>(<span class="tok-s">"lower"</span>), <span class="tok-n">names</span>))
+<span class="tok-c"># ['sw-core-01', 'sw-access-02', 'rtr-edge-01']
+
+# With arguments — strip a specific character</span>
+<span class="tok-f">list</span>(<span class="tok-f">map</span>(<span class="tok-f">methodcaller</span>(<span class="tok-s">"strip"</span>, <span class="tok-s">"sw-"</span>), <span class="tok-n">names</span>))</code></pre>
+
+      <h2>Pair with groupby</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">itertools</span> <span class="tok-k">import</span> <span class="tok-n">groupby</span>
+<span class="tok-k">from</span> <span class="tok-n">operator</span>  <span class="tok-k">import</span> <span class="tok-n">itemgetter</span>
+
+<span class="tok-n">by_role</span> = <span class="tok-f">itemgetter</span>(<span class="tok-s">"role"</span>)
+<span class="tok-n">devices</span>.<span class="tok-f">sort</span>(<span class="tok-n">key</span>=<span class="tok-n">by_role</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">role</span>, <span class="tok-n">group</span> <span class="tok-k">in</span> <span class="tok-f">groupby</span>(<span class="tok-n">devices</span>, <span class="tok-n">key</span>=<span class="tok-n">by_role</span>):
+    <span class="tok-f">print</span>(<span class="tok-n">role</span>, <span class="tok-f">list</span>(<span class="tok-n">group</span>))</code></pre>
+
+      <h2>Operator functions for arithmetic</h2>
+
+      <p>
+        Every Python operator has a function form.
+        Useful with <code>functools.reduce</code> or
+        when you need to pass an operator as a callable.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">operator</span>, <span class="tok-n">functools</span>
+
+<span class="tok-c"># Sum a list via reduce (contrived but illustrative)</span>
+<span class="tok-n">functools</span>.<span class="tok-f">reduce</span>(<span class="tok-n">operator</span>.<span class="tok-n">add</span>, [<span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span>, <span class="tok-n">4</span>])    <span class="tok-c"># 10</span>
+<span class="tok-n">functools</span>.<span class="tok-f">reduce</span>(<span class="tok-n">operator</span>.<span class="tok-n">mul</span>, [<span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span>, <span class="tok-n">4</span>])    <span class="tok-c"># 24
+
+# Available: add, sub, mul, truediv, floordiv, mod, pow
+#            and_, or_, not_, lt, le, eq, ne, gt, ge
+#            getitem, setitem, delitem, length_hint</span></code></pre>
+
+      <div class="callout">
+        <p>
+          <code>itemgetter</code> and
+          <code>attrgetter</code> are implemented in C
+          in CPython, so they're measurably faster than
+          equivalent lambdas on large collections.
+          For small lists the difference is noise; for
+          data-processing pipelines over millions of
+          records it adds up.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a <code>sorted(..., key=lambda x:
+          x["field"])</code> in your code. Replace with
+          <code>itemgetter("field")</code>. Find a
+          multi-key sort with a lambda returning a
+          tuple. Replace with
+          <code>itemgetter("a", "b")</code>. Each one
+          is a small readability win and a minor speed
+          win.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-093-dataclasses-advanced.html">
+        <span class="label">← Previous</span>
+        <span class="title">dataclasses advanced: field(), __post_init__, InitVar</span>
+      </a>
+      <a class="next" href="day-095-inspect.html">
+        <span class="label">Next →</span>
+        <span class="title">inspect: introspect functions, classes, and frames</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

@@ -33,7 +33,7 @@
      here (and update the @import URL above) — that's the only edit needed. */
   --font-brand:   'Caveat', 'Segoe Script', 'Bradley Hand', cursive;
 
-  --max-w:        78ch;
+  --max-w:        100ch;
   --gutter:       clamp(1.25rem, 4vw, 4rem);
 }
 

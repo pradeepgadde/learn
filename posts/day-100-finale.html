@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 100 · One hundred days of Python — Learn with Pradeep</title>
+  <meta name="description" content="100 days. 100 ideas. From f-strings to bytecode, dataclasses to Docker, pytest to PyPI. A map of the ground covered and what comes next.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 100 &middot; Milestone &middot; All levels</div>
+      <h1>One hundred days of Python</h1>
+      <p class="subtitle">
+        100 days. 100 ideas. A map of the ground
+        covered &mdash; and what to build with it.
+      </p>
+      <div class="article-meta">
+        <span>10 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.11+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>100 posts, one concept each day. Not
+        exhaustive &mdash; every post was a door, not
+        a wall. The measure isn't whether you remember
+        all 100 tools; it's whether you now reach for
+        the right one faster than before.</p>
+      </div>
+
+      <p>
+        In January we started with the language itself:
+        f-strings, pathlib, generators, type hints.
+        By February we were hardening production code
+        &mdash; pydantic, tenacity, mypy, structlog,
+        concurrent.futures. March brought the web
+        layer: FastAPI, WebSockets, OpenTelemetry,
+        Docker, GitHub Actions, and the full test
+        stack. April closed the loop with stdlib
+        internals: the AST, importlib, the
+        <code>operator</code> module, bytecode.
+      </p>
+
+      <h2>The map: 100 ideas by track</h2>
+
+      <p><strong>Language core</strong> (Days 1–21): f-strings,
+      pathlib, Counter, dict.get, enumerate, walrus,
+      dataclasses, @cache, batched, contextmanager,
+      match, type hints, subprocess, argparse, JSON/YAML,
+      logging, httpx, pytest, uv, generators, comprehensions.</p>
+
+      <p><strong>Networking</strong> (Days 22–31): ipaddress, socket,
+      paramiko/netmiko, asyncssh, Jinja2, Scapy, TextFSM,
+      pyATS/Genie, NETCONF/ncclient, rich.</p>
+
+      <p><strong>Production hardening</strong> (Days 32–59): pydantic,
+      tenacity, structlog, cProfile, csv, sqlite3,
+      concurrent.futures, asyncio.gather, exception groups,
+      ruff, mypy, __slots__, weakref, heapq, bisect, deque,
+      itertools, functools, typer, zoneinfo, hashlib,
+      secrets, tempfile, shutil, glob, re,
+      dataclasses+JSON, advanced pathlib.</p>
+
+      <p><strong>Web &amp; observability</strong> (Days 60–90): FastAPI,
+      ASGI, pydantic deep cuts, SQLAlchemy 2, Alembic,
+      middleware, WebSockets, background tasks,
+      OpenTelemetry, prometheus_client, Sentry, health
+      checks, graceful shutdown, Docker, multi-stage
+      builds, GitHub Actions CI, pre-commit, pytest
+      fixtures, parametrize, hypothesis, factory_boy,
+      respx, testcontainers, hatch, PyPI publishing,
+      type stubs, dunders, ABCs/Protocols, contextvars,
+      StringIO/BytesIO, IPython.</p>
+
+      <p><strong>Stdlib internals &amp; advanced patterns</strong> (Days 91–99):
+      tomllib, ast, dataclasses advanced, operator,
+      inspect, importlib, multiprocessing,
+      textwrap/difflib, dis.</p>
+
+      <h2>What this vocabulary enables</h2>
+
+      <p>
+        These aren't isolated tricks. They compose. A
+        realistic task: "poll 200 network devices, parse
+        the output, diff against last state, raise an
+        alert if drift exceeds a threshold, publish
+        metrics, and ship a report." A hundred days ago
+        you'd reach for bash and hope. Now you have
+        vocabulary for every part:
+        asyncssh + TextFSM + difflib + pydantic +
+        prometheus_client + structlog + hatch to
+        package it.
+      </p>
+
+      <h2>What to do next</h2>
+
+      <p>
+        Reading is the slowest way to learn programming.
+        The fastest: pick one real problem, build it,
+        break it, fix it. Some concrete ideas:
+      </p>
+
+      <ul>
+        <li><strong>Build a config drift detector.</strong> Poll devices with asyncssh, parse with TextFSM or Genie, diff against a golden config with difflib, push alerts to a webhook. Every skill from this series applies.</li>
+        <li><strong>Publish a small package.</strong> Pick the most useful script you've written, wrap it with typer, package it with hatch, publish to PyPI with trusted publishing. The full workflow in one afternoon.</li>
+        <li><strong>Write a FastAPI service you actually use.</strong> Add pydantic models, SQLAlchemy persistence, OpenTelemetry tracing, a Dockerfile, and a GitHub Actions pipeline. Keep it small; keep it running.</li>
+        <li><strong>Contribute to an open-source project.</strong> Find a bug or missing test in a library you use. The ast, inspect, and importlib days give you the vocabulary to read someone else's framework internals.</li>
+      </ul>
+
+      <h2>The tools that came up most</h2>
+
+      <p>
+        If you could only remember ten from this series:
+        pydantic, httpx, structlog, pytest, ruff,
+        pathlib, asyncio, FastAPI, mypy, and uv.
+        Those nine cover 80% of real Python work.
+        Everything else makes that 80% better.
+      </p>
+
+      <div class="callout">
+        <p>
+          Ninety nine of these posts introduced a tool.
+          This one doesn't. The habit of picking up a
+          new stdlib module or third-party library,
+          spending thirty minutes with the docs and
+          a REPL, and deciding whether it belongs in
+          your toolkit &mdash; that's the real skill.
+          Not the 100 names, but the confidence to
+          add number 101 whenever you need it.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-099-dis.html">
+        <span class="label">← Previous</span>
+        <span class="title">dis: peek at Python bytecode</span>
+      </a>
+      <a class="next" href="/learn/">
+        <span class="label">↑ Back to all entries</span>
+        <span class="title">The full 100-day archive</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

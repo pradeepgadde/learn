@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 097 · multiprocessing: true parallelism for CPU-bound work — Learn with Pradeep</title>
+  <meta name="description" content="The GIL blocks threads for CPU work. multiprocessing sidesteps it with real OS processes. Pool, Queue, shared memory — and when to reach for each.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 097 &middot; Standard library &middot; Advanced</div>
+      <h1>multiprocessing: true parallelism for CPU-bound work</h1>
+      <p class="subtitle">
+        The GIL blocks threads for CPU work.
+        <code>multiprocessing</code> sidesteps it with
+        real OS processes. Pool, Queue, shared memory
+        &mdash; and when to reach for each.
+      </p>
+      <div class="article-meta">
+        <span>7 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p>Threads don't parallelise CPU-bound work in
+        CPython because of the GIL. Use
+        <code>multiprocessing.Pool</code> (or
+        <code>concurrent.futures.ProcessPoolExecutor</code>
+        from Day 038) for embarrassingly parallel
+        number-crunching. Use
+        <code>multiprocessing.Queue</code> for
+        inter-process communication. In Python 3.13+
+        the GIL becomes optional &mdash; but for now,
+        processes are the answer.</p>
+      </div>
+
+      <h2>Pool.map: the simple case</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">multiprocessing</span> <span class="tok-k">import</span> <span class="tok-n">Pool</span>
+<span class="tok-k">import</span> <span class="tok-n">os</span>
+
+<span class="tok-k">def</span> <span class="tok-f">crunch</span>(<span class="tok-n">n</span>: <span class="tok-n">int</span>) -&gt; <span class="tok-n">int</span>:
+    <span class="tok-c"># CPU-heavy work — sum of all divisors</span>
+    <span class="tok-k">return</span> <span class="tok-f">sum</span>(<span class="tok-n">i</span> <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">1</span>, <span class="tok-n">n</span>) <span class="tok-k">if</span> <span class="tok-n">n</span> % <span class="tok-n">i</span> == <span class="tok-n">0</span>)
+
+<span class="tok-k">if</span> <span class="tok-n">__name__</span> == <span class="tok-s">"__main__"</span>:          <span class="tok-c"># required on Windows/macOS</span>
+    <span class="tok-n">numbers</span> = <span class="tok-f">list</span>(<span class="tok-f">range</span>(<span class="tok-n">1</span>, <span class="tok-n">100_000</span>, <span class="tok-n">1000</span>))
+    <span class="tok-k">with</span> <span class="tok-f">Pool</span>() <span class="tok-k">as</span> <span class="tok-n">pool</span>:               <span class="tok-c"># default: one process per CPU core</span>
+        <span class="tok-n">results</span> = <span class="tok-n">pool</span>.<span class="tok-f">map</span>(<span class="tok-n">crunch</span>, <span class="tok-n">numbers</span>)</code></pre>
+
+      <p>
+        <code>pool.map</code> blocks until all results
+        are ready. For a streaming variant that yields
+        as results arrive: <code>pool.imap_unordered</code>.
+      </p>
+
+      <h2>ProcessPoolExecutor: the futures API</h2>
+
+      <p>
+        <code>concurrent.futures.ProcessPoolExecutor</code>
+        (Day 038) has the same performance but a nicer
+        API for mixed thread/process codebases.
+      </p>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">concurrent</span>.<span class="tok-n">futures</span> <span class="tok-k">import</span> <span class="tok-n">ProcessPoolExecutor</span>, <span class="tok-n">as_completed</span>
+
+<span class="tok-k">with</span> <span class="tok-f">ProcessPoolExecutor</span>() <span class="tok-k">as</span> <span class="tok-n">ex</span>:
+    <span class="tok-n">futures</span> = {<span class="tok-n">ex</span>.<span class="tok-f">submit</span>(<span class="tok-n">crunch</span>, <span class="tok-n">n</span>): <span class="tok-n">n</span> <span class="tok-k">for</span> <span class="tok-n">n</span> <span class="tok-k">in</span> <span class="tok-n">numbers</span>}
+    <span class="tok-k">for</span> <span class="tok-n">fut</span> <span class="tok-k">in</span> <span class="tok-f">as_completed</span>(<span class="tok-n">futures</span>):
+        <span class="tok-n">n</span>      = <span class="tok-n">futures</span>[<span class="tok-n">fut</span>]
+        <span class="tok-n">result</span> = <span class="tok-n">fut</span>.<span class="tok-f">result</span>()
+        <span class="tok-f">print</span>(<span class="tok-s">f"{n} → {result}"</span>)</code></pre>
+
+      <h2>Queue: producer-consumer across processes</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">multiprocessing</span> <span class="tok-k">import</span> <span class="tok-n">Process</span>, <span class="tok-n">Queue</span>
+
+<span class="tok-k">def</span> <span class="tok-f">producer</span>(<span class="tok-n">q</span>: <span class="tok-n">Queue</span>):
+    <span class="tok-k">for</span> <span class="tok-n">i</span> <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">10</span>):
+        <span class="tok-n">q</span>.<span class="tok-f">put</span>(<span class="tok-n">i</span>)
+    <span class="tok-n">q</span>.<span class="tok-f">put</span>(<span class="tok-k">None</span>)   <span class="tok-c"># sentinel</span>
+
+<span class="tok-k">def</span> <span class="tok-f">consumer</span>(<span class="tok-n">q</span>: <span class="tok-n">Queue</span>):
+    <span class="tok-k">while</span> (<span class="tok-n">item</span> := <span class="tok-n">q</span>.<span class="tok-f">get</span>()) <span class="tok-k">is</span> <span class="tok-k">not</span> <span class="tok-k">None</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">f"got {item}"</span>)
+
+<span class="tok-k">if</span> <span class="tok-n">__name__</span> == <span class="tok-s">"__main__"</span>:
+    <span class="tok-n">q</span> = <span class="tok-f">Queue</span>()
+    <span class="tok-n">p</span> = <span class="tok-f">Process</span>(<span class="tok-n">target</span>=<span class="tok-n">producer</span>, <span class="tok-n">args</span>=(<span class="tok-n">q</span>,))
+    <span class="tok-n">c</span> = <span class="tok-f">Process</span>(<span class="tok-n">target</span>=<span class="tok-n">consumer</span>, <span class="tok-n">args</span>=(<span class="tok-n">q</span>,))
+    <span class="tok-n">p</span>.<span class="tok-f">start</span>(); <span class="tok-n">c</span>.<span class="tok-f">start</span>()
+    <span class="tok-n">p</span>.<span class="tok-f">join</span>();  <span class="tok-n">c</span>.<span class="tok-f">join</span>()</code></pre>
+
+      <h2>Shared memory: zero-copy large arrays</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">from</span> <span class="tok-n">multiprocessing</span>.<span class="tok-n">shared_memory</span> <span class="tok-k">import</span> <span class="tok-n">SharedMemory</span>
+<span class="tok-k">import</span> <span class="tok-n">numpy</span> <span class="tok-k">as</span> <span class="tok-n">np</span>
+
+<span class="tok-c"># Parent creates a shared array</span>
+<span class="tok-n">shm</span> = <span class="tok-f">SharedMemory</span>(<span class="tok-n">create</span>=<span class="tok-k">True</span>, <span class="tok-n">size</span>=<span class="tok-n">1_000_000</span> * <span class="tok-n">8</span>)
+<span class="tok-n">arr</span> = <span class="tok-n">np</span>.<span class="tok-f">ndarray</span>((<span class="tok-n">1_000_000</span>,), <span class="tok-n">dtype</span>=<span class="tok-n">np</span>.<span class="tok-n">float64</span>, <span class="tok-n">buffer</span>=<span class="tok-n">shm</span>.<span class="tok-n">buf</span>)
+<span class="tok-n">arr</span>[:<span class="tok-n">5</span>] = [<span class="tok-n">1.0</span>, <span class="tok-n">2.0</span>, <span class="tok-n">3.0</span>, <span class="tok-n">4.0</span>, <span class="tok-n">5.0</span>]
+
+<span class="tok-c"># Child processes attach by name — no pickling 1M floats</span>
+<span class="tok-k">def</span> <span class="tok-f">worker</span>(<span class="tok-n">shm_name</span>):
+    <span class="tok-n">shm2</span> = <span class="tok-f">SharedMemory</span>(<span class="tok-n">name</span>=<span class="tok-n">shm_name</span>)
+    <span class="tok-n">arr2</span> = <span class="tok-n">np</span>.<span class="tok-f">ndarray</span>((<span class="tok-n">1_000_000</span>,), <span class="tok-n">dtype</span>=<span class="tok-n">np</span>.<span class="tok-n">float64</span>, <span class="tok-n">buffer</span>=<span class="tok-n">shm2</span>.<span class="tok-n">buf</span>)
+    <span class="tok-f">print</span>(<span class="tok-n">arr2</span>[:<span class="tok-n">5</span>])   <span class="tok-c"># sees the parent's data</span>
+    <span class="tok-n">shm2</span>.<span class="tok-f">close</span>()</code></pre>
+
+      <h2>The gotchas</h2>
+
+      <ul>
+        <li><strong>Always guard with <code>if __name__ == "__main__"</code></strong> on Windows and macOS — the spawn start method re-imports the module on worker creation.</li>
+        <li><strong>Objects cross process boundaries via pickling.</strong> Lambdas, closures, and many third-party objects can't be pickled. Prefer module-level functions for pool workers.</li>
+        <li><strong>Process startup is expensive</strong> (~100ms). Use pools for many tasks, not one task.</li>
+        <li><strong>In Python 3.13+</strong>, the per-interpreter GIL (PEP 703) makes threads a viable alternative for CPU work on free-threaded builds.</li>
+      </ul>
+
+      <div class="callout">
+        <p>
+          For most network-automation work the GIL
+          doesn't matter &mdash; SSH and NETCONF are
+          I/O bound and asyncio handles them perfectly.
+          Reach for <code>multiprocessing</code> when
+          you're crunching parsed data (TextFSM output,
+          route tables, config diffs) across hundreds
+          of devices simultaneously.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Find a loop that runs the same pure function
+          on many independent inputs. Replace with
+          <code>ProcessPoolExecutor.map()</code>. Time
+          both with <code>%timeit</code> in IPython.
+          On a 4-core machine, expect ~3x speedup on
+          genuinely CPU-bound work.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-096-importlib.html">
+        <span class="label">← Previous</span>
+        <span class="title">importlib: dynamic imports and plugin patterns</span>
+      </a>
+      <a class="next" href="day-098-textwrap-difflib.html">
+        <span class="label">Next →</span>
+        <span class="title">textwrap and difflib: text utilities you'll reach for</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>

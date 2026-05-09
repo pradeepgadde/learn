@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day 095 · inspect: introspect functions, classes, and frames — Learn with Pradeep</title>
+  <meta name="description" content="The inspect module reads live Python objects: signatures, source code, call stacks, and class hierarchies. The foundation of most Python framework magic.">
+  <link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">Pradeep Gadde</a>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/blog/">Blog</a>
+      <a href="/learn/">Learn</a>
+    </nav>
+  </header>
+
+  <article class="article">
+    <header class="article-header">
+      <div class="day-marker">Day 095 &middot; Standard library &middot; Advanced</div>
+      <h1>inspect: introspect functions, classes, and frames</h1>
+      <p class="subtitle">
+        Read live Python objects: signatures, source code,
+        call stacks, class hierarchies. The foundation of
+        most Python framework magic.
+      </p>
+      <div class="article-meta">
+        <span>5 Apr 2026</span>
+        <span class="dot">&bull;</span>
+        <span>~3 min read</span>
+        <span class="dot">&bull;</span>
+        <span>Python 3.8+</span>
+      </div>
+    </header>
+
+    <div class="article-body">
+
+      <div class="tldr">
+        <div class="tldr-label">TL;DR</div>
+        <p><code>inspect.signature(fn)</code> gives you
+        parameter names and defaults. <code>inspect
+        .getsource(obj)</code> returns the source.
+        <code>inspect.stack()</code> walks the call
+        stack. FastAPI uses <code>inspect.signature</code>
+        to derive dependency injection from function
+        signatures &mdash; this is how that magic works.</p>
+      </div>
+
+      <h2>Signatures: parameter names and defaults</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">inspect</span>
+
+<span class="tok-k">def</span> <span class="tok-f">connect</span>(<span class="tok-n">host</span>: <span class="tok-n">str</span>, <span class="tok-n">port</span>: <span class="tok-n">int</span> = <span class="tok-n">22</span>, <span class="tok-n">timeout</span>: <span class="tok-n">float</span> = <span class="tok-n">30.0</span>) -&gt; <span class="tok-n">None</span>: ...
+
+<span class="tok-n">sig</span> = <span class="tok-n">inspect</span>.<span class="tok-f">signature</span>(<span class="tok-n">connect</span>)
+
+<span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">param</span> <span class="tok-k">in</span> <span class="tok-n">sig</span>.<span class="tok-n">parameters</span>.<span class="tok-f">items</span>():
+    <span class="tok-f">print</span>(<span class="tok-n">name</span>, <span class="tok-n">param</span>.<span class="tok-n">annotation</span>, <span class="tok-n">param</span>.<span class="tok-n">default</span>)
+<span class="tok-c"># host  &lt;class 'str'&gt;   &lt;class 'inspect._empty'&gt;
+# port  &lt;class 'int'&gt;   22
+# timeout &lt;class 'float'&gt; 30.0</span>
+
+<span class="tok-c"># Bind arguments to parameters (validates arity):</span>
+<span class="tok-n">bound</span> = <span class="tok-n">sig</span>.<span class="tok-f">bind</span>(<span class="tok-s">"10.0.0.1"</span>, <span class="tok-n">timeout</span>=<span class="tok-n">10.0</span>)
+<span class="tok-n">bound</span>.<span class="tok-f">apply_defaults</span>()
+<span class="tok-n">bound</span>.<span class="tok-n">arguments</span>   <span class="tok-c"># {'host': '10.0.0.1', 'port': 22, 'timeout': 10.0}</span></code></pre>
+
+      <p>
+        This is exactly what FastAPI does: it reads
+        your endpoint function's signature, notices the
+        parameters, and wires up the query params,
+        path variables, and <code>Depends()</code>
+        accordingly.
+      </p>
+
+      <h2>Type predicates: is this a class? async? coroutine?</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-n">inspect</span>.<span class="tok-f">isfunction</span>(<span class="tok-n">connect</span>)         <span class="tok-c"># True</span>
+<span class="tok-n">inspect</span>.<span class="tok-f">isclass</span>(<span class="tok-n">int</span>)                  <span class="tok-c"># True</span>
+<span class="tok-n">inspect</span>.<span class="tok-f">ismethod</span>(<span class="tok-n">obj</span>.<span class="tok-n">method</span>)         <span class="tok-c"># True for bound methods</span>
+<span class="tok-n">inspect</span>.<span class="tok-f">iscoroutinefunction</span>(<span class="tok-n">fn</span>)        <span class="tok-c"># True if async def</span>
+<span class="tok-n">inspect</span>.<span class="tok-f">isgeneratorfunction</span>(<span class="tok-n">fn</span>)        <span class="tok-c"># True if uses yield</span>
+<span class="tok-n">inspect</span>.<span class="tok-f">isbuiltin</span>(<span class="tok-n">len</span>)               <span class="tok-c"># True</span></code></pre>
+
+      <h2>getsource: read live source</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-f">print</span>(<span class="tok-n">inspect</span>.<span class="tok-f">getsource</span>(<span class="tok-n">connect</span>))
+
+<span class="tok-c"># Works on classes, modules, and even lambdas
+# (though lambdas are always on one line)</span>
+<span class="tok-f">print</span>(<span class="tok-n">inspect</span>.<span class="tok-f">getsourcefile</span>(<span class="tok-n">connect</span>))  <span class="tok-c"># path to the file</span>
+<span class="tok-f">print</span>(<span class="tok-n">inspect</span>.<span class="tok-f">getsourcelines</span>(<span class="tok-n">connect</span>)) <span class="tok-c"># (lines, start_lineno)</span></code></pre>
+
+      <h2>getmembers: explore a class or module</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">pathlib</span>
+
+<span class="tok-c"># All public methods of pathlib.Path</span>
+<span class="tok-n">methods</span> = [
+    <span class="tok-n">name</span>
+    <span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">obj</span> <span class="tok-k">in</span> <span class="tok-n">inspect</span>.<span class="tok-f">getmembers</span>(<span class="tok-n">pathlib</span>.<span class="tok-n">Path</span>)
+    <span class="tok-k">if</span> <span class="tok-n">inspect</span>.<span class="tok-f">isfunction</span>(<span class="tok-n">obj</span>) <span class="tok-k">and</span> <span class="tok-k">not</span> <span class="tok-n">name</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"_"</span>)
+]</code></pre>
+
+      <h2>stack(): the call stack</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">inspect</span>
+
+<span class="tok-k">def</span> <span class="tok-f">who_called_me</span>():
+    <span class="tok-n">frame_info</span> = <span class="tok-n">inspect</span>.<span class="tok-f">stack</span>()[<span class="tok-n">1</span>]   <span class="tok-c"># [0] is us, [1] is caller</span>
+    <span class="tok-k">return</span> <span class="tok-s">f"{frame_info.filename}:{frame_info.lineno} in {frame_info.function}"</span>
+
+<span class="tok-k">def</span> <span class="tok-f">outer</span>():
+    <span class="tok-f">print</span>(<span class="tok-f">who_called_me</span>())   <span class="tok-c"># prints "script.py:N in outer"</span></code></pre>
+
+      <p>
+        <code>inspect.stack()</code> is how debuggers,
+        profilers, and structured loggers attach call
+        context to records. Expensive &mdash; don't
+        call it in hot loops.
+      </p>
+
+      <h2>A practical use: auto-register handlers</h2>
+
+<pre class="code"><span class="code-label">python</span><code><span class="tok-k">import</span> <span class="tok-n">inspect</span>, <span class="tok-n">sys</span>
+
+<span class="tok-k">def</span> <span class="tok-f">register_handlers</span>(<span class="tok-n">module</span>):
+    <span class="tok-s">"""Find all functions named handle_* in a module."""</span>
+    <span class="tok-k">return</span> {
+        <span class="tok-n">name</span>: <span class="tok-n">obj</span>
+        <span class="tok-k">for</span> <span class="tok-n">name</span>, <span class="tok-n">obj</span> <span class="tok-k">in</span> <span class="tok-n">inspect</span>.<span class="tok-f">getmembers</span>(<span class="tok-n">module</span>, <span class="tok-n">inspect</span>.<span class="tok-n">isfunction</span>)
+        <span class="tok-k">if</span> <span class="tok-n">name</span>.<span class="tok-f">startswith</span>(<span class="tok-s">"handle_"</span>)
+    }
+
+<span class="tok-n">handlers</span> = <span class="tok-f">register_handlers</span>(<span class="tok-n">sys</span>.<span class="tok-n">modules</span>[<span class="tok-n">__name__</span>])</code></pre>
+
+      <div class="callout warn">
+        <p>
+          <code>inspect.stack()</code> acquires the GIL
+          and walks all live frames. In async code,
+          prefer <code>traceback.format_stack()</code>
+          or structured logging with context vars (Day
+          088). <code>getsource()</code> reads disk — cache
+          it if called frequently.
+        </p>
+      </div>
+
+      <div class="challenge">
+        <p>
+          Run <code>inspect.signature()</code> on a
+          FastAPI endpoint function. Look at the
+          parameters. Notice how FastAPI's parameter
+          injection maps to exactly what
+          <code>sig.parameters</code> returns. Then
+          read the FastAPI source for
+          <code>solve_dependencies</code> &mdash;
+          it's all <code>inspect.signature</code> calls.
+        </p>
+      </div>
+
+    </div>
+
+    <nav class="article-nav">
+      <a class="prev" href="day-094-operator.html">
+        <span class="label">← Previous</span>
+        <span class="title">operator: itemgetter, attrgetter, methodcaller</span>
+      </a>
+      <a class="next" href="day-096-importlib.html">
+        <span class="label">Next →</span>
+        <span class="title">importlib: dynamic imports and plugin patterns</span>
+      </a>
+    </nav>
+  </article>
+
+  <footer class="footer">
+    Made by <a href="/">Pradeep Gadde</a> &middot;
+    <a href="/learn/">Back to all entries</a>
+  </footer>
+</body>
+</html>
